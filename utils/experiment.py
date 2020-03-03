@@ -12,7 +12,7 @@ import wandb
 
 class Experiment:
 
-    def __init__(self, algo, dataset, params, path="", wandb=False):
+    def __init__(self, algo, dataset, params, path="", use_wandb=False):
 
         self.params = params
         # Make sure all experiments have a seed
@@ -37,7 +37,7 @@ class Experiment:
         self.save_logs_to_file()
 
         # Optionally, use Weights and Biases to monitor performance
-        if wandb:
+        if use_wandb:
             self._use_wandb = True
             self._wandb = wandb.init(project="l2l", id=self.logger['model_id'])
         else:
@@ -71,4 +71,4 @@ class Experiment:
     def save_model(self, model):
         torch.save(model.state_dict(), self.model_path + '/model.pt')
         if self._use_wandb:
-            torch.save(model.state_dict(), os.path.join(self._wandb.run.dir, 'model.pt'))
+            torch.save(model.state_dict(), os.path.join(wandb.run.dir, 'model.pt'))
