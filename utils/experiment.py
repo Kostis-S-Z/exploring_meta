@@ -43,10 +43,10 @@ class Experiment:
         else:
             self._use_wandb = False
 
-    def log_model(self, model, device, input_shape=None):
+    def log_model(self, model, device, input_shape=None, name="model"):
         model_info, _ = summary_string(model, input_shape, device=device)
         print(model_info)
-        with open(self.model_path + "/model.summary", "w") as file:
+        with open(self.model_path + '/' + name + '.summary', 'w') as file:
             file.write(model_info)
 
         if self._use_wandb:

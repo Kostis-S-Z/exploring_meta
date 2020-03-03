@@ -111,9 +111,11 @@ def get_mini_imagenet(ways, shots):
     return train_tasks, valid_tasks, test_tasks
 
 
-def prepare_batch(batch, shots, ways, device):
+def prepare_batch(batch, shots, ways, device, features=None):
     data, labels = batch
     data, labels = data.to(device), labels.to(device)
+    if features is not None:
+        data = features(data)
 
     # Separate data into adaptation/evalutation sets
     adaptation_indices = np.zeros(data.size(0), dtype=bool)
