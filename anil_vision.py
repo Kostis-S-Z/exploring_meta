@@ -11,20 +11,23 @@ import learn2learn as l2l
 from utils import *
 
 params = dict(
-    ways=10,
+    ways=5,
     shots=1,
     meta_lr=0.001,
     fast_lr=0.1,
+    fc_neurons=1600,
     meta_batch_size=32,
     adaptation_steps=1,
-    num_iterations=1,
+    num_iterations=200,
     seed=42,
 )
 
 dataset = "min"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
-cuda = True
+rep_test = True
+
+cuda = False
 
 wandb = False
 
@@ -67,13 +70,11 @@ class AnilVision(Experiment):
     def run(self, train_tasks, valid_tasks, test_tasks, input_shape, device):
 
         # Create model
-        fc_neurons = 1600
-
         features = l2l.vision.models.ConvBase(output_size=64, channels=3, max_pool=True)
-        features = torch.nn.Sequential(features, Lambda(lambda x: x.view(-1, fc_neurons)))
+        features = torch.nn.Sequential(features, Lambda(lambda x: x.view(-1, self.params['fc_neurons'])))
         features.to(device)
 
-        head = torch.nn.Linear(fc_neurons, self.params['ways'])
+        head = torch.nn.Linear(self.params['fc_neurons'], self.params['ways'])
         head = l2l.algorithms.MAML(head, lr=self.params['fast_lr'])
         head.to(device)
 
@@ -83,7 +84,7 @@ class AnilVision(Experiment):
         loss = torch.nn.CrossEntropyLoss(reduction='mean')
 
         self.log_model(features, device, input_shape=input_shape, name='features')  # Input shape is specific to dataset
-        head_input_shape = (5, fc_neurons)
+        head_input_shape = (5, self.params['fc_neurons'])
         self.log_model(head, device, input_shape=head_input_shape, name='head')  # Input shape is specific to dataset
 
         t = trange(self.params['num_iterations'])
@@ -100,8 +101,7 @@ class AnilVision(Experiment):
                     batch = train_tasks.sample()
                     evaluation_error, evaluation_accuracy = anil_fast_adapt(batch, learner, features, loss,
                                                                             self.params['adaptation_steps'],
-                                                                            self.params['shots'],
-                                                                            self.params['ways'],
+                                                                            self.params['shots'], self.params['ways'],
                                                                             device)
                     evaluation_error.backward()
                     meta_train_error += evaluation_error.item()
@@ -112,8 +112,7 @@ class AnilVision(Experiment):
                     batch = valid_tasks.sample()
                     evaluation_error, evaluation_accuracy = anil_fast_adapt(batch, learner, features, loss,
                                                                             self.params['adaptation_steps'],
-                                                                            self.params['shots'],
-                                                                            self.params['ways'],
+                                                                            self.params['shots'], self.params['ways'],
                                                                             device)
                     meta_valid_error += evaluation_error.item()
                     meta_valid_accuracy += evaluation_accuracy.item()
@@ -138,24 +137,8 @@ class AnilVision(Experiment):
             self.logger['manually_stopped'] = True
             self.params['num_iterations'] = iteration
 
-        # TEST REPRESENTATION
-        rep_ways = 5
-        rep_shots = 5
-        n_samples = rep_ways * rep_shots
-
-        if dataset == "omni":
-            _, _, test_rep_tasks = get_omniglot(rep_ways, rep_shots)
-        elif dataset == "min":
-            _, _, test_rep_tasks = get_mini_imagenet(rep_ways, rep_shots)
-        else:
-            print("Dataset not supported")
-            exit(2)
-
-        test_rep_batch, _, _, _ = prepare_batch(test_rep_tasks.sample(), rep_ways, rep_shots, device)
-
-        init_net_rep = features(test_rep_batch)  # Trained representation before meta-testing
-        init_rep = init_net_rep.cpu().detach().numpy()
-        init_rep = init_rep.reshape((fc_neurons * 5 * 5, 1))
+        self.save_model(features, name='features')
+        self.save_model(head, name='head')
 
         meta_test_error = 0.0
         meta_test_accuracy = 0.0
@@ -163,6 +146,52 @@ class AnilVision(Experiment):
             # Compute meta-testing loss
             learner = head.clone()
             batch = test_tasks.sample()
+
+            evaluation_error, evaluation_accuracy = anil_fast_adapt(batch, learner, features, loss,
+                                                                    self.params['adaptation_steps'],
+                                                                    self.params['shots'], self.params['ways'],
+                                                                    device)
+            meta_test_error += evaluation_error.item()
+            meta_test_accuracy += evaluation_accuracy.item()
+
+        meta_test_accuracy = meta_test_accuracy / self.params['meta_batch_size']
+        print('Meta Test Accuracy', meta_test_accuracy)
+
+        self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
+        self.logger['test_acc'] = meta_test_accuracy
+
+        if rep_test:
+            cca_res = self.representation_test(test_tasks, features, head, loss, device)
+            self.logger['cca'] = cca_res
+
+        self.save_logs_to_file()
+
+    def representation_test(self, test_rep_tasks, features, head, loss, device):
+        # TEST REPRESENTATION
+        rep_ways = 5
+        rep_shots = 1
+        n_samples = rep_ways * rep_shots
+
+        # if dataset == "omni":
+        #     _, _, test_rep_tasks = get_omniglot(rep_ways, rep_shots)
+        # elif dataset == "min":
+        #     _, _, test_rep_tasks = get_mini_imagenet(rep_ways, rep_shots)
+        # else:
+        #     print("Dataset not supported")
+        #     exit(2)
+
+        test_rep_batch, _, _, _ = prepare_batch(test_rep_tasks.sample(), rep_ways, rep_shots, device)
+
+        init_net_rep = features(test_rep_batch)  # Trained representation before meta-testing
+        init_rep = init_net_rep.cpu().detach().numpy()
+        init_rep = init_rep.reshape((self.params['fc_neurons'] * n_samples, 1))
+
+        meta_test_error = 0.0
+        meta_test_accuracy = 0.0
+        for task in range(self.params['meta_batch_size']):
+            # Compute meta-testing loss
+            learner = head.clone()
+            batch = test_rep_tasks.sample()
 
             prev_net_rep = features(test_rep_batch)  # Get rep before adaptation
 
@@ -179,8 +208,8 @@ class AnilVision(Experiment):
             prev_rep = prev_net_rep.cpu().detach().numpy()
             new_rep = new_net_rep.cpu().detach().numpy()
 
-            prev_rep = prev_rep.reshape((fc_neurons * 5 * 5, 1))
-            new_rep = new_rep.reshape((fc_neurons * 5 * 5, 1))
+            prev_rep = prev_rep.reshape((self.params['fc_neurons'] * n_samples, 1))
+            new_rep = new_rep.reshape((self.params['fc_neurons'] * n_samples, 1))
 
             # cca_res = get_cca_similarity(prev_rep.T, new_rep.T, epsilon=1e-10, verbose=False)
             # cka_l_res = linear_CKA(prev_rep.T, new_rep.T)
@@ -199,13 +228,7 @@ class AnilVision(Experiment):
         # print('     Linear CKA: {:.4f}'.format(final_cka_l_res))
         # print('     Kernel CKA: {:.4f}'.format(final_cka_k_res))
 
-        meta_test_accuracy = meta_test_accuracy / self.params['meta_batch_size']
-        print('Meta Test Accuracy', meta_test_accuracy)
-
-        self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
-        self.logger['test_acc'] = meta_test_accuracy
-        self.save_logs_to_file()
-        self.save_model(head)
+        return np.mean(final_cca_res["cca_coef1"])
 
 
 if __name__ == '__main__':

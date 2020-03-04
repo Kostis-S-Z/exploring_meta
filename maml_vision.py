@@ -23,7 +23,9 @@ params = dict(
 dataset = "min"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
-cuda = True
+rep_test = True
+
+cuda = False
 
 wandb = False
 
@@ -118,19 +120,48 @@ class MamlVision(Experiment):
             self.logger['manually_stopped'] = True
             self.params['num_iterations'] = iteration
 
+        self.save_model(model)
+
+        meta_test_error = 0.0
+        meta_test_accuracy = 0.0
+        for task in range(self.params['meta_batch_size']):
+            # Compute meta-testing loss
+            learner = maml.clone()
+            batch = test_tasks.sample()
+
+            evaluation_error, evaluation_accuracy = maml_fast_adapt(batch, learner, loss,
+                                                                    self.params['adaptation_steps'],
+                                                                    self.params['shots'], self.params['ways'],
+                                                                    device)
+            meta_test_error += evaluation_error.item()
+            meta_test_accuracy += evaluation_accuracy.item()
+
+        meta_test_accuracy = meta_test_accuracy / self.params['meta_batch_size']
+        print('Meta Test Accuracy', meta_test_accuracy)
+
+        self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
+        self.logger['test_acc'] = meta_test_accuracy
+
+        if rep_test:
+            cca_res = self.representation_test(test_tasks, learner, maml, loss, device)
+            self.logger['cca'] = cca_res
+
+        self.save_logs_to_file()
+
+    def representation_test(self, test_rep_tasks, learner, maml, loss, device):
         # TEST REPRESENTATION
         rep_ways = 5
-        rep_shots = 5
+        rep_shots = 1
         n_samples = rep_ways * rep_shots
 
-        if dataset == "omni":
-            _, _, test_rep_tasks = get_omniglot(rep_ways, rep_shots)
-        elif dataset == "min":
-            _, _, test_rep_tasks = get_mini_imagenet(rep_ways, rep_shots)
-        else:
-            print("Dataset not supported")
-            exit(2)
-
+        # if dataset == "omni":
+        #     _, _, test_rep_tasks = get_omniglot(rep_ways, rep_shots)
+        # elif dataset == "min":
+        #     _, _, test_rep_tasks = get_mini_imagenet(rep_ways, rep_shots)
+        # else:
+        #     print("Dataset not supported")
+        #     exit(2)
+        #
         test_rep_batch, _, _, _ = prepare_batch(test_rep_tasks.sample(), rep_ways, rep_shots, device)
 
         init_net_rep = learner.get_rep(test_rep_batch)  # Trained representation before meta-testing
@@ -142,13 +173,14 @@ class MamlVision(Experiment):
         for task in range(self.params['meta_batch_size']):
             # Compute meta-testing loss
             learner = maml.clone()
-            batch = test_tasks.sample()
+            batch = test_rep_tasks.sample()
 
             prev_net_rep = learner.get_rep(test_rep_batch)  # Get rep before adaptation
 
             evaluation_error, evaluation_accuracy = maml_fast_adapt(batch, learner, loss,
                                                                     self.params['adaptation_steps'],
-                                                                    self.params['shots'], self.params['ways'],
+                                                                    self.params['shots'],
+                                                                    self.params['ways'],
                                                                     device)
             meta_test_error += evaluation_error.item()
             meta_test_accuracy += evaluation_accuracy.item()
@@ -170,21 +202,15 @@ class MamlVision(Experiment):
             # print('Kernel CKA: {:.4f}'.format(cka_k_res))
 
         final_cca_res = get_cca_similarity(init_rep.T, new_rep.T, epsilon=1e-10, verbose=False)
-        final_cka_l_res = linear_CKA(init_rep, new_rep)
-        final_cka_k_res = kernel_CKA(init_rep, new_rep)
+        # final_cka_l_res = linear_CKA(init_rep, new_rep)
+        # final_cka_k_res = kernel_CKA(init_rep, new_rep)
 
         print('Final results between representations of shape', init_rep.shape)
         print('     CCA: {:.4f}'.format(np.mean(final_cca_res["cca_coef1"])))
-        print('     Linear CKA: {:.4f}'.format(final_cka_l_res))
-        print('     Kernel CKA: {:.4f}'.format(final_cka_k_res))
+        # print('     Linear CKA: {:.4f}'.format(final_cka_l_res))
+        # print('     Kernel CKA: {:.4f}'.format(final_cka_k_res))
 
-        meta_test_accuracy = meta_test_accuracy / self.params['meta_batch_size']
-        print('Meta Test Accuracy', meta_test_accuracy)
-
-        self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
-        self.logger['test_acc'] = meta_test_accuracy
-        self.save_logs_to_file()
-        self.save_model(model)
+        return np.mean(final_cca_res["cca_coef1"])
 
 
 if __name__ == '__main__':
