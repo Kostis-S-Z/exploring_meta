@@ -230,23 +230,27 @@ class MamlVision(Experiment):
             print("Dataset not supported")
             exit(2)
 
-        n = self.params['meta_batch_size']
+        # For simplicity, we define as number of tasks
+        n = 5  # self.params['meta_batch_size']
 
         # Randomly select 10 batches for training and evaluation
+        tasks_pool = []
         for task in range(n):
-            _ = test_tasks.sample()
-        tasks_id = test_tasks.sampled_descriptions
+            batch = test_tasks.sample()
+            tasks_pool.append(batch)
 
         # Matrix R NxN of accuracies in tasks j after trained on a tasks i (x_axis = test tasks, y_axis = train tasks)
         acc_matrix = np.zeros((n, n))
 
-        # TODO: bug with task ids, see how you can get use the function get_task()
-        # or if there is another way to get a specific batch from a task dataset
+        # TODO: Should the train tasks and test tasks be the same or different?
+        # Currently using Option 1
+        # Option 1: Tr1 = Te1 (test task 1 is the same samples and class as train task 1)
+        # Option 2: Tr1 =/= Te1 but same class (test task 1 is different samples but same class as train task 1)
+        # Option 3: Tr1 =///= Te1 (test task 1 is completely different class from train task 1)
 
         # Training loop
-        for i, task_i in enumerate(tasks_id.keys()):
-            acc_matrix['task_' + str(task_i)] = []
-            adapt_i_data, adapt_i_labels = test_tasks.get_task(task_i)
+        for i, task_i in enumerate(tasks_pool):
+            adapt_i_data, adapt_i_labels = task_i
             adapt_i_data, adapt_i_labels = adapt_i_data.to(device), adapt_i_labels.to(device)
 
             learner = maml.clone()
@@ -257,8 +261,8 @@ class MamlVision(Experiment):
                 learner.adapt(train_error)
 
             # Evaluation loop
-            for j, task_j in enumerate(tasks_id):
-                eval_j_data, eval_j_labels = test_tasks.get_task(task_j)
+            for j, task_j in enumerate(tasks_pool):
+                eval_j_data, eval_j_labels = task_j
                 eval_j_data, eval_j_labels = eval_j_data.to(device), eval_j_labels.to(device)
 
                 predictions = learner(eval_j_data)
@@ -280,11 +284,14 @@ class MamlVision(Experiment):
 
         # Forward Transfer = Higher triangular
         f_acc_sum = np.triu(acc_matrix, k=1).sum()  # k=1 means do NOT include diagonal
-        fwt = (n * (n - 1)) / 2
+        f_div = (n * (n - 1)) / 2
+        fwt = f_acc_sum / f_div
 
         # Backward Transfer
         bwt = "?"
 
+        print('Acc', av_acc)
+        print('FWT', fwt)
         return av_acc, fwt, bwt
 
 
