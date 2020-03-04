@@ -34,7 +34,6 @@ class Experiment:
         # Create a unique directory for this experiment and save the model's meta-data
         self.model_path = path + algo + '_' + dataset + '_' + self.logger['date'] + '_' + self.logger['model_id']
         os.mkdir(self.model_path)
-        self.save_logs_to_file()
 
         # Optionally, use Weights and Biases to monitor performance
         if use_wandb:
@@ -62,13 +61,16 @@ class Experiment:
             wandb.log(metrics)
 
     def save_logs_to_file(self):
+        print('Saving metrics...')
         with open(self.model_path + '/metrics.json', 'w') as fp:
             json.dump(self.metrics, fp)
 
+        print('Saving logger...')
         with open(self.model_path + '/logger.json', 'w') as fp:
             json.dump(self.logger, fp, sort_keys=True, indent=4)
 
-    def save_model(self, model):
-        torch.save(model.state_dict(), self.model_path + '/model.pt')
+    def save_model(self, model, name="model"):
+        print('Saving ' + name + '...')
+        torch.save(model.state_dict(), self.model_path + '/' + name + '.pt')
         if self._use_wandb:
             torch.save(model.state_dict(), os.path.join(wandb.run.dir, 'model.pt'))
