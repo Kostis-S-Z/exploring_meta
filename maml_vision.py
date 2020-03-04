@@ -54,7 +54,7 @@ class MamlVision(Experiment):
                 self.params['model_type'] = 'omni_FC'
             input_shape = (1, 28, 28)
         elif dataset == "min":
-            train_tasks, valid_tasks, test_tasks = 0, 0, 0  # get_mini_imagenet(self.params['ways'], self.params['shots'])
+            train_tasks, valid_tasks, test_tasks = get_mini_imagenet(self.params['ways'], self.params['shots'])
             model = l2l.vision.models.MiniImagenetCNN(self.params['ways'])
             input_shape = (3, 84, 84)
         else:
@@ -69,9 +69,6 @@ class MamlVision(Experiment):
         maml = l2l.algorithms.MAML(model, lr=self.params['fast_lr'], first_order=False)
         opt = torch.optim.Adam(maml.parameters(), self.params['meta_lr'])
         loss = torch.nn.CrossEntropyLoss(reduction='mean')
-
-        self.calc_cl(maml, loss, device)
-        exit()
 
         self.log_model(maml, device, input_shape=input_shape)  # Input shape is specific to dataset
 
@@ -118,6 +115,9 @@ class MamlVision(Experiment):
                 for p in maml.parameters():
                     p.grad.data.mul_(1.0 / self.params['meta_batch_size'])
                 opt.step()
+
+                if iteration % 1000 == 0:
+                    self.save_model(model, name="model_i_" + str(iteration))
         # Support safely manually interrupt training
         except KeyboardInterrupt:
             print('\nManually stopped training! Start evaluation & saving...\n')
@@ -147,9 +147,10 @@ class MamlVision(Experiment):
         self.logger['test_acc'] = meta_test_accuracy
 
         if cl_test:
-            self.calc_cl(maml, loss, device)
-            self.logger['fwt'] = ""
-            self.logger['bwt'] = ""
+            av_acc, fwt, bwt = self.calc_cl(test_tasks, maml, loss, device)
+            self.logger['av_acc'] = av_acc
+            self.logger['fwt'] = fwt
+            self.logger['bwt'] = bwt
 
         if rep_test:
             cca_res = self.representation_test(test_tasks, learner, maml, loss, device)
@@ -221,14 +222,7 @@ class MamlVision(Experiment):
 
         return np.mean(final_cca_res["cca_coef1"])
 
-    def calc_cl(self, maml, loss, device):
-        if dataset == "omni":
-            _, _, test_tasks = get_omniglot(self.params['ways'], self.params['shots'])
-        elif dataset == "min":
-            _, _, test_tasks = get_mini_imagenet(self.params['ways'], self.params['shots'])
-        else:
-            print("Dataset not supported")
-            exit(2)
+    def calc_cl(self, test_tasks, maml, loss, device):
 
         # For simplicity, we define as number of tasks
         n = 5  # self.params['meta_batch_size']
