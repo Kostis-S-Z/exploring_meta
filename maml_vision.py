@@ -26,7 +26,7 @@ omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choo
 rep_test = False
 cl_test = True
 
-cuda = False
+cuda = True
 
 wandb = False
 
@@ -147,10 +147,8 @@ class MamlVision(Experiment):
         self.logger['test_acc'] = meta_test_accuracy
 
         if cl_test:
-            av_acc, fwt, bwt = self.calc_cl(test_tasks, maml, loss, device)
-            self.logger['av_acc'] = av_acc
-            self.logger['fwt'] = fwt
-            self.logger['bwt'] = bwt
+            cl_res = self.calc_cl(test_tasks, maml, loss, device)
+            self.logger['cl_metrics'] = cl_res
 
         if rep_test:
             cca_res = self.representation_test(test_tasks, learner, maml, loss, device)
@@ -227,6 +225,12 @@ class MamlVision(Experiment):
         # For simplicity, we define as number of tasks
         n = 5  # self.params['meta_batch_size']
 
+        # TODO: Should the train tasks and test tasks be the same or different?
+        # Currently using Option 1
+        # Option 1: Tr1 = Te1 (test task 1 is the same samples and class as train task 1)
+        # Option 2: Tr1 =/= Te1 but same class (test task 1 is different samples but same class as train task 1)
+        # Option 3: Tr1 =///= Te1 (test task 1 is completely different class from train task 1)
+
         # Randomly select 10 batches for training and evaluation
         tasks_pool = []
         for task in range(n):
@@ -235,12 +239,6 @@ class MamlVision(Experiment):
 
         # Matrix R NxN of accuracies in tasks j after trained on a tasks i (x_axis = test tasks, y_axis = train tasks)
         acc_matrix = np.zeros((n, n))
-
-        # TODO: Should the train tasks and test tasks be the same or different?
-        # Currently using Option 1
-        # Option 1: Tr1 = Te1 (test task 1 is the same samples and class as train task 1)
-        # Option 2: Tr1 =/= Te1 but same class (test task 1 is different samples but same class as train task 1)
-        # Option 3: Tr1 =///= Te1 (test task 1 is completely different class from train task 1)
 
         # Training loop
         for i, task_i in enumerate(tasks_pool):
@@ -266,27 +264,8 @@ class MamlVision(Experiment):
 
                 acc_matrix[i, j] = valid_accuracy_j  # Accuracy on task j after trained on task i
 
-        print(acc_matrix)
-        # This is a very important matrix
-        # The diagonal will probably have the highest values (since train task = test task)
-        # The lower triangular is the BWT, the higher triangular is the FWT
-
-        # Average accuracy = Diagonal + Lower triangular
-        av_acc_sum = np.tril(acc_matrix, k=0).sum()  # k=0 means include the diagonal
-        div = (n * (n + 1)) / 2
-        av_acc = av_acc_sum / div
-
-        # Forward Transfer = Higher triangular
-        f_acc_sum = np.triu(acc_matrix, k=1).sum()  # k=1 means do NOT include diagonal
-        f_div = (n * (n - 1)) / 2
-        fwt = f_acc_sum / f_div
-
-        # Backward Transfer
-        bwt = "?"
-
-        print('Acc', av_acc)
-        print('FWT', fwt)
-        return av_acc, fwt, bwt
+        self.save_acc_matrix(acc_matrix)
+        return cl_metrics(acc_matrix)
 
 
 if __name__ == '__main__':
