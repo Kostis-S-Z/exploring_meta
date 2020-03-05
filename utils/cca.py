@@ -3,7 +3,10 @@ from __future__ import division
 from __future__ import print_function
 
 """
-This code was taken directly from the official repository of (SV)CCA paper: https://github.com/google/svcca/
+This code is taken directly from the official repository of (SV)CCA paper: https://github.com/google/svcca/
+
+The function get_cca_similarity() has been slightly modified so it returns a tuple of the extensive dictionary result
+and the single CCA metric (since in most cases we don't really care about the whole dictionary results)
 """
 
 # Copyright 2018 Google Inc.
@@ -356,7 +359,7 @@ def get_cca_similarity(acts1, acts2, epsilon=0., threshold=0.98,
         return_dict["cca_dirns1"] = cca_dirns1
         return_dict["cca_dirns2"] = cca_dirns2
 
-    return return_dict
+    return return_dict, np.mean(return_dict["cca_coef1"])
 
 
 def robust_cca_similarity(acts1, acts2, threshold=0.98, epsilon=1e-6,
@@ -400,7 +403,7 @@ def robust_cca_similarity(acts1, acts2, threshold=0.98, epsilon=1e-6,
 
     for trial in range(num_cca_trials):
         try:
-            return_dict = get_cca_similarity(acts1, acts2, threshold, compute_dirns)
+            return_dict, _ = get_cca_similarity(acts1, acts2, threshold, compute_dirns)
         except np.LinAlgError:
             acts1 = acts1 * 1e-1 + np.random.normal(size=acts1.shape) * epsilon
             acts2 = acts2 * 1e-1 + np.random.normal(size=acts1.shape) * epsilon
