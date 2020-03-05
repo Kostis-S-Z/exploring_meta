@@ -77,5 +77,4 @@ class Experiment:
 
     def save_acc_matrix(self, acc_matrix):
         print('Saving accuracy matrix..')
-        with open(self.model_path + '/acc_matrix.json', 'w') as fp:
-            json.dump(acc_matrix, fp)
+        np.save(self.model_path + '/acc_matrix.npy', acc_matrix)
