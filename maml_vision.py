@@ -16,15 +16,16 @@ params = dict(
     fast_lr=0.5,
     meta_batch_size=32,
     adaptation_steps=1,
-    num_iterations=5,
+    num_iterations=11,
+    save_every=5,
     seed=42,
 )
 
 dataset = "min"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
-rep_test = False
-cl_test = True
+run_rep_test = True
+run_cl_test = False
 
 cuda = True
 
@@ -116,8 +117,8 @@ class MamlVision(Experiment):
                     p.grad.data.mul_(1.0 / self.params['meta_batch_size'])
                 opt.step()
 
-                if iteration % 1000 == 0:
-                    self.save_model(model, name="model_i_" + str(iteration))
+                if (iteration + 1) % self.params['save_every'] == 0:
+                    self.save_model_checkpoint(model, str(iteration + 1))
         # Support safely manually interrupt training
         except KeyboardInterrupt:
             print('\nManually stopped training! Start evaluation & saving...\n')
@@ -146,12 +147,12 @@ class MamlVision(Experiment):
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         self.logger['test_acc'] = meta_test_accuracy
 
-        if cl_test:
-            cl_res = self.calc_cl(test_tasks, maml, loss, device)
+        if run_cl_test:
+            cl_res = self.cl_test(test_tasks, maml, loss, device)
             self.logger['cl_metrics'] = cl_res
 
-        if rep_test:
-            cca_res = self.representation_test(test_tasks, learner, maml, loss, device)
+        if run_rep_test:
+            cca_res = self.representation_test(test_tasks, maml, loss, device)
             self.logger['cca'] = cca_res
 
         self.save_logs_to_file()

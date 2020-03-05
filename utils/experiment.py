@@ -34,6 +34,7 @@ class Experiment:
         # Create a unique directory for this experiment and save the model's meta-data
         self.model_path = path + algo + '_' + dataset + '_' + self.logger['date'] + '_' + self.logger['model_id']
         os.mkdir(self.model_path)
+        os.mkdir(self.model_path + '/model_checkpoints')
 
         # Optionally, use Weights and Biases to monitor performance
         if use_wandb:
@@ -73,7 +74,10 @@ class Experiment:
         print('Saving ' + name + '...')
         torch.save(model.state_dict(), self.model_path + '/' + name + '.pt')
         if self._use_wandb:
-            torch.save(model.state_dict(), os.path.join(wandb.run.dir, 'model.pt'))
+            torch.save(model.state_dict(), os.path.join(wandb.run.dir, name + '.pt'))
+
+    def save_model_checkpoint(self, model, epoch):
+        self.save_model(model, name='/model_checkpoints/model_' + epoch)
 
     def save_acc_matrix(self, acc_matrix):
         print('Saving accuracy matrix..')
