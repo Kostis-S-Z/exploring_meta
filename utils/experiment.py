@@ -74,3 +74,8 @@ class Experiment:
         torch.save(model.state_dict(), self.model_path + '/' + name + '.pt')
         if self._use_wandb:
             torch.save(model.state_dict(), os.path.join(wandb.run.dir, 'model.pt'))
+
+    def save_acc_matrix(self, acc_matrix):
+        print('Saving accuracy matrix..')
+        with open(self.model_path + '/acc_matrix.json', 'w') as fp:
+            json.dump(acc_matrix, fp)
