@@ -11,12 +11,12 @@ from utils import *
 
 params = dict(
     ways=5,
-    shots=1,
+    shots=5,
     meta_lr=0.003,
     fast_lr=0.5,
     meta_batch_size=32,
-    adaptation_steps=1,
-    num_iterations=11,
+    adaptation_steps=10,
+    num_iterations=2,
     save_every=5,
     seed=42,
 )
@@ -117,8 +117,8 @@ class MamlVision(Experiment):
                     p.grad.data.mul_(1.0 / self.params['meta_batch_size'])
                 opt.step()
 
-                if (iteration + 1) % self.params['save_every'] == 0:
-                    self.save_model_checkpoint(model, str(iteration + 1))
+                if iteration % self.params['save_every'] == 0:
+                    self.save_model_checkpoint(model, str(iteration))
         # Support safely manually interrupt training
         except KeyboardInterrupt:
             print('\nManually stopped training! Start evaluation & saving...\n')
@@ -161,7 +161,7 @@ class MamlVision(Experiment):
         """
         Measure how much the representation changes during evaluation
         """
-        n_tasks = 5
+        n_tasks = 20
 
         # Ignore labels
         sanity_batch, _ = test_tasks.sample()
@@ -181,7 +181,9 @@ class MamlVision(Experiment):
 
         # column 0: adaptation results, column 1: init results
         acc_results = np.zeros((n_tasks, 2))
-        rep_results = []
+        cca_results = []
+        cka1_results = []
+        cka2_results = []
 
         for task in range(n_tasks):
             adapt_model = maml.clone()
@@ -204,13 +206,21 @@ class MamlVision(Experiment):
             i_valid_acc = accuracy(i_predictions, eval_l)
 
             # Get their representations
+            # TODO: Which layer representation?
+            # Currently getting the Fully connected
+            # adapted_rep_0 = adapt_model.get_rep_i(adapt_d, 0)  # Conv1
+            # adapted_rep_1 = adapt_model.get_rep_i(adapt_d, 1)  # Conv2
+            # adapted_rep_2 = adapt_model.get_rep_i(adapt_d, 2)  # Conv3
+            # adapted_rep_3 = adapt_model.get_rep_i(adapt_d, 3)  # Conv4
+            # adapted_rep_4 = adapt_model.get_rep_i(adapt_d, 4)  # Fully connected (same as get_rep)
+
             # TODO: Representation on which data?
             # Option 1: adapt_d -> On the data the adaptation model was adapted
             # Option 2: eval_d -> On the data the models where evaluated
             # Option 3: different batch -> On a completely different batch of data
 
-            adapted_rep = adapt_model.get_rep(eval_d)
-            init_rep = init_model.get_rep(eval_d)
+            adapted_rep = adapt_model.get_rep(adapt_d)
+            init_rep = init_model.get_rep(adapt_d)
 
             adapted_rep = adapted_rep.cpu().detach().numpy()
             init_rep = init_rep.cpu().detach().numpy()
@@ -229,30 +239,30 @@ class MamlVision(Experiment):
             init_rep2_sanity = init_rep2_sanity.reshape((conv_neurons * conv_filters_1 * conv_filters_2, batch_size))
 
             _, sanity_cca = get_cca_similarity(init_rep_sanity.T, init_rep2_sanity.T, epsilon=1e-10, verbose=False)
-            # _, cca_res = get_cca_similarity(adapted_rep.T, init_rep.T, epsilon=1e-10, verbose=False)
-            cka_k_res = kernel_CKA(adapted_rep.T, init_rep.T)
+            _, cca_res = get_cca_similarity(adapted_rep.T, init_rep.T, epsilon=1e-10, verbose=False)
+            cka1_k_res = linear_CKA(adapted_rep, init_rep)
+            cka2_k_res = kernel_CKA(adapted_rep, init_rep)
 
             print(f'Sanity check: {sanity_cca} (This should always be 1.0)')
 
             acc_results[task, 0] = a_valid_acc
             acc_results[task, 1] = i_valid_acc
 
-            rep_results.append(cka_k_res)
-
-            # cka_l_res = linear_CKA(prev_rep.T, new_rep.T)
-            # cka_k_res = kernel_CKA(prev_rep.T, new_rep.T)
-
-            # print('CCA: {:.4f}'.format(np.mean(cca_res["cca_coef1"])))
-            # print('Linear CKA: {:.4f}'.format(cka_l_res))
-            # print('Kernel CKA: {:.4f}'.format(cka_k_res))
+            cca_results.append(cca_res)
+            cka1_results.append(cka1_k_res)
+            cka2_results.append(cka2_k_res)
 
         print("We expect that column 0 has higher values than column 1")
         print(acc_results)
 
         print("We expect that the values decrease over time?")
-        print(rep_results)
+        print("CCA:", cca_results)
+        print("We expect that the values decrease over time?")
+        print("linear CKA:", cka1_results)
+        print("We expect that the values decrease over time?")
+        print("Kernerl CKA:", cka2_results)
 
-        return rep_results
+        return cca_results
 
     def cl_test(self, test_tasks, maml, loss, device):
         """
