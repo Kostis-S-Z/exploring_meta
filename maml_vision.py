@@ -157,52 +157,88 @@ class MamlVision(Experiment):
 
         self.save_logs_to_file()
 
-    def representation_test(self, test_rep_tasks, learner, maml, loss, device):
-        # TEST REPRESENTATION
-        rep_ways = 5
-        rep_shots = 1
-        n_samples = rep_ways * rep_shots
+    def representation_test(self, test_tasks, maml, loss, device):
+        """
+        Measure how much the representation changes during evaluation
+        """
+        n_tasks = 5
 
-        # if dataset == "omni":
-        #     _, _, test_rep_tasks = get_omniglot(rep_ways, rep_shots)
-        # elif dataset == "min":
-        #     _, _, test_rep_tasks = get_mini_imagenet(rep_ways, rep_shots)
-        # else:
-        #     print("Dataset not supported")
-        #     exit(2)
-        #
-        test_rep_batch, _, _, _ = prepare_batch(test_rep_tasks.sample(), rep_ways, rep_shots, device)
+        # Ignore labels
+        sanity_batch, _ = test_tasks.sample()
+        sanity_batch = sanity_batch.to(device)
 
-        init_net_rep = learner.get_rep(test_rep_batch)  # Trained representation before meta-testing
-        init_rep = init_net_rep.cpu().detach().numpy()
-        init_rep = init_rep.reshape((n_samples * 5 * 5, self.params['meta_batch_size']))
+        # An instance of the model before adaptation
+        init_model = maml.clone()
+        init_rep_sanity = init_model.get_rep(sanity_batch)
+        init_rep_sanity = init_rep_sanity.cpu().detach().numpy()
 
-        meta_test_error = 0.0
-        meta_test_accuracy = 0.0
-        for task in range(self.params['meta_batch_size']):
-            # Compute meta-testing loss
-            learner = maml.clone()
-            batch = test_rep_tasks.sample()
+        # Representation shape description
+        batch_size = init_rep_sanity.shape[0]
+        conv_neurons = init_rep_sanity.shape[1]
+        conv_filters_1 = init_rep_sanity.shape[2]
+        conv_filters_2 = init_rep_sanity.shape[3]
+        init_rep_sanity = init_rep_sanity.reshape((conv_neurons * conv_filters_1 * conv_filters_2, batch_size))
 
-            prev_net_rep = learner.get_rep(test_rep_batch)  # Get rep before adaptation
+        # column 0: adaptation results, column 1: init results
+        acc_results = np.zeros((n_tasks, 2))
+        rep_results = []
 
-            evaluation_error, evaluation_accuracy = maml_fast_adapt(batch, learner, loss,
-                                                                    self.params['adaptation_steps'],
-                                                                    self.params['shots'],
-                                                                    self.params['ways'],
-                                                                    device)
-            meta_test_error += evaluation_error.item()
-            meta_test_accuracy += evaluation_accuracy.item()
+        for task in range(n_tasks):
+            adapt_model = maml.clone()
+            batch = test_tasks.sample()
 
-            new_net_rep = learner.get_rep(test_rep_batch)  # Get rep after adaptation
+            adapt_d, adapt_l, eval_d, eval_l = prepare_batch(batch, self.params['shots'], self.params['ways'], device)
 
-            prev_rep = prev_net_rep.cpu().detach().numpy()
-            new_rep = new_net_rep.cpu().detach().numpy()
+            # Adapt the model
+            for step in range(self.params['adaptation_steps']):
+                train_error = loss(adapt_model(adapt_d), adapt_l)
+                train_error /= len(adapt_d)
+                adapt_model.adapt(train_error)
 
-            prev_rep = prev_rep.reshape((n_samples * 5 * 5, self.params['meta_batch_size']))
-            new_rep = new_rep.reshape((n_samples * 5 * 5, self.params['meta_batch_size']))
+            # Evaluate the adapted model
+            a_predictions = adapt_model(eval_d)
+            a_valid_acc = accuracy(a_predictions, eval_l)
 
-            # cca_res = get_cca_similarity(prev_rep.T, new_rep.T, epsilon=1e-10, verbose=False)
+            # Evaluate the init model
+            i_predictions = init_model(eval_d)
+            i_valid_acc = accuracy(i_predictions, eval_l)
+
+            # Get their representations
+            # TODO: Representation on which data?
+            # Option 1: adapt_d -> On the data the adaptation model was adapted
+            # Option 2: eval_d -> On the data the models where evaluated
+            # Option 3: different batch -> On a completely different batch of data
+
+            adapted_rep = adapt_model.get_rep(eval_d)
+            init_rep = init_model.get_rep(eval_d)
+
+            adapted_rep = adapted_rep.cpu().detach().numpy()
+            init_rep = init_rep.cpu().detach().numpy()
+
+            # Representation shape description
+            t_batch_size = init_rep.shape[0]
+            t_conv_neurons = init_rep.shape[1]
+            t_conv_filters_1 = init_rep.shape[2]
+            t_conv_filters_2 = init_rep.shape[3]
+
+            adapted_rep = adapted_rep.reshape((t_conv_neurons * t_conv_filters_1 * t_conv_filters_2, t_batch_size))
+            init_rep = init_rep.reshape((t_conv_neurons * t_conv_filters_1 * t_conv_filters_2, t_batch_size))
+
+            init_rep2_sanity = init_model.get_rep(sanity_batch)
+            init_rep2_sanity = init_rep2_sanity.cpu().detach().numpy()
+            init_rep2_sanity = init_rep2_sanity.reshape((conv_neurons * conv_filters_1 * conv_filters_2, batch_size))
+
+            _, sanity_cca = get_cca_similarity(init_rep_sanity.T, init_rep2_sanity.T, epsilon=1e-10, verbose=False)
+            # _, cca_res = get_cca_similarity(adapted_rep.T, init_rep.T, epsilon=1e-10, verbose=False)
+            cka_k_res = kernel_CKA(adapted_rep.T, init_rep.T)
+
+            print(f'Sanity check: {sanity_cca} (This should always be 1.0)')
+
+            acc_results[task, 0] = a_valid_acc
+            acc_results[task, 1] = i_valid_acc
+
+            rep_results.append(cka_k_res)
+
             # cka_l_res = linear_CKA(prev_rep.T, new_rep.T)
             # cka_k_res = kernel_CKA(prev_rep.T, new_rep.T)
 
@@ -210,21 +246,20 @@ class MamlVision(Experiment):
             # print('Linear CKA: {:.4f}'.format(cka_l_res))
             # print('Kernel CKA: {:.4f}'.format(cka_k_res))
 
-        final_cca_res = get_cca_similarity(init_rep.T, new_rep.T, epsilon=1e-10, verbose=False)
-        # final_cka_l_res = linear_CKA(init_rep, new_rep)
-        # final_cka_k_res = kernel_CKA(init_rep, new_rep)
+        print("We expect that column 0 has higher values than column 1")
+        print(acc_results)
 
-        print('Final results between representations of shape', init_rep.shape)
-        print('     CCA: {:.4f}'.format(np.mean(final_cca_res["cca_coef1"])))
-        # print('     Linear CKA: {:.4f}'.format(final_cka_l_res))
-        # print('     Kernel CKA: {:.4f}'.format(final_cka_k_res))
+        print("We expect that the values decrease over time?")
+        print(rep_results)
 
-        return np.mean(final_cca_res["cca_coef1"])
+        return rep_results
 
-    def calc_cl(self, test_tasks, maml, loss, device):
-
+    def cl_test(self, test_tasks, maml, loss, device):
+        """
+        Evaluate model performance in a Continual Learning setting
+        """
         # For simplicity, we define as number of tasks
-        n = 5  # self.params['meta_batch_size']
+        n_tasks = 5  # self.params['meta_batch_size']
 
         # TODO: Should the train tasks and test tasks be the same or different?
         # Currently using Option 1
@@ -234,12 +269,12 @@ class MamlVision(Experiment):
 
         # Randomly select 10 batches for training and evaluation
         tasks_pool = []
-        for task in range(n):
+        for task in range(n_tasks):
             batch = test_tasks.sample()
             tasks_pool.append(batch)
 
         # Matrix R NxN of accuracies in tasks j after trained on a tasks i (x_axis = test tasks, y_axis = train tasks)
-        acc_matrix = np.zeros((n, n))
+        acc_matrix = np.zeros((n_tasks, n_tasks))
 
         # Training loop
         for i, task_i in enumerate(tasks_pool):
