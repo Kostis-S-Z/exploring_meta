@@ -1,67 +1,60 @@
 """
-This code was taken directly from the official repository of the GEM paper:
-https://github.com/facebookresearch/GradientEpisodicMemory
+Continual Learning metrics as presented in:
+"Don’t forget, there is more than forgetting: new metrics for Continual Learning"
+
+paper link: https://hal.archives-ouvertes.fr/hal-01951488/document
 """
 
-# Copyright 2019-present, IBM Research
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-
-from __future__ import print_function
-
-import torch
+import numpy as np
 
 
-def task_changes(result_t):
-    n_tasks = int(result_t.max() + 1)
-    changes = []
-    current = result_t[0]
-    for i, t in enumerate(result_t):
-        if t != current:
-            changes.append(i)
-            current = t
+def cl_metrics(acc_matrix):
+    """
+    Calculate metrics based on an accuracy matrix of N train tasks on N test tasks
+    The lower triangular matrix is the BWT, the higher triangular matrix is the FWT
 
-    return n_tasks, changes
+    The metrics below are taking into account the accuracy of the model at every timestep / task
+    by dividing the accuracies with the term "div" / "f_div" / "d_div"
 
+      - Average Accuracy:  Accuracies across tesk tasks when trained on the last sample of train task i
 
-def confusion_matrix(result_t, result_a, fname=None):
-    nt, changes = task_changes(result_t)
+      - Forward Transfer: Measures the influence that "learning" (training) a task i has on the performance (testing)
+                          on a future task j.
 
-    baseline = result_a[0]
-    changes = torch.LongTensor(changes + [result_a.size(0)]) - 1
-    result = result_a.index_select(0, torch.LongTensor(changes))  # .index (torch<0.3.1) | .index_select (torch>0.4)
+      - Backward Transfer: Measures the influence that "learning" (training) a task i has on the performance (testing)
+                           on a previous task j. This metric is split into two in order to better depict the concept
+                           of catastrophic forgetting (or inversely, remembering) and positive backward transfer.
+        - Remembering [0, 1]: 1 -> Perfect remembering / No (catastrophic) forgetting
+                              0 -> Complete catastrophic forgetting
 
-    # acc[t] equals result[t,t]
-    acc = result.diag()
-    fin = result[nt - 1]
-    # bwt[t] equals result[T,t] - acc[t]
-    bwt = result[nt - 1] - acc
+    :param acc_matrix: NxN matrix containing the model accuracy on a task j (y axis) after trained on task i (x axis)
+    :return:dictionary of the results
+    """
+    n = acc_matrix.shape[0]
 
-    # fwt[t] equals result[t-1,t] - baseline[t]
-    fwt = torch.zeros(nt)
-    for t in range(1, nt):
-        fwt[t] = result[t - 1, t] - baseline[t]
+    # Average accuracy = Diagonal + Lower triangular
+    av_acc_sum = np.tril(acc_matrix, k=0).sum()  # k=0 means include the diagonal
+    div = (n * (n + 1)) / 2
+    av_acc = av_acc_sum / div
 
-    if fname is not None:
-        f = open(fname, 'w')
+    # Forward Transfer = Higher triangular
+    f_acc_sum = np.triu(acc_matrix, k=1).sum()  # k=1 means do NOT include diagonal
+    f_div = (n * (n - 1)) / 2
+    fwt = f_acc_sum / f_div
 
-        print(' '.join(['%.4f' % r for r in baseline]), file=f)
-        print('|', file=f)
-        for row in range(result.size(0)):
-            print(' '.join(['%.4f' % r for r in result[row]]), file=f)
-        print('', file=f)
-        # print('Diagonal Accuracy: %.4f' % acc.mean(), file=f)
-        print('Final Accuracy: %.4f' % fin.mean(), file=f)
-        print('Backward: %.4f' % bwt.mean(), file=f)
-        print('Forward:  %.4f' % fwt.mean(), file=f)
-        f.close()
+    # Backward Transfer
+    b_div = f_div
+    b_acc_sum = 0
+    for i in range(1, n):
+        for j in range(n - 1):
+            b_acc_sum += acc_matrix[i, j] - acc_matrix[j, j]
 
-    stats = []
-    # stats.append(acc.mean())
-    stats.append(fin.mean())
-    stats.append(bwt.mean())
-    stats.append(fwt.mean())
+    bwt = b_acc_sum / b_div
 
-    return stats
+    # Remembering: The higher the better (inverse of catastrophic forgetting / negative bwt)
+    rem = 1 - np.abs(np.amin([bwt, 0]))
+
+    # Positive backward transfer: The higher the better
+    bwt_plus = np.amax([bwt, 0])
+
+    return dict(av_acc=av_acc, fwt=fwt, rem=rem, bwt_plus=bwt_plus)
