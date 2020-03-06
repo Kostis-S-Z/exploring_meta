@@ -27,20 +27,3 @@ _Across representations in the outer loop it is expected that the representation
 
 
 _The steep decrease of similarity indicates that the representation does indeed change substantially even in such a few adaptation steps._
-
-
-FILE INDEX:
-
-- CCA_evolution_outer -> maml_min_06_03_11h58_42_7964
-- Kernel_CKA_evolution_outer -> maml_min_06_03_11h58_42_7964
-- Linear_CKA_evolution_outer -> maml_min_06_03_11h58_42_7964
-
-
-- inner_CCA_evolution_random -> maml_min_06_03_12h32_42_5841
-- inner_Kernel_CKA_evolution_random -> maml_min_06_03_12h32_42_5841
-- inner_Linear_CKA_evolution_random -> maml_min_06_03_12h32_42_5841
-
-
-- inner_CCA_evolution_pretrained -> maml_min_06_03_12h37_42_1182
-- inner_Kernel_CKA_evolution_pretrained -> maml_min_06_03_12h37_42_1182
-- inner_Linear_CKA_evolution_pretrained -> maml_min_06_03_12h37_42_1182
