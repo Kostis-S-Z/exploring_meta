@@ -1,0 +1,16 @@
+{
+    "config": {
+        "adaptation_steps": 1,
+        "fast_lr": 0.5,
+        "meta_batch_size": 32,
+        "meta_lr": 0.003,
+        "num_iterations": 10,
+        "save_every": 1000000,
+        "seed": 42,
+        "shots": 1,
+        "ways": 5
+    },
+    "date": "06_03_11h58",
+    "elapsed_time": "15.6 sec",
+    "model_id": "42_7964"
+}
