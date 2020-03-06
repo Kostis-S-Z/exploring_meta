@@ -11,7 +11,7 @@ from utils import *
 
 params = dict(
     ways=5,
-    shots=5,
+    shots=1,
     meta_lr=0.003,
     fast_lr=0.5,
     meta_batch_size=32,
@@ -73,8 +73,16 @@ class MamlVision(Experiment):
 
         self.log_model(maml, device, input_shape=input_shape)  # Input shape is specific to dataset
 
+        cca_results = []
+        cka1_results = []
+        cka2_results = []
+
         t = trange(self.params['num_iterations'])
         try:
+            # sanity_batch, _ = train_tasks.sample()
+            # sanity_batch = sanity_batch.to(device)
+            # init_rep = self.get_rep_from_batch(maml, sanity_batch)
+
             for iteration in t:
                 opt.zero_grad()
                 meta_train_error = 0.0
@@ -119,11 +127,42 @@ class MamlVision(Experiment):
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(model, str(iteration))
+
+                # Just a test
+                # adapted_rep = self.get_rep_from_batch(maml, sanity_batch)
+                # _, cca_res = get_cca_similarity(init_rep.T, adapted_rep.T, epsilon=1e-10, verbose=False)
+                # cka1_k_res = linear_CKA(init_rep, adapted_rep)
+                # cka2_k_res = kernel_CKA(init_rep, adapted_rep)
+                # cca_results.append(cca_res)
+                # cka1_results.append(cka1_k_res)
+                # cka2_results.append(cka2_k_res)
+
         # Support safely manually interrupt training
         except KeyboardInterrupt:
             print('\nManually stopped training! Start evaluation & saving...\n')
             self.logger['manually_stopped'] = True
             self.params['num_iterations'] = iteration
+
+        self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
+
+        # cca_results_d = dict(title="CCA Evolution",
+        #                      x_legend="Train Iterations",
+        #                      y_legend="CCA similarity",
+        #                      y_axis=cca_results,
+        #                      path=self.model_path + "/CCA_evolution.png")
+        # cka1_results_d = dict(title="Linear CKA Evolution",
+        #                       x_legend="Train Iterations",
+        #                       y_legend="CKA similarity",
+        #                       y_axis=cka1_results,
+        #                       path=self.model_path + "/Linear_CKA_evolution.png")
+        # cka2_results_d = dict(title="Kernel CKA Evolution",
+        #                       x_legend="Train Iterations",
+        #                       y_legend="CKA similarity",
+        #                       y_axis=cka2_results,
+        #                       path=self.model_path + "/Kernel_CKA_evolution.png")
+        # plot_dict(cca_results_d, save=False)
+        # plot_dict(cka1_results_d, save=False)
+        # plot_dict(cka2_results_d, save=False)
 
         self.save_model(model)
         # self.logger['test_acc'] = self.evaluate(test_tasks, maml, loss, device)
