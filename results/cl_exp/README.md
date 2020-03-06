@@ -35,6 +35,6 @@ Accuracies matrix
 **Tr4** | 0.4 | 0. | 0. | 1. | 0.2 
 **Tr5** | 0.1 | 0.2 | 0.1 | 0.3 | 1. 
 
-Average task accuracy | Forward Transfer | Remembering | Positive Backward Transfer
+Average task accuracy | Positive Backward Transfer | Forward Transfer | Remembering
 --- | --- | --- | ---
 0.413 | 0.0 | 0.18 | -0.129
