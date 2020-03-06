@@ -24,8 +24,11 @@ def cl_metrics(acc_matrix):
       - Backward Transfer: Measures the influence that "learning" (training) a task i has on the performance (testing)
                            on a previous task j. This metric is split into two in order to better depict the concept
                            of catastrophic forgetting (or inversely, remembering) and positive backward transfer.
-        - Remembering [0, 1]: 1 -> Perfect remembering / No (catastrophic) forgetting
-                              0 -> Complete catastrophic forgetting
+        - Remembering [-, 1]: 1 -> Perfect remembering / No (catastrophic) forgetting
+
+        - BWT_plus [0, +]: 0 -> No improvement in previous tasks by training on new tasks
+                           a positive value -> the higher the better. By itself it doesn't mean a lot, it is mostly used
+                           for comparison between algorithms
 
     :param acc_matrix: NxN matrix containing the model accuracy on a task j (y axis) after trained on task i (x axis)
     :return:dictionary of the results

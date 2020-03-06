@@ -168,10 +168,12 @@ class MamlVision(Experiment):
         # self.logger['test_acc'] = self.evaluate(test_tasks, maml, loss, device)
 
         if run_cl_test:
+            print("Running Representation experiment...")
             cl_res = self.cl_test(test_tasks, maml, loss, device)
             self.logger['cl_metrics'] = cl_res
 
         if run_rep_test:
+            print("Running Continual Learning experiment...")
             cca_res = self.representation_test(test_tasks, maml, loss, device)
             self.logger['cca'] = cca_res
 
