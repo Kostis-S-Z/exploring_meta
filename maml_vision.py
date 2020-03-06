@@ -310,6 +310,20 @@ class MamlVision(Experiment):
         self.save_acc_matrix(acc_matrix)
         return cl_metrics(acc_matrix)
 
+    @staticmethod
+    def get_rep_from_batch(model, batch):
+
+        representation = model.get_rep(batch)
+        representation = representation.cpu().detach().numpy()
+
+        batch_size = representation.shape[0]
+        conv_neurons = representation.shape[1]
+        conv_filters_1 = representation.shape[2]
+        conv_filters_2 = representation.shape[3]
+        representation = representation.reshape((conv_neurons * conv_filters_1 * conv_filters_2, batch_size))
+
+        return representation
+
 
 if __name__ == '__main__':
     MamlVision()
