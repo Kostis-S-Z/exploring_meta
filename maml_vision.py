@@ -15,9 +15,9 @@ params = dict(
     meta_lr=0.003,
     fast_lr=0.5,
     meta_batch_size=32,
-    adaptation_steps=10,
-    num_iterations=2,
-    save_every=5,
+    adaptation_steps=5,
+    num_iterations=50,
+    save_every=1000000,  # If you don't care about checkpoints just use an arbitrary long number e.g 1000000
     seed=42,
 )
 
@@ -126,7 +126,19 @@ class MamlVision(Experiment):
             self.params['num_iterations'] = iteration
 
         self.save_model(model)
+        # self.logger['test_acc'] = self.evaluate(test_tasks, maml, loss, device)
 
+        if run_cl_test:
+            cl_res = self.cl_test(test_tasks, maml, loss, device)
+            self.logger['cl_metrics'] = cl_res
+
+        if run_rep_test:
+            cca_res = self.representation_test(test_tasks, maml, loss, device)
+            self.logger['cca'] = cca_res
+
+        self.save_logs_to_file()
+
+    def evaluate(self, test_tasks, maml, loss, device):
         meta_test_error = 0.0
         meta_test_accuracy = 0.0
         for task in range(self.params['meta_batch_size']):
@@ -143,25 +155,13 @@ class MamlVision(Experiment):
 
         meta_test_accuracy = meta_test_accuracy / self.params['meta_batch_size']
         print('Meta Test Accuracy', meta_test_accuracy)
-
-        self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
-        self.logger['test_acc'] = meta_test_accuracy
-
-        if run_cl_test:
-            cl_res = self.cl_test(test_tasks, maml, loss, device)
-            self.logger['cl_metrics'] = cl_res
-
-        if run_rep_test:
-            cca_res = self.representation_test(test_tasks, maml, loss, device)
-            self.logger['cca'] = cca_res
-
-        self.save_logs_to_file()
+        return meta_test_accuracy
 
     def representation_test(self, test_tasks, maml, loss, device):
         """
         Measure how much the representation changes during evaluation
         """
-        n_tasks = 20
+        n_tasks = 1
 
         # Ignore labels
         sanity_batch, _ = test_tasks.sample()
@@ -169,15 +169,9 @@ class MamlVision(Experiment):
 
         # An instance of the model before adaptation
         init_model = maml.clone()
-        init_rep_sanity = init_model.get_rep(sanity_batch)
-        init_rep_sanity = init_rep_sanity.cpu().detach().numpy()
+        adapt_model = maml.clone()
 
-        # Representation shape description
-        batch_size = init_rep_sanity.shape[0]
-        conv_neurons = init_rep_sanity.shape[1]
-        conv_filters_1 = init_rep_sanity.shape[2]
-        conv_filters_2 = init_rep_sanity.shape[3]
-        init_rep_sanity = init_rep_sanity.reshape((conv_neurons * conv_filters_1 * conv_filters_2, batch_size))
+        init_rep_sanity = self.get_rep_from_batch(init_model, sanity_batch)
 
         # column 0: adaptation results, column 1: init results
         acc_results = np.zeros((n_tasks, 2))
@@ -186,71 +180,55 @@ class MamlVision(Experiment):
         cka2_results = []
 
         for task in range(n_tasks):
-            adapt_model = maml.clone()
             batch = test_tasks.sample()
 
             adapt_d, adapt_l, eval_d, eval_l = prepare_batch(batch, self.params['shots'], self.params['ways'], device)
 
             # Adapt the model
-            for step in range(self.params['adaptation_steps']):
+            for step in range(10):  # self.params['adaptation_steps']):
                 train_error = loss(adapt_model(adapt_d), adapt_l)
                 train_error /= len(adapt_d)
                 adapt_model.adapt(train_error)
 
-            # Evaluate the adapted model
-            a_predictions = adapt_model(eval_d)
-            a_valid_acc = accuracy(a_predictions, eval_l)
+                # Evaluate the adapted model
+                # a_predictions = adapt_model(eval_d)
+                # a_valid_acc = accuracy(a_predictions, eval_l)
 
-            # Evaluate the init model
-            i_predictions = init_model(eval_d)
-            i_valid_acc = accuracy(i_predictions, eval_l)
+                # Evaluate the init model
+                # i_predictions = init_model(eval_d)
+                # i_valid_acc = accuracy(i_predictions, eval_l)
 
-            # Get their representations
-            # TODO: Which layer representation?
-            # Currently getting the Fully connected
-            # adapted_rep_0 = adapt_model.get_rep_i(adapt_d, 0)  # Conv1
-            # adapted_rep_1 = adapt_model.get_rep_i(adapt_d, 1)  # Conv2
-            # adapted_rep_2 = adapt_model.get_rep_i(adapt_d, 2)  # Conv3
-            # adapted_rep_3 = adapt_model.get_rep_i(adapt_d, 3)  # Conv4
-            # adapted_rep_4 = adapt_model.get_rep_i(adapt_d, 4)  # Fully connected (same as get_rep)
+                # Get their representations
+                # TODO: Which layer representation?
+                # Currently getting the Fully connected
+                # adapted_rep_0 = adapt_model.get_rep_i(adapt_d, 0)  # Conv1
+                # adapted_rep_1 = adapt_model.get_rep_i(adapt_d, 1)  # Conv2
+                # adapted_rep_2 = adapt_model.get_rep_i(adapt_d, 2)  # Conv3
+                # adapted_rep_3 = adapt_model.get_rep_i(adapt_d, 3)  # Conv4
+                # adapted_rep_4 = adapt_model.get_rep_i(adapt_d, 4)  # Fully connected (same as get_rep)
 
-            # TODO: Representation on which data?
-            # Option 1: adapt_d -> On the data the adaptation model was adapted
-            # Option 2: eval_d -> On the data the models where evaluated
-            # Option 3: different batch -> On a completely different batch of data
+                # TODO: Representation on which data?
+                # Option 1: adapt_d -> On the data the adaptation model was adapted
+                # Option 2: eval_d -> On the data the models where evaluated
+                # Option 3: different batch -> On a completely different batch of data
 
-            adapted_rep = adapt_model.get_rep(adapt_d)
-            init_rep = init_model.get_rep(adapt_d)
+                adapted_rep = self.get_rep_from_batch(adapt_model, sanity_batch)
+                # init_rep = self.get_rep_from_batch(init_model, sanity_batch)
+                # init_rep2_sanity = self.get_rep_from_batch(init_model, sanity_batch)
 
-            adapted_rep = adapted_rep.cpu().detach().numpy()
-            init_rep = init_rep.cpu().detach().numpy()
+                # _, sanity_cca = get_cca_similarity(init_rep_sanity.T, init_rep2_sanity.T, epsilon=1e-10, verbose=False)
+                _, cca_res = get_cca_similarity(adapted_rep.T, init_rep_sanity.T, epsilon=1e-10, verbose=False)
+                cka1_k_res = linear_CKA(adapted_rep, init_rep_sanity)
+                cka2_k_res = kernel_CKA(adapted_rep, init_rep_sanity)
 
-            # Representation shape description
-            t_batch_size = init_rep.shape[0]
-            t_conv_neurons = init_rep.shape[1]
-            t_conv_filters_1 = init_rep.shape[2]
-            t_conv_filters_2 = init_rep.shape[3]
+                # print(f'Sanity check: {sanity_cca} (This should always be ~1.0)')
 
-            adapted_rep = adapted_rep.reshape((t_conv_neurons * t_conv_filters_1 * t_conv_filters_2, t_batch_size))
-            init_rep = init_rep.reshape((t_conv_neurons * t_conv_filters_1 * t_conv_filters_2, t_batch_size))
+                # acc_results[task, 0] = a_valid_acc
+                # acc_results[task, 1] = i_valid_acc
 
-            init_rep2_sanity = init_model.get_rep(sanity_batch)
-            init_rep2_sanity = init_rep2_sanity.cpu().detach().numpy()
-            init_rep2_sanity = init_rep2_sanity.reshape((conv_neurons * conv_filters_1 * conv_filters_2, batch_size))
-
-            _, sanity_cca = get_cca_similarity(init_rep_sanity.T, init_rep2_sanity.T, epsilon=1e-10, verbose=False)
-            _, cca_res = get_cca_similarity(adapted_rep.T, init_rep.T, epsilon=1e-10, verbose=False)
-            cka1_k_res = linear_CKA(adapted_rep, init_rep)
-            cka2_k_res = kernel_CKA(adapted_rep, init_rep)
-
-            print(f'Sanity check: {sanity_cca} (This should always be 1.0)')
-
-            acc_results[task, 0] = a_valid_acc
-            acc_results[task, 1] = i_valid_acc
-
-            cca_results.append(cca_res)
-            cka1_results.append(cka1_k_res)
-            cka2_results.append(cka2_k_res)
+                cca_results.append(cca_res)
+                cka1_results.append(cka1_k_res)
+                cka2_results.append(cka2_k_res)
 
         print("We expect that column 0 has higher values than column 1")
         print(acc_results)
@@ -261,6 +239,25 @@ class MamlVision(Experiment):
         print("linear CKA:", cka1_results)
         print("We expect that the values decrease over time?")
         print("Kernerl CKA:", cka2_results)
+
+        cca_results_d = dict(title="CCA Evolution",
+                             x_legend="Train Iterations",
+                             y_legend="CCA similarity",
+                             y_axis=cca_results,
+                             path=self.model_path + "/inner_CCA_evolution.png")
+        cka1_results_d = dict(title="Linear CKA Evolution",
+                              x_legend="Inner loop steps",
+                              y_legend="CKA similarity",
+                              y_axis=cka1_results,
+                              path=self.model_path + "/inner_Linear_CKA_evolution.png")
+        cka2_results_d = dict(title="Kernel CKA Evolution",
+                              x_legend="Inner loop steps",
+                              y_legend="CKA similarity",
+                              y_axis=cka2_results,
+                              path=self.model_path + "/inner_Kernel_CKA_evolution.png")
+        plot_dict(cca_results_d, save=True)
+        plot_dict(cka1_results_d, save=True)
+        plot_dict(cka2_results_d, save=True)
 
         return cca_results
 
