@@ -24,7 +24,7 @@ params = dict(
 dataset = "min"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
-run_rep_test = True
+run_rep_test = False
 run_cl_test = False
 
 cuda = True
@@ -165,7 +165,7 @@ class MamlVision(Experiment):
         # plot_dict(cka2_results_d, save=False)
 
         self.save_model(model)
-        # self.logger['test_acc'] = self.evaluate(test_tasks, maml, loss, device)
+        self.logger['test_acc'] = self.evaluate(test_tasks, maml, loss, device)
 
         if run_cl_test:
             print("Running Representation experiment...")
