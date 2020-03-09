@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import random
 import torch
 import numpy as np
@@ -9,15 +10,17 @@ import learn2learn as l2l
 
 from utils import *
 
+# DEFAULT VALUES unless changed through command line arguments
+
 params = dict(
     ways=5,
     shots=1,
     meta_lr=0.003,
     fast_lr=0.5,
     meta_batch_size=32,
-    adaptation_steps=5,
-    num_iterations=50,
-    save_every=1000000,  # If you don't care about checkpoints just use an arbitrary long number e.g 1000000
+    adaptation_steps=1,
+    num_iterations=30000,
+    save_every=1000,  # If you don't care about checkpoints just use an arbitrary long number e.g 1000000
     seed=42,
 )
 
@@ -73,9 +76,9 @@ class MamlVision(Experiment):
 
         self.log_model(maml, device, input_shape=input_shape)  # Input shape is specific to dataset
 
-        cca_results = []
-        cka1_results = []
-        cka2_results = []
+        # cca_results = []
+        # cka1_results = []
+        # cka2_results = []
 
         t = trange(self.params['num_iterations'])
         try:
@@ -375,9 +378,20 @@ class MamlVision(Experiment):
         conv_filters_1 = representation.shape[2]
         conv_filters_2 = representation.shape[3]
         representation = representation.reshape((conv_neurons * conv_filters_1 * conv_filters_2, batch_size))
-
         return representation
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='MAML on Vision')
+
+    parser.add_argument('--dataset', type=str, default='min', help='Pick a dataset')
+    parser.add_argument('--ways', type=str, default='5', help='N-ways (classes)')
+    parser.add_argument('--shots', type=str, default='1', help='K-shots (samples per class)')
+
+    args = parser.parse_args()
+
+    dataset = args.dataset
+    params['ways'] = args.ways
+    params['shots'] = args.shots
+
     MamlVision()

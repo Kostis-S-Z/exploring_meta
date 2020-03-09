@@ -1,6 +1,6 @@
 ## MAML
 
-### Mini ImageNet
+### Mini ImageNet 5-way, 1-shot
 
 ID: maml_min_04_03_16h43_42_2373
 
