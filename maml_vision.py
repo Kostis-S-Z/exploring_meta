@@ -25,7 +25,7 @@ dataset = "min"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
 run_rep_test = False
-run_cl_test = False
+run_cl_test = True
 
 cuda = True
 
@@ -282,7 +282,7 @@ class MamlVision(Experiment):
         print("Kernerl CKA:", cka2_results)
 
         cca_results_d = dict(title="CCA Evolution",
-                             x_legend="Train Iterations",
+                             x_legend="Inner loop steps",
                              y_legend="CCA similarity",
                              y_axis=cca_results,
                              path=self.model_path + "/inner_CCA_evolution.png")
@@ -309,24 +309,37 @@ class MamlVision(Experiment):
         # For simplicity, we define as number of tasks
         n_tasks = 5  # self.params['meta_batch_size']
 
+        option = 2
         # TODO: Should the train tasks and test tasks be the same or different?
         # Currently using Option 1
-        # Option 1: Tr1 = Te1 (test task 1 is the same samples and class as train task 1)
-        # Option 2: Tr1 =/= Te1 but same class (test task 1 is different samples but same class as train task 1)
-        # Option 3: Tr1 =///= Te1 (test task 1 is completely different class from train task 1)
+        # Option 1: Tr1 = Te1 (Exactly same samples & class)
+        # Option 2: Tr1 =/= Te1 (Same class, different samples)
+        # Option 3: Tr1 =///= Te1 (Different class & samples)
+        # This doesn't make sense since if you define it as a 5-way problem there are only 5 classes at all times anyway
+        # eval_batch = test_tasks.sample()
+        # _, _, eval_d, eval_l = prepare_batch(eval_batch, self.params['shots'], self.params['ways'], device)
 
         # Randomly select 10 batches for training and evaluation
         tasks_pool = []
-        for task in range(n_tasks):
+        for task_i in range(n_tasks):
             batch = test_tasks.sample()
-            tasks_pool.append(batch)
+            adapt_d, adapt_l, eval_d, eval_l = prepare_batch(batch, self.params['shots'], self.params['ways'], device)
+
+            task = {'adapt': (adapt_d, adapt_l)}
+
+            if option == 1:
+                task['eval'] = (adapt_d, adapt_l)
+            else:
+                task['eval'] = (eval_d, eval_l)
+
+            tasks_pool.append(task)
 
         # Matrix R NxN of accuracies in tasks j after trained on a tasks i (x_axis = test tasks, y_axis = train tasks)
         acc_matrix = np.zeros((n_tasks, n_tasks))
 
         # Training loop
         for i, task_i in enumerate(tasks_pool):
-            adapt_i_data, adapt_i_labels = task_i
+            adapt_i_data, adapt_i_labels = task_i['adapt']
             adapt_i_data, adapt_i_labels = adapt_i_data.to(device), adapt_i_labels.to(device)
 
             learner = maml.clone()
@@ -338,7 +351,7 @@ class MamlVision(Experiment):
 
             # Evaluation loop
             for j, task_j in enumerate(tasks_pool):
-                eval_j_data, eval_j_labels = task_j
+                eval_j_data, eval_j_labels = task_j['eval']
                 eval_j_data, eval_j_labels = eval_j_data.to(device), eval_j_labels.to(device)
 
                 predictions = learner(eval_j_data)
