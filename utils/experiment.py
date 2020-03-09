@@ -81,4 +81,5 @@ class Experiment:
 
     def save_acc_matrix(self, acc_matrix):
         print('Saving accuracy matrix..')
-        np.save(self.model_path + '/acc_matrix.npy', acc_matrix)
+        print(acc_matrix)
+        np.savetxt(self.model_path + '/acc_matrix.out', acc_matrix, fmt='%1.2f')
