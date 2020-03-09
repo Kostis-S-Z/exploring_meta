@@ -11,6 +11,7 @@ import learn2learn as l2l
 from utils import *
 
 # DEFAULT VALUES unless changed through command line arguments
+# Dataset: min / omni
 
 params = dict(
     ways=5,
@@ -24,7 +25,6 @@ params = dict(
     seed=42,
 )
 
-dataset = "min"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
 run_rep_test = False
@@ -391,7 +391,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     dataset = args.dataset
-    params['ways'] = args.ways
-    params['shots'] = args.shots
+    params['ways'] = int(args.ways)
+    params['shots'] = int(args.shots)
 
     MamlVision()
