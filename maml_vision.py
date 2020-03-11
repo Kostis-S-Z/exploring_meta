@@ -20,15 +20,15 @@ params = dict(
     fast_lr=0.5,
     meta_batch_size=32,
     adaptation_steps=1,
-    num_iterations=30000,
+    num_iterations=10,
     save_every=1000,  # If you don't care about checkpoints just use an arbitrary long number e.g 1000000
     seed=42,
 )
 
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
-run_rep_test = False
-run_cl_test = True
+cl_test = True
+rep_test = True
 
 cuda = True
 
@@ -135,14 +135,14 @@ class MamlVision(Experiment):
         # Meta-testing on unseen tasks
         # self.logger['test_acc'] = self.evaluate(test_tasks, maml, loss, device)
 
-        if run_cl_test:
+        if cl_test:
             print("Running Continual Learning experiment...")
             acc_matrix, cl_res = run_cl_exp(maml, loss, test_tasks, device,
                                             self.params['ways'], self.params['shots'], self.params['adaptation_steps'])
             self.save_acc_matrix(acc_matrix)
             self.logger['cl_metrics'] = cl_res
 
-        if run_rep_test:
+        if rep_test:
             print("Running Representation experiment...")
             self.logger['cca'] = run_rep_exp(maml, loss, test_tasks, device,
                                              self.params['ways'], self.params['shots'], self.model_path)
