@@ -136,14 +136,16 @@ class MamlVision(Experiment):
         # self.logger['test_acc'] = self.evaluate(test_tasks, maml, loss, device)
 
         if run_cl_test:
-            print("Running Representation experiment...")
-            cl_res = self.cl_test(test_tasks, maml, loss, device)
+            print("Running Continual Learning experiment...")
+            acc_matrix, cl_res = run_cl_exp(maml, loss, test_tasks, device,
+                                            self.params['ways'], self.params['shots'], self.params['adaptation_steps'])
+            self.save_acc_matrix(acc_matrix)
             self.logger['cl_metrics'] = cl_res
 
         if run_rep_test:
-            print("Running Continual Learning experiment...")
-            cca_res = self.representation_test(test_tasks, maml, loss, device)
-            self.logger['cca'] = cca_res
+            print("Running Representation experiment...")
+            self.logger['cca'] = run_rep_exp(maml, loss, test_tasks, device,
+                                             self.params['ways'], self.params['shots'], self.model_path)
 
         self.save_logs_to_file()
 

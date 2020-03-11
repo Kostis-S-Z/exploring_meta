@@ -7,3 +7,4 @@ from .cl_metrics import cl_metrics
 from .data_pre import get_mini_imagenet, get_omniglot, prepare_batch
 from .experiment import Experiment
 from .plotter import plot_list, plot_dict
+from .rep_exp import run_rep_exp
