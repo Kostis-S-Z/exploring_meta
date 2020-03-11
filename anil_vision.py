@@ -16,16 +16,17 @@ params = dict(
     meta_lr=0.001,
     fast_lr=0.1,
     fc_neurons=1600,
-    meta_batch_size=32,
     adaptation_steps=5,
-    num_iterations=1000,
+    meta_batch_size=32,
+    num_iterations=10,
+    save_every=1000,  # If you don't care about checkpoints just use an arbitrary long number e.g 1000000
     seed=42,
 )
 
 dataset = "min"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
-rep_test = False
+cl_test = True
 
 cuda = True
 
@@ -117,7 +118,6 @@ class AnilVision(Experiment):
                     meta_valid_error += evaluation_error.item()
                     meta_valid_accuracy += evaluation_accuracy.item()
 
-                # Print some metrics
                 meta_train_accuracy = meta_train_accuracy / self.params['meta_batch_size']
                 meta_valid_accuracy = meta_valid_accuracy / self.params['meta_batch_size']
 
@@ -131,6 +131,10 @@ class AnilVision(Experiment):
                     p.grad.data.mul_(1.0 / self.params['meta_batch_size'])
                 optimizer.step()
 
+                if iteration % self.params['save_every'] == 0:
+                    self.save_model(features, name='/model_checkpoints/model_' + str(iteration))
+                    self.save_model(head, name='/model_checkpoints/model_' + str(iteration))
+
         # Support safely manually interrupt training
         except KeyboardInterrupt:
             print('\nManually stopped training! Start evaluation & saving...\n')
@@ -140,6 +144,21 @@ class AnilVision(Experiment):
         self.save_model(features, name='features')
         self.save_model(head, name='head')
 
+        self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
+        # Meta-testing on unseen tasks
+        # self.logger['test_acc'] = self.evaluate(test_tasks, head, features, loss, device)
+
+        if cl_test:
+            print("Running Continual Learning experiment...")
+            acc_matrix, cl_res = run_cl_exp(head, loss, test_tasks, device,
+                                            self.params['ways'], self.params['shots'], self.params['adaptation_steps'],
+                                            features=features)
+            self.save_acc_matrix(acc_matrix)
+            self.logger['cl_metrics'] = cl_res
+
+        self.save_logs_to_file()
+
+    def evaluate(self, test_tasks, head, features, loss, device):
         meta_test_error = 0.0
         meta_test_accuracy = 0.0
         for task in range(self.params['meta_batch_size']):
@@ -156,79 +175,7 @@ class AnilVision(Experiment):
 
         meta_test_accuracy = meta_test_accuracy / self.params['meta_batch_size']
         print('Meta Test Accuracy', meta_test_accuracy)
-
-        self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
-        self.logger['test_acc'] = meta_test_accuracy
-
-        if rep_test:
-            cca_res = self.representation_test(test_tasks, features, head, loss, device)
-            self.logger['cca'] = cca_res
-
-        self.save_logs_to_file()
-
-    def representation_test(self, test_rep_tasks, features, head, loss, device):
-        # TEST REPRESENTATION
-        rep_ways = 5
-        rep_shots = 1
-        n_samples = rep_ways * rep_shots
-
-        # if dataset == "omni":
-        #     _, _, test_rep_tasks = get_omniglot(rep_ways, rep_shots)
-        # elif dataset == "min":
-        #     _, _, test_rep_tasks = get_mini_imagenet(rep_ways, rep_shots)
-        # else:
-        #     print("Dataset not supported")
-        #     exit(2)
-
-        test_rep_batch, _, _, _ = prepare_batch(test_rep_tasks.sample(), rep_ways, rep_shots, device)
-
-        init_net_rep = features(test_rep_batch)  # Trained representation before meta-testing
-        init_rep = init_net_rep.cpu().detach().numpy()
-        init_rep = init_rep.reshape((self.params['fc_neurons'] * n_samples, 1))
-
-        meta_test_error = 0.0
-        meta_test_accuracy = 0.0
-        for task in range(self.params['meta_batch_size']):
-            # Compute meta-testing loss
-            learner = head.clone()
-            batch = test_rep_tasks.sample()
-
-            prev_net_rep = features(test_rep_batch)  # Get rep before adaptation
-
-            evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
-                                                               self.params['adaptation_steps'],
-                                                               self.params['shots'],
-                                                               self.params['ways'],
-                                                               device, features=features)
-            meta_test_error += evaluation_error.item()
-            meta_test_accuracy += evaluation_accuracy.item()
-
-            new_net_rep = features(test_rep_batch)  # Get rep after adaptation
-
-            prev_rep = prev_net_rep.cpu().detach().numpy()
-            new_rep = new_net_rep.cpu().detach().numpy()
-
-            prev_rep = prev_rep.reshape((self.params['fc_neurons'] * n_samples, 1))
-            new_rep = new_rep.reshape((self.params['fc_neurons'] * n_samples, 1))
-
-            # cca_res = get_cca_similarity(prev_rep.T, new_rep.T, epsilon=1e-10, verbose=False)
-            # cka_l_res = linear_CKA(prev_rep.T, new_rep.T)
-            # cka_k_res = kernel_CKA(prev_rep.T, new_rep.T)
-
-            # print('CCA: {:.4f}'.format(np.mean(cca_res["cca_coef1"])))
-            # print('Linear CKA: {:.4f}'.format(cka_l_res))
-            # print('Kernel CKA: {:.4f}'.format(cka_k_res))
-
-        final_cca_res = get_cca_similarity(init_rep.T, new_rep.T, epsilon=1e-10, verbose=False)
-        # final_cka_l_res = linear_CKA(init_rep, new_rep)
-        # final_cka_k_res = kernel_CKA(init_rep, new_rep)
-
-        print('Final results between representations of shape', init_rep.shape)
-        print('     CCA: {:.4f}'.format(np.mean(final_cca_res["cca_coef1"])))
-        # print('     Linear CKA: {:.4f}'.format(final_cka_l_res))
-        # print('     Kernel CKA: {:.4f}'.format(final_cka_k_res))
-
-        return np.mean(final_cca_res["cca_coef1"])
+        return meta_test_accuracy
 
 
 if __name__ == '__main__':
