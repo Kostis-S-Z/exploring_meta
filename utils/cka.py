@@ -37,7 +37,7 @@ def linear_HSIC(X, Y):
     return np.sum(centering(L_X) * centering(L_Y))
 
 
-def linear_CKA(X, Y):
+def get_linear_CKA(X, Y):
     hsic = linear_HSIC(X, Y)
     var1 = np.sqrt(linear_HSIC(X, X))
     var2 = np.sqrt(linear_HSIC(Y, Y))
@@ -45,7 +45,7 @@ def linear_CKA(X, Y):
     return hsic / (var1 * var2)
 
 
-def kernel_CKA(X, Y, sigma=None):
+def get_kernel_CKA(X, Y, sigma=None):
     hsic = kernel_HSIC(X, Y, sigma)
     var1 = np.sqrt(kernel_HSIC(X, X, sigma))
     var2 = np.sqrt(kernel_HSIC(Y, Y, sigma))
@@ -57,8 +57,8 @@ if __name__=='__main__':
     X = np.random.randn(100, 64)
     Y = np.random.randn(100, 64)
 
-    print('Linear CKA, between X and Y: {}'.format(linear_CKA(X, Y)))
-    print('Linear CKA, between X and X: {}'.format(linear_CKA(X, X)))
+    print('Linear CKA, between X and Y: {}'.format(get_linear_CKA(X, Y)))
+    print('Linear CKA, between X and X: {}'.format(get_linear_CKA(X, X)))
 
-    print('RBF Kernel CKA, between X and Y: {}'.format(kernel_CKA(X, Y)))
-    print('RBF Kernel CKA, between X and X: {}'.format(kernel_CKA(X, X)))
+    print('RBF Kernel CKA, between X and Y: {}'.format(get_kernel_CKA(X, Y)))
+    print('RBF Kernel CKA, between X and X: {}'.format(get_kernel_CKA(X, X)))
