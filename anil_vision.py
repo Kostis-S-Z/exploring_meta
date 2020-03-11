@@ -12,22 +12,22 @@ from utils import *
 
 params = dict(
     ways=5,
-    shots=1,
+    shots=5,
     meta_lr=0.001,
     fast_lr=0.1,
     fc_neurons=1600,
     meta_batch_size=32,
-    adaptation_steps=1,
-    num_iterations=200,
+    adaptation_steps=5,
+    num_iterations=1000,
     seed=42,
 )
 
 dataset = "min"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
-rep_test = True
+rep_test = False
 
-cuda = False
+cuda = True
 
 wandb = False
 
@@ -117,14 +117,14 @@ class AnilVision(Experiment):
                     meta_valid_error += evaluation_error.item()
                     meta_valid_accuracy += evaluation_accuracy.item()
 
-                    # Print some metrics
-                    meta_train_accuracy = meta_train_accuracy / self.params['meta_batch_size']
-                    meta_valid_accuracy = meta_valid_accuracy / self.params['meta_batch_size']
+                # Print some metrics
+                meta_train_accuracy = meta_train_accuracy / self.params['meta_batch_size']
+                meta_valid_accuracy = meta_valid_accuracy / self.params['meta_batch_size']
 
-                    metrics = {'train_acc': meta_train_accuracy,
-                               'valid_acc': meta_valid_accuracy}
-                    t.set_postfix(metrics)
-                    self.log_metrics(metrics)
+                metrics = {'train_acc': meta_train_accuracy,
+                           'valid_acc': meta_valid_accuracy}
+                t.set_postfix(metrics)
+                self.log_metrics(metrics)
 
                 # Average the accumulated gradients and optimize
                 for p in all_parameters:
