@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from .algo import accuracy, maml_fast_adapt, anil_fast_adapt
+from .algo import accuracy, fast_adapt
 from .cca import get_cca_similarity
 from .cka import linear_CKA, kernel_CKA
 from .cl_metrics import cl_metrics

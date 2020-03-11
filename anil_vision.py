@@ -99,10 +99,10 @@ class AnilVision(Experiment):
                     # Compute meta-training loss
                     learner = head.clone()
                     batch = train_tasks.sample()
-                    evaluation_error, evaluation_accuracy = anil_fast_adapt(batch, learner, features, loss,
-                                                                            self.params['adaptation_steps'],
-                                                                            self.params['shots'], self.params['ways'],
-                                                                            device)
+                    evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
+                                                                       self.params['adaptation_steps'],
+                                                                       self.params['shots'], self.params['ways'],
+                                                                       device, features=features)
                     evaluation_error.backward()
                     meta_train_error += evaluation_error.item()
                     meta_train_accuracy += evaluation_accuracy.item()
@@ -110,10 +110,10 @@ class AnilVision(Experiment):
                     # Compute meta-validation loss
                     learner = head.clone()
                     batch = valid_tasks.sample()
-                    evaluation_error, evaluation_accuracy = anil_fast_adapt(batch, learner, features, loss,
-                                                                            self.params['adaptation_steps'],
-                                                                            self.params['shots'], self.params['ways'],
-                                                                            device)
+                    evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
+                                                                       self.params['adaptation_steps'],
+                                                                       self.params['shots'], self.params['ways'],
+                                                                       device, features=features)
                     meta_valid_error += evaluation_error.item()
                     meta_valid_accuracy += evaluation_accuracy.item()
 
@@ -147,10 +147,10 @@ class AnilVision(Experiment):
             learner = head.clone()
             batch = test_tasks.sample()
 
-            evaluation_error, evaluation_accuracy = anil_fast_adapt(batch, learner, features, loss,
-                                                                    self.params['adaptation_steps'],
-                                                                    self.params['shots'], self.params['ways'],
-                                                                    device)
+            evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
+                                                               self.params['adaptation_steps'],
+                                                               self.params['shots'], self.params['ways'],
+                                                               device, features=features)
             meta_test_error += evaluation_error.item()
             meta_test_accuracy += evaluation_accuracy.item()
 
@@ -195,11 +195,11 @@ class AnilVision(Experiment):
 
             prev_net_rep = features(test_rep_batch)  # Get rep before adaptation
 
-            evaluation_error, evaluation_accuracy = anil_fast_adapt(batch, learner, features, loss,
-                                                                    self.params['adaptation_steps'],
-                                                                    self.params['shots'],
-                                                                    self.params['ways'],
-                                                                    device)
+            evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
+                                                               self.params['adaptation_steps'],
+                                                               self.params['shots'],
+                                                               self.params['ways'],
+                                                               device, features=features)
             meta_test_error += evaluation_error.item()
             meta_test_accuracy += evaluation_accuracy.item()
 
