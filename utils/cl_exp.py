@@ -7,7 +7,7 @@ Setting 2: Tr1 =/= Te1 (Same class, different samples)
 """
 
 import numpy as np
-from utils import prepare_batch, accuracy, cl_metrics
+from utils import accuracy, calc_cl_metrics, prepare_batch
 
 setting = 2
 
@@ -54,4 +54,4 @@ def run_cl_exp(maml, loss, tasks, device, ways, shots, adapt_steps, n_tasks=5, f
 
             acc_matrix[i, j] = valid_accuracy_j  # Accuracy on task j after trained on task i
 
-    return acc_matrix, cl_metrics(acc_matrix)
+    return acc_matrix, calc_cl_metrics(acc_matrix)

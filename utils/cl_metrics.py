@@ -8,7 +8,7 @@ paper link: https://hal.archives-ouvertes.fr/hal-01951488/document
 import numpy as np
 
 
-def cl_metrics(acc_matrix):
+def calc_cl_metrics(acc_matrix):
     """
     Calculate metrics based on an accuracy matrix of N train tasks on N test tasks
     The lower triangular matrix is the BWT, the higher triangular matrix is the FWT
