@@ -15,7 +15,10 @@ def plot_dict(a_dict, save=False):
     plt.title(title)
     plt.xlabel(x_legend)
     plt.ylabel(y_legend)
-    plt.plot(y_axis)
+
+    for values, label in y_axis:
+        plt.plot(values, label=label)
+
     if save:
         path = a_dict['path']
         plt.savefig(path)

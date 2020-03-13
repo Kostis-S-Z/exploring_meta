@@ -49,7 +49,6 @@ def run_cl_exp(maml, loss, tasks, device, ways, shots, adapt_steps, n_tasks=5, f
             eval_j_data, eval_j_labels = eval_j_data.to(device), eval_j_labels.to(device)
 
             predictions = learner(eval_j_data)
-            valid_error = loss(predictions, eval_j_labels)
             valid_accuracy_j = accuracy(predictions, eval_j_labels)
 
             acc_matrix[i, j] = valid_accuracy_j  # Accuracy on task j after trained on task i

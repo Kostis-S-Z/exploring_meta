@@ -226,7 +226,7 @@ def create_zero_dict(compute_dirns, dimension):
 def get_cca_similarity(acts1, acts2, epsilon=0., threshold=0.98,
                        compute_coefs=True,
                        compute_dirns=False,
-                       verbose=True):
+                       verbose=False):
     """The main function for computing cca similarities.
 
     This function computes the cca similarity between two sets of activations,
