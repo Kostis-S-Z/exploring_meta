@@ -7,7 +7,8 @@ Setting 2: Tr1 =/= Te1 (Same class, different samples)
 """
 
 import numpy as np
-from utils import accuracy, calc_cl_metrics, prepare_batch
+from algo_funtions.vision import accuracy
+from utils import calc_cl_metrics, prepare_batch
 
 setting = 2
 

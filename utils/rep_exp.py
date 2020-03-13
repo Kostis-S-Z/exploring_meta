@@ -15,7 +15,8 @@ Setting:
 """
 
 import numpy as np
-from utils import prepare_batch, plot_dict, accuracy
+from algo_funtions.vision import accuracy
+from utils import prepare_batch, plot_dict
 from utils import get_cca_similarity, get_linear_CKA, get_kernel_CKA
 
 
