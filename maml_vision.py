@@ -9,9 +9,8 @@ from tqdm import trange
 import learn2learn as l2l
 
 from utils import *
+from algo_funtions.vision import fast_adapt
 
-# DEFAULT VALUES unless changed through command line arguments
-# Dataset: min / omni
 
 params = dict(
     ways=5,
@@ -20,15 +19,16 @@ params = dict(
     fast_lr=0.5,
     meta_batch_size=32,
     adaptation_steps=1,
-    num_iterations=10,
+    num_iterations=1,
     save_every=1000,  # If you don't care about checkpoints just use an arbitrary long number e.g 1000000
     seed=42,
 )
 
+dataset = "min"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
-cl_test = True
-rep_test = True
+cl_test = False
+rep_test = False
 
 cuda = True
 
@@ -133,7 +133,7 @@ class MamlVision(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Meta-testing on unseen tasks
-        # self.logger['test_acc'] = self.evaluate(test_tasks, maml, loss, device)
+        self.logger['test_acc'] = self.evaluate(test_tasks, maml, loss, device)
 
         if cl_test:
             print("Running Continual Learning experiment...")
@@ -145,7 +145,8 @@ class MamlVision(Experiment):
         if rep_test:
             print("Running Representation experiment...")
             self.logger['cca'] = run_rep_exp(maml, loss, test_tasks, device,
-                                             self.params['ways'], self.params['shots'], self.model_path)
+                                             self.params['ways'], self.params['shots'], self.model_path,
+                                             n_tasks=1)
 
         self.save_logs_to_file()
 
@@ -172,9 +173,9 @@ class MamlVision(Experiment):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MAML on Vision')
 
-    parser.add_argument('--dataset', type=str, default='min', help='Pick a dataset')
-    parser.add_argument('--ways', type=str, default='5', help='N-ways (classes)')
-    parser.add_argument('--shots', type=str, default='1', help='K-shots (samples per class)')
+    parser.add_argument('--dataset', type=str, default=dataset, help='Pick a dataset')
+    parser.add_argument('--ways', type=str, default=params['ways'], help='N-ways (classes)')
+    parser.add_argument('--shots', type=str, default=params['shots'], help='K-shots (samples per class)')
 
     args = parser.parse_args()
 
