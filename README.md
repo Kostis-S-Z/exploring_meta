@@ -23,6 +23,6 @@ _Note: There is a [bug](https://stackoverflow.com/questions/26193365/pycharm-doe
 
 ```pip install git+git://github.com/learnables/cherry.git#egg=cherry```
 
-5. Install some extra dependencies for better visualization / logging:
+5. Install extra dependencies:
 
 ```pip install -r requirements.txt```
