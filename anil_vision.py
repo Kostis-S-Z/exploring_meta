@@ -9,7 +9,7 @@ from tqdm import trange
 import learn2learn as l2l
 
 from utils import *
-from algo_funtions.vision import fast_adapt
+from core_funtions.vision import fast_adapt
 
 params = {
     "ways": 5,

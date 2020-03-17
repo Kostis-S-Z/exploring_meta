@@ -13,12 +13,12 @@ import cherry as ch
 import learn2learn as l2l
 
 from utils import *
-from algo_funtions.policies import DiagNormalPolicy
-from algo_funtions.rl import fast_adapt_a2c, meta_optimize
+from core_funtions.policies import DiagNormalPolicy
+from core_funtions.rl import fast_adapt_a2c, meta_optimize
 
 params = {
-    "meta_lr": 0.003,
-    "fast_lr": 0.5,
+    "meta_lr": 1.0,  # ?
+    "fast_lr": 0.1,  # ?
     "tau": 1.0,
     "gamma": 0.99,
     "backtrack_factor": 0.5,  # Meta-optimizer
@@ -116,7 +116,7 @@ class MamlRL(Experiment):
                     iter_policies.append(clone)
 
                 adapt_reward = iter_reward / self.params['meta_batch_size']
-                metrics = {'valid_reward': adapt_reward}
+                metrics = {'adapt_reward': adapt_reward}
 
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
