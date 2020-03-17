@@ -16,19 +16,20 @@ from utils import *
 from algo_funtions.policies import DiagNormalPolicy
 from algo_funtions.rl import fast_adapt_a2c, meta_optimize
 
-
-params = dict(
-    meta_lr=0.003,
-    fast_lr=0.5,
-    tau=1.0,
-    gamma=0.99,
-    adapt_batch_size=20,
-    meta_batch_size=32,
-    adaptation_steps=1,
-    num_iterations=0,
-    save_every=1000,
-    seed=42,
-)
+params = {
+    "meta_lr": 0.003,
+    "fast_lr": 0.5,
+    "tau": 1.0,
+    "gamma": 0.99,
+    "backtrack_factor": 0.5,  # Meta-optimizer
+    "ls_max_steps": 15,       # Meta-optimizer
+    "max_kl": 0.01,           # Meta-optimizer
+    "adapt_batch_size": 20,
+    "meta_batch_size": 32,
+    "adapt_steps": 1,
+    "num_iterations": 1,
+    "save_every": 1000,
+    "seed": 42}
 
 env_name = "particles"  # particles = Particles2D-v1 / procgen
 workers = 2
@@ -75,7 +76,7 @@ class MamlRL(Experiment):
         if cuda:
             policy.to('cuda')
 
-        self.log_model(policy, device, input_shape=(env.state_size, 1))  # Input shape is specific to dataset
+        self.log_model(policy, device, input_shape=(1, 2))  # Input shape is specific to dataset
 
         t = trange(self.params['num_iterations'])
         try:
@@ -87,7 +88,9 @@ class MamlRL(Experiment):
                 iter_replays = []
                 iter_policies = []
 
-                for task in env.sample_tasks(self.params['meta_batch_size']):
+                task_list = env.sample_tasks(self.params['meta_batch_size'])
+
+                for task in task_list:
 
                     clone = deepcopy(policy)
                     env.set_task(task)
@@ -118,10 +121,7 @@ class MamlRL(Experiment):
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
 
-                backtrack_factor = 0.5
-                ls_max_steps = 15
-                max_kl = 0.01
-                meta_optimize(self.params)
+                meta_optimize(self.params, policy, baseline, iter_replays, iter_policies, cuda)
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy, str(iteration))

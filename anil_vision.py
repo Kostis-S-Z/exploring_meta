@@ -9,19 +9,20 @@ from tqdm import trange
 import learn2learn as l2l
 
 from utils import *
+from algo_funtions.vision import fast_adapt
 
-params = dict(
-    ways=5,
-    shots=5,
-    meta_lr=0.001,
-    fast_lr=0.1,
-    fc_neurons=1600,
-    adaptation_steps=5,
-    meta_batch_size=32,
-    num_iterations=10,
-    save_every=1000,  # If you don't care about checkpoints just use an arbitrary long number e.g 1000000
-    seed=42,
-)
+params = {
+    "ways": 5,
+    "shots": 1,
+    "meta_lr": 0.001,
+    "fast_lr": 0.1,
+    "fc_neurons": 1600,
+    "adapt_steps": 1,
+    "meta_batch_size": 32,
+    "num_iterations": 30000,
+    "save_every": 1000,
+    "seed": 42,
+}
 
 dataset = "min"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
@@ -101,7 +102,7 @@ class AnilVision(Experiment):
                     learner = head.clone()
                     batch = train_tasks.sample()
                     evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
-                                                                       self.params['adaptation_steps'],
+                                                                       self.params['adapt_steps'],
                                                                        self.params['shots'], self.params['ways'],
                                                                        device, features=features)
                     evaluation_error.backward()
@@ -112,7 +113,7 @@ class AnilVision(Experiment):
                     learner = head.clone()
                     batch = valid_tasks.sample()
                     evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
-                                                                       self.params['adaptation_steps'],
+                                                                       self.params['adapt_steps'],
                                                                        self.params['shots'], self.params['ways'],
                                                                        device, features=features)
                     meta_valid_error += evaluation_error.item()
@@ -146,12 +147,12 @@ class AnilVision(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Meta-testing on unseen tasks
-        # self.logger['test_acc'] = self.evaluate(test_tasks, head, features, loss, device)
+        self.logger['test_acc'] = self.evaluate(test_tasks, head, features, loss, device)
 
         if cl_test:
             print("Running Continual Learning experiment...")
             acc_matrix, cl_res = run_cl_exp(head, loss, test_tasks, device,
-                                            self.params['ways'], self.params['shots'], self.params['adaptation_steps'],
+                                            self.params['ways'], self.params['shots'], self.params['adapt_steps'],
                                             features=features)
             self.save_acc_matrix(acc_matrix)
             self.logger['cl_metrics'] = cl_res
@@ -167,7 +168,7 @@ class AnilVision(Experiment):
             batch = test_tasks.sample()
 
             evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
-                                                               self.params['adaptation_steps'],
+                                                               self.params['adapt_steps'],
                                                                self.params['shots'], self.params['ways'],
                                                                device, features=features)
             meta_test_error += evaluation_error.item()

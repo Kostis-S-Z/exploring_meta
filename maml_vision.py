@@ -12,17 +12,17 @@ from utils import *
 from algo_funtions.vision import fast_adapt
 
 
-params = dict(
-    ways=5,
-    shots=1,
-    meta_lr=0.003,
-    fast_lr=0.5,
-    meta_batch_size=32,
-    adaptation_steps=1,
-    num_iterations=1,
-    save_every=1000,  # If you don't care about checkpoints just use an arbitrary long number e.g 1000000
-    seed=42,
-)
+params = {
+    "ways": 5,
+    "shots": 1,
+    "meta_lr": 0.003,
+    "fast_lr": 0.5,
+    "adapt_steps": 1,
+    "meta_batch_size": 32,
+    "num_iterations": 30000,
+    "save_every": 1000,
+    "seed": 42,
+}
 
 dataset = "min"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
@@ -90,7 +90,7 @@ class MamlVision(Experiment):
                     learner = maml.clone()
                     batch = train_tasks.sample()
                     evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
-                                                                       self.params['adaptation_steps'],
+                                                                       self.params['adapt_steps'],
                                                                        self.params['shots'], self.params['ways'],
                                                                        device)
                     evaluation_error.backward()
@@ -101,7 +101,7 @@ class MamlVision(Experiment):
                     learner = maml.clone()
                     batch = valid_tasks.sample()
                     evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
-                                                                       self.params['adaptation_steps'],
+                                                                       self.params['adapt_steps'],
                                                                        self.params['shots'], self.params['ways'],
                                                                        device)
                     meta_valid_error += evaluation_error.item()
@@ -138,7 +138,7 @@ class MamlVision(Experiment):
         if cl_test:
             print("Running Continual Learning experiment...")
             acc_matrix, cl_res = run_cl_exp(maml, loss, test_tasks, device,
-                                            self.params['ways'], self.params['shots'], self.params['adaptation_steps'])
+                                            self.params['ways'], self.params['shots'], self.params['adapt_steps'])
             self.save_acc_matrix(acc_matrix)
             self.logger['cl_metrics'] = cl_res
 
@@ -159,7 +159,7 @@ class MamlVision(Experiment):
             batch = test_tasks.sample()
 
             evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
-                                                               self.params['adaptation_steps'],
+                                                               self.params['adapt_steps'],
                                                                self.params['shots'], self.params['ways'],
                                                                device)
             meta_test_error += evaluation_error.item()
