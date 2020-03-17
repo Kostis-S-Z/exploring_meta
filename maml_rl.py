@@ -27,17 +27,17 @@ params = {
     "adapt_batch_size": 20,
     "meta_batch_size": 32,
     "adapt_steps": 1,
-    "num_iterations": 1,
+    "num_iterations": 100,
     "save_every": 1000,
     "seed": 42}
 
 env_name = "particles"  # particles = Particles2D-v1 / procgen
-workers = 2
+workers = 4
 
 cl_test = False
 rep_test = True
 
-cuda = True
+cuda = False
 
 wandb = False
 
