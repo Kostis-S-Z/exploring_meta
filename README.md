@@ -19,6 +19,10 @@ _Note: There is a [bug](https://stackoverflow.com/questions/26193365/pycharm-doe
 
 ```pip install git+https://github.com/sksq96/pytorch-summary.git@4ee5ac5#egg=torchsummary```
 
-4. Install some extra dependencies for better visualization / logging:
+4. Install github version of cherry-rl (because PyPI package hasn't been updated to support torch 1.3.+)
+
+```pip install git+git://github.com/learnables/cherry.git#egg=cherry```
+
+5. Install some extra dependencies for better visualization / logging:
 
 ```pip install -r requirements.txt```
