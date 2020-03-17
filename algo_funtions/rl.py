@@ -6,6 +6,7 @@ from copy import deepcopy
 from torch.distributions.kl import kl_divergence
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from cherry.algorithms import a2c, trpo
+from cherry.pg import generalized_advantage
 
 
 def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states):
@@ -16,12 +17,12 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
     next_values = baseline(next_states)
     bootstraps = values * (1.0 - dones) + next_values * dones
     next_value = torch.zeros(1, device=values.device)
-    return ch.pg.generalized_advantage(tau=tau,
-                                       gamma=gamma,
-                                       rewards=rewards,
-                                       dones=dones,
-                                       values=bootstraps,
-                                       next_value=next_value)
+    return generalized_advantage(tau=tau,
+                                 gamma=gamma,
+                                 rewards=rewards,
+                                 dones=dones,
+                                 values=bootstraps,
+                                 next_value=next_value)
 
 
 def maml_a2c_loss(train_episodes, learner, baseline, gamma, tau):
@@ -37,31 +38,31 @@ def maml_a2c_loss(train_episodes, learner, baseline, gamma, tau):
     advantages = compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states)
 
     advantages = ch.normalize(advantages).detach()
-    return ch.algorithms.a2c.policy_loss(log_probs, advantages)
+    return a2c.policy_loss(log_probs, advantages)
 
 
-def fast_adapt_a2c(clone, train_episodes, baseline, adapt_lr, gamma, tau, first_order=False):
+def fast_adapt_a2c(clone, train_episodes, baseline, fast_lr, gamma, tau, first_order=False):
     second_order = not first_order
     loss = maml_a2c_loss(train_episodes, clone, baseline, gamma, tau)
     gradients = torch.autograd.grad(loss,
                                     clone.parameters(),
                                     retain_graph=second_order,
                                     create_graph=second_order)
-    return l2l.algorithms.maml.maml_update(clone, adapt_lr, gradients)
+    return l2l.algorithms.maml.maml_update(clone, fast_lr, gradients)
 
 
-def meta_surrogate_loss(iteration_replays, iteration_policies, policy, baseline, tau, gamma, adapt_lr):
+def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, tau, gamma, fast_lr):
     mean_loss = 0.0
     mean_kl = 0.0
-    for task_replays, old_policy in zip(iteration_replays, iteration_policies):
+    for task_replays, old_policy in zip(iter_replays, iter_policies):
         train_replays = task_replays[:-1]
         valid_episodes = task_replays[-1]
         new_policy = l2l.clone_module(policy)
 
         # Fast Adapt
         for train_episodes in train_replays:
-            new_policy = fast_adapt_a2c(new_policy, train_episodes, adapt_lr,
-                                        baseline, gamma, tau, first_order=False)
+            new_policy = fast_adapt_a2c(new_policy, train_episodes, baseline,
+                                        fast_lr, gamma, tau, first_order=False)
 
         # Useful values
         states = valid_episodes.state()
@@ -81,9 +82,9 @@ def meta_surrogate_loss(iteration_replays, iteration_policies, policy, baseline,
         advantages = ch.normalize(advantages).detach()
         old_log_probs = old_densities.log_prob(actions).mean(dim=1, keepdim=True).detach()
         new_log_probs = new_densities.log_prob(actions).mean(dim=1, keepdim=True)
-        mean_loss += ch.trpo.policy_loss(new_log_probs, old_log_probs, advantages)
-    mean_kl /= len(iteration_replays)
-    mean_loss /= len(iteration_replays)
+        mean_loss += trpo.policy_loss(new_log_probs, old_log_probs, advantages)
+    mean_kl /= len(iter_replays)
+    mean_loss /= len(iter_replays)
     return mean_loss, mean_kl
 
 
