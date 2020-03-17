@@ -23,6 +23,10 @@ _Note: There is a [bug](https://stackoverflow.com/questions/26193365/pycharm-doe
 
 ```pip install git+git://github.com/learnables/cherry.git#egg=cherry```
 
-5. Install extra dependencies:
+5. Install baselines
+
+```pip install https://github.com/openai/baselines/archive/9ee399f5b20cd70ac0a871927a6cf043b478193f.zip```
+
+6. Install extra dependencies:
 
 ```pip install -r requirements.txt```
