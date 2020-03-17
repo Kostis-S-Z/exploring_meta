@@ -1,6 +1,7 @@
 import torch
 import cherry as ch
 import learn2learn as l2l
+from copy import deepcopy
 
 from torch.distributions.kl import kl_divergence
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
@@ -39,7 +40,7 @@ def maml_a2c_loss(train_episodes, learner, baseline, gamma, tau):
     return ch.algorithms.a2c.policy_loss(log_probs, advantages)
 
 
-def fast_adapt_a2c(clone, train_episodes, adapt_lr, baseline, gamma, tau, first_order=False):
+def fast_adapt_a2c(clone, train_episodes, baseline, adapt_lr, gamma, tau, first_order=False):
     second_order = not first_order
     loss = maml_a2c_loss(train_episodes, clone, baseline, gamma, tau)
     gradients = torch.autograd.grad(loss,
@@ -92,8 +93,8 @@ def meta_optimize(params, policy, baseline, iter_replays, iter_policies, cuda):
     if cuda:
         policy.to('cuda', non_blocking=True)
         baseline.to('cuda', non_blocking=True)
-        iteration_replays = [[r.to('cuda', non_blocking=True) for r in task_replays] for task_replays in
-                             iter_replays]
+        iter_replays = [[r.to('cuda', non_blocking=True) for r in task_replays] for task_replays in
+                        iter_replays]
 
     # Compute CG step direction
     old_loss, old_kl = meta_surrogate_loss(iter_replays, iter_policies, policy, baseline,
@@ -106,7 +107,7 @@ def meta_optimize(params, policy, baseline, iter_replays, iter_policies, cuda):
     Fvp = trpo.hessian_vector_product(old_kl, policy.parameters())
     step = trpo.conjugate_gradient(Fvp, grad)
     shs = 0.5 * torch.dot(step, Fvp(step))
-    lagrange_multiplier = torch.sqrt(shs / max_kl)
+    lagrange_multiplier = torch.sqrt(shs / params['max_kl'])
     step = step / lagrange_multiplier
     step_ = [torch.zeros_like(p.data) for p in policy.parameters()]
     vector_to_parameters(step, step_)
@@ -115,14 +116,14 @@ def meta_optimize(params, policy, baseline, iter_replays, iter_policies, cuda):
     old_loss.detach_()
 
     # Line-search
-    for ls_step in range(ls_max_steps):
-        stepsize = backtrack_factor ** ls_step * meta_lr
+    for ls_step in range(params['ls_max_steps']):
+        stepsize = params['backtrack_factor'] ** ls_step * params['meta_lr']
         clone = deepcopy(policy)
         for p, u in zip(clone.parameters(), step):
             p.data.add_(-stepsize, u.data)
-        new_loss, kl = meta_surrogate_loss(iteration_replays, iteration_policies, clone, baseline, tau, gamma,
-                                           adapt_lr)
-        if new_loss < old_loss and kl < max_kl:
+        new_loss, kl = meta_surrogate_loss(iter_replays, iter_policies, clone, baseline,
+                                           params['tau'], params['gamma'], params['adapt_lr'])
+        if new_loss < old_loss and kl < params['max_kl']:
             for p, u in zip(policy.parameters(), step):
                 p.data.add_(-stepsize, u.data)
             break

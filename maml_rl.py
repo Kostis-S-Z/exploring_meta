@@ -104,7 +104,7 @@ class MamlRL(Experiment):
                         train_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
                         task_replay.append(train_episodes)
                         clone = fast_adapt_a2c(clone, train_episodes, baseline,
-                                               self.params['adapt_lr'], self.params['gamma'], self.params['tau'],
+                                               self.params['fast_lr'], self.params['gamma'], self.params['tau'],
                                                first_order=True)
 
                     # Compute validation Loss
