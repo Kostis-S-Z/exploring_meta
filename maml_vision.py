@@ -174,13 +174,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MAML on Vision')
 
     parser.add_argument('--dataset', type=str, default=dataset, help='Pick a dataset')
-    parser.add_argument('--ways', type=str, default=params['ways'], help='N-ways (classes)')
-    parser.add_argument('--shots', type=str, default=params['shots'], help='K-shots (samples per class)')
+    parser.add_argument('--ways', type=int, default=params['ways'], help='N-ways (classes)')
+    parser.add_argument('--shots', type=int, default=params['shots'], help='K-shots (samples per class)')
+    parser.add_argument('--seed', type=int, default=params['seed'], help='Seed')
 
     args = parser.parse_args()
 
     dataset = args.dataset
-    params['ways'] = int(args.ways)
-    params['shots'] = int(args.shots)
+    params['ways'] = args.ways
+    params['shots'] = args.shots
+    params['seed'] = args.seed
 
     MamlVision()
