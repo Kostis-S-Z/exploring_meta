@@ -34,8 +34,16 @@ params = {
 # Environments:
 #   - Particles2D-v1
 #   - AntDirection-v1
-env_name = "Particles2D-v1"
+#   - procgen:procgen-coinrun-v0
+env_name = "procgen:procgen-coinrun-v0"
+# env_name = "Particles2D-v1"
+
 workers = 4
+
+distribution_mode = "easy"
+num_levels = 0
+start_level = 0
+test_worker_interval = 0
 
 cl_test = False
 rep_test = True
@@ -50,21 +58,14 @@ class MamlRL(Experiment):
     def __init__(self):
         super(MamlRL, self).__init__("maml", env_name, params, path="rl_results/", use_wandb=wandb)
 
-        def make_env():
-            env = gym.make(env_name)
-            env = ch.envs.ActionSpaceScaler(env)
-            return env
-
         device = torch.device('cpu')
 
         random.seed(self.params['seed'])
         np.random.seed(self.params['seed'])
         torch.manual_seed(self.params['seed'])
 
-        env = l2l.gym.AsyncVectorEnv([make_env for _ in range(workers)])
+        env = gym.make(env_name)
         env.seed(self.params['seed'])
-        env.set_task(env.sample_tasks(1)[0])
-        env = ch.envs.Torch(env)
 
         if cuda and torch.cuda.device_count():
             torch.cuda.manual_seed(self.params['seed'])
@@ -74,12 +75,23 @@ class MamlRL(Experiment):
 
     def run(self, env, device):
 
-        baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
-        policy = DiagNormalPolicy(env.state_size, env.action_size)
+        if env_name == "procgen:procgen-coinrun-v0":
+            obs_size = np.prod(env.observation_space.shape)
+            act_size = env.action_space.n
+        else:
+            obs_size = env.observation_space.shape[0]
+            act_size = env.action_space.shape[0]
+
+        print(obs_size)
+        print(act_size)
+
+        baseline = ch.models.robotics.LinearValue(obs_size, act_size)
+        policy = DiagNormalPolicy(obs_size, act_size)
+
         if cuda:
             policy.to('cuda')
 
-        self.log_model(policy, device, input_shape=(1, env.state_size))  # Input shape is specific to dataset
+        self.log_model(policy, device, input_shape=(1, obs_size))  # Input shape is specific to dataset
 
         t = trange(self.params['num_iterations'])
         try:
@@ -91,12 +103,9 @@ class MamlRL(Experiment):
                 iter_replays = []
                 iter_policies = []
 
-                task_list = env.sample_tasks(self.params['meta_batch_size'])
-
-                for task in task_list:
+                for task_i in range(self.params['meta_batch_size']):
 
                     clone = deepcopy(policy)
-                    env.set_task(task)
                     env.reset()
 
                     task = ch.envs.Runner(env)
