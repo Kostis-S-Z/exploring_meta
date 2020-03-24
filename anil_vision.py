@@ -14,8 +14,8 @@ from core_funtions.vision import fast_adapt
 params = {
     "ways": 5,
     "shots": 1,
-    "meta_lr": 0.001,
-    "fast_lr": 0.1,
+    "outer_lr": 0.001,
+    "inner_lr": 0.1,
     "fc_neurons": 1600,
     "adapt_steps": 1,
     "meta_batch_size": 32,
@@ -78,12 +78,12 @@ class AnilVision(Experiment):
         features.to(device)
 
         head = torch.nn.Linear(self.params['fc_neurons'], self.params['ways'])
-        head = l2l.algorithms.MAML(head, lr=self.params['fast_lr'])
+        head = l2l.algorithms.MAML(head, lr=self.params['inner_lr'])
         head.to(device)
 
         # Setup optimization
         all_parameters = list(features.parameters()) + list(head.parameters())
-        optimizer = torch.optim.Adam(all_parameters, lr=self.params['meta_lr'])
+        optimizer = torch.optim.Adam(all_parameters, lr=self.params['outer_lr'])
         loss = torch.nn.CrossEntropyLoss(reduction='mean')
 
         self.log_model(features, device, input_shape=input_shape, name='features')  # Input shape is specific to dataset
