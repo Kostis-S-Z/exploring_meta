@@ -11,9 +11,9 @@ def fast_adapt(batch, learner, loss, adaptation_steps, shots, ways, device, feat
         learner.adapt(train_error)
 
     predictions = learner(eval_data)
-    valid_error = loss(predictions, eval_labels)
+    valid_loss = loss(predictions, eval_labels)
     valid_accuracy = accuracy(predictions, eval_labels)
-    return valid_error, valid_accuracy
+    return valid_loss, valid_accuracy
 
 
 def accuracy(predictions, targets):

@@ -39,7 +39,7 @@ class Experiment:
         # Optionally, use Weights and Biases to monitor performance
         if use_wandb:
             self._use_wandb = True
-            self._wandb = wandb.init(project="l2l", id=self.logger['model_id'])
+            self._wandb = wandb.init(project="l2l", id=self.logger['model_id'], config=params)
         else:
             self._use_wandb = False
 
