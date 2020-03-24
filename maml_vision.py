@@ -11,7 +11,6 @@ import learn2learn as l2l
 from utils import *
 from core_funtions.vision import fast_adapt
 
-
 params = {
     "ways": 5,
     "shots": 1,
@@ -19,7 +18,7 @@ params = {
     "fast_lr": 0.5,
     "adapt_steps": 1,
     "meta_batch_size": 32,
-    "num_iterations": 30000,
+    "num_iterations": 20000,
     "save_every": 1000,
     "seed": 42,
 }
@@ -45,6 +44,7 @@ class MamlVision(Experiment):
         torch.manual_seed(self.params['seed'])
         device = torch.device('cpu')
         if cuda and torch.cuda.device_count():
+            print(f'Running with CUDA and device {torch.cuda.get_device_name(0)}')
             torch.cuda.manual_seed(self.params['seed'])
             device = torch.device('cuda')
 
@@ -81,36 +81,40 @@ class MamlVision(Experiment):
 
             for iteration in t:
                 opt.zero_grad()
-                meta_train_error = 0.0
+                meta_train_loss = 0.0
                 meta_train_accuracy = 0.0
-                meta_valid_error = 0.0
+                meta_valid_loss = 0.0
                 meta_valid_accuracy = 0.0
                 for task in range(self.params['meta_batch_size']):
                     # Compute meta-training loss
                     learner = maml.clone()
                     batch = train_tasks.sample()
-                    evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
-                                                                       self.params['adapt_steps'],
-                                                                       self.params['shots'], self.params['ways'],
-                                                                       device)
-                    evaluation_error.backward()
-                    meta_train_error += evaluation_error.item()
-                    meta_train_accuracy += evaluation_accuracy.item()
+                    eval_loss, eval_acc = fast_adapt(batch, learner, loss,
+                                                     self.params['adapt_steps'],
+                                                     self.params['shots'], self.params['ways'],
+                                                     device)
+                    eval_loss.backward()
+                    meta_train_loss += eval_loss.item()
+                    meta_train_accuracy += eval_acc.item()
 
                     # Compute meta-validation loss
                     learner = maml.clone()
                     batch = valid_tasks.sample()
-                    evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
-                                                                       self.params['adapt_steps'],
-                                                                       self.params['shots'], self.params['ways'],
-                                                                       device)
-                    meta_valid_error += evaluation_error.item()
-                    meta_valid_accuracy += evaluation_accuracy.item()
+                    eval_loss, eval_acc = fast_adapt(batch, learner, loss,
+                                                     self.params['adapt_steps'],
+                                                     self.params['shots'], self.params['ways'],
+                                                     device)
+                    meta_valid_loss += eval_loss.item()
+                    meta_valid_accuracy += eval_acc.item()
 
+                meta_train_loss = meta_train_loss / self.params['meta_batch_size']
+                meta_valid_loss = meta_valid_loss / self.params['meta_batch_size']
                 meta_train_accuracy = meta_train_accuracy / self.params['meta_batch_size']
                 meta_valid_accuracy = meta_valid_accuracy / self.params['meta_batch_size']
 
-                metrics = {'train_acc': meta_train_accuracy,
+                metrics = {'train_loss': meta_train_loss,
+                           'train_acc': meta_train_accuracy,
+                           'valid_loss': meta_valid_loss,
                            'valid_acc': meta_valid_accuracy}
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
