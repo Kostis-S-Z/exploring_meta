@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-
+import argparse
 import random
 import torch
 import numpy as np
@@ -19,7 +19,7 @@ params = {
     "fc_neurons": 1600,
     "adapt_steps": 1,
     "meta_batch_size": 32,
-    "num_iterations": 30000,
+    "num_iterations": 20000,
     "save_every": 1000,
     "seed": 42,
 }
@@ -54,6 +54,7 @@ class AnilVision(Experiment):
         torch.manual_seed(self.params['seed'])
         device = torch.device('cpu')
         if cuda and torch.cuda.device_count():
+            print(f'Running with CUDA and device {torch.cuda.get_device_name(0)}')
             torch.cuda.manual_seed(self.params['seed'])
             device = torch.device('cuda')
 
@@ -93,36 +94,40 @@ class AnilVision(Experiment):
         try:
             for iteration in t:
                 optimizer.zero_grad()
-                meta_train_error = 0.0
+                meta_train_loss = 0.0
                 meta_train_accuracy = 0.0
-                meta_valid_error = 0.0
+                meta_valid_loss = 0.0
                 meta_valid_accuracy = 0.0
                 for task in range(self.params['meta_batch_size']):
                     # Compute meta-training loss
                     learner = head.clone()
                     batch = train_tasks.sample()
-                    evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
-                                                                       self.params['adapt_steps'],
-                                                                       self.params['shots'], self.params['ways'],
-                                                                       device, features=features)
-                    evaluation_error.backward()
-                    meta_train_error += evaluation_error.item()
-                    meta_train_accuracy += evaluation_accuracy.item()
+                    eval_loss, eval_acc = fast_adapt(batch, learner, loss,
+                                                     self.params['adapt_steps'],
+                                                     self.params['shots'], self.params['ways'],
+                                                     device, features=features)
+                    eval_loss.backward()
+                    meta_train_loss += eval_loss.item()
+                    meta_train_accuracy += eval_acc.item()
 
                     # Compute meta-validation loss
                     learner = head.clone()
                     batch = valid_tasks.sample()
-                    evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
-                                                                       self.params['adapt_steps'],
-                                                                       self.params['shots'], self.params['ways'],
-                                                                       device, features=features)
-                    meta_valid_error += evaluation_error.item()
-                    meta_valid_accuracy += evaluation_accuracy.item()
+                    eval_loss, eval_acc = fast_adapt(batch, learner, loss,
+                                                     self.params['adapt_steps'],
+                                                     self.params['shots'], self.params['ways'],
+                                                     device, features=features)
+                    meta_valid_loss += eval_loss.item()
+                    meta_valid_accuracy += eval_acc.item()
 
+                meta_train_loss = meta_train_loss / self.params['meta_batch_size']
+                meta_valid_loss = meta_valid_loss / self.params['meta_batch_size']
                 meta_train_accuracy = meta_train_accuracy / self.params['meta_batch_size']
                 meta_valid_accuracy = meta_valid_accuracy / self.params['meta_batch_size']
 
-                metrics = {'train_acc': meta_train_accuracy,
+                metrics = {'train_loss': meta_train_loss,
+                           'train_acc': meta_train_accuracy,
+                           'valid_loss': meta_valid_loss,
                            'valid_acc': meta_valid_accuracy}
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
@@ -180,4 +185,18 @@ class AnilVision(Experiment):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='ANIL on Vision')
+
+    parser.add_argument('--dataset', type=str, default=dataset, help='Pick a dataset')
+    parser.add_argument('--ways', type=int, default=params['ways'], help='N-ways (classes)')
+    parser.add_argument('--shots', type=int, default=params['shots'], help='K-shots (samples per class)')
+    parser.add_argument('--seed', type=int, default=params['seed'], help='Seed')
+
+    args = parser.parse_args()
+
+    dataset = args.dataset
+    params['ways'] = args.ways
+    params['shots'] = args.shots
+    params['seed'] = args.seed
+
     AnilVision()
