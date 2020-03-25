@@ -154,24 +154,24 @@ class MamlVision(Experiment):
 
         self.save_logs_to_file()
 
-    def evaluate(self, test_tasks, maml, loss, device):
-        meta_test_error = 0.0
-        meta_test_accuracy = 0.0
-        for task in range(self.params['meta_batch_size']):
-            # Compute meta-testing loss
-            learner = maml.clone()
-            batch = test_tasks.sample()
 
-            evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
-                                                               self.params['adapt_steps'],
-                                                               self.params['shots'], self.params['ways'],
-                                                               device)
-            meta_test_error += evaluation_error.item()
-            meta_test_accuracy += evaluation_accuracy.item()
+def evaluate(prms, test_tasks, maml, loss, device):
+    meta_test_error = 0.0
+    meta_test_accuracy = 0.0
+    for task in range(prms['meta_batch_size']):
+        # Compute meta-testing loss
+        learner = maml.clone()
+        batch = test_tasks.sample()
 
-        meta_test_accuracy = meta_test_accuracy / self.params['meta_batch_size']
-        print('Meta Test Accuracy', meta_test_accuracy)
-        return meta_test_accuracy
+        evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
+                                                           prms['adapt_steps'], prms['shots'], prms['ways'],
+                                                           device)
+        meta_test_error += evaluation_error.item()
+        meta_test_accuracy += evaluation_accuracy.item()
+
+    meta_test_accuracy = meta_test_accuracy / prms['meta_batch_size']
+    print('Meta Test Accuracy', meta_test_accuracy)
+    return meta_test_accuracy
 
 
 if __name__ == '__main__':
