@@ -9,7 +9,7 @@ Setting 2: Tr1 =/= Te1 (Same class, different samples)
 import os
 import json
 import numpy as np
-from core_funtions.vision import accuracy
+from core_functions.vision import accuracy
 from utils import calc_cl_metrics, prepare_batch
 
 setting = 1
