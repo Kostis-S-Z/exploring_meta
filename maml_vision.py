@@ -32,7 +32,7 @@ cl_params = {
 rep_params = {
     "adapt_steps": 1,
     "inner_lr": 0.1,
-    "n_tasks": 10,
+    "n_tasks": 5,
     "layers": [4]
 }
 

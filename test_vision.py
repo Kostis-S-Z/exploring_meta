@@ -7,7 +7,7 @@ import torch
 import learn2learn as l2l
 
 from utils import *
-from maml_vision import evaluate
+from core_funtions.vision import evaluate
 
 cuda = True
 

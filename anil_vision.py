@@ -24,10 +24,16 @@ params = {
     "seed": 42,
 }
 
+cl_params = {
+    "adapt_steps": 1,
+    "inner_lr": 0.1,
+    "n_tasks": 10
+}
+
 dataset = "min"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
-cl_test = True
+cl_test = False
 
 cuda = True
 
@@ -152,7 +158,9 @@ class AnilVision(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Meta-testing on unseen tasks
-        self.logger['test_acc'] = self.evaluate(test_tasks, head, features, loss, device)
+        self.logger['test_acc'] = evaluate(self.params, test_tasks, head, loss, device, features=features)
+
+        self.save_logs_to_file()
 
         if cl_test:
             print("Running Continual Learning experiment...")
