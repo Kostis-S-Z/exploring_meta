@@ -9,7 +9,7 @@ from tqdm import trange
 import learn2learn as l2l
 
 from utils import *
-from core_funtions.vision import fast_adapt
+from core_funtions.vision import fast_adapt, evaluate
 
 params = {
     "ways": 5,
@@ -162,25 +162,6 @@ class MamlVision(Experiment):
             print("Running Representation experiment...")
             run_rep_exp(self.model_path, maml, loss, test_tasks, device,
                         self.params['ways'], self.params['shots'], rep_params=rep_params)
-
-
-def evaluate(prms, test_tasks, maml, loss, device):
-    meta_test_error = 0.0
-    meta_test_accuracy = 0.0
-    for task in range(prms['meta_batch_size']):
-        # Compute meta-testing loss
-        learner = maml.clone()
-        batch = test_tasks.sample()
-
-        evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
-                                                           prms['adapt_steps'], prms['shots'], prms['ways'],
-                                                           device)
-        meta_test_error += evaluation_error.item()
-        meta_test_accuracy += evaluation_accuracy.item()
-
-    meta_test_accuracy = meta_test_accuracy / prms['meta_batch_size']
-    print('Meta Test Accuracy', meta_test_accuracy)
-    return meta_test_accuracy
 
 
 if __name__ == '__main__':

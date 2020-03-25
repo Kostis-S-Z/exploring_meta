@@ -9,7 +9,7 @@ from tqdm import trange
 import learn2learn as l2l
 
 from utils import *
-from core_funtions.vision import fast_adapt
+from core_funtions.vision import fast_adapt, evaluate
 
 params = {
     "ways": 5,
@@ -156,32 +156,9 @@ class AnilVision(Experiment):
 
         if cl_test:
             print("Running Continual Learning experiment...")
-            acc_matrix, cl_res = run_cl_exp(head, loss, test_tasks, device,
-                                            self.params['ways'], self.params['shots'], self.params['adapt_steps'],
-                                            features=features)
-            self.save_acc_matrix(acc_matrix)
-            self.logger['cl_metrics'] = cl_res
-
-        self.save_logs_to_file()
-
-    def evaluate(self, test_tasks, head, features, loss, device):
-        meta_test_error = 0.0
-        meta_test_accuracy = 0.0
-        for task in range(self.params['meta_batch_size']):
-            # Compute meta-testing loss
-            learner = head.clone()
-            batch = test_tasks.sample()
-
-            evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
-                                                               self.params['adapt_steps'],
-                                                               self.params['shots'], self.params['ways'],
-                                                               device, features=features)
-            meta_test_error += evaluation_error.item()
-            meta_test_accuracy += evaluation_accuracy.item()
-
-        meta_test_accuracy = meta_test_accuracy / self.params['meta_batch_size']
-        print('Meta Test Accuracy', meta_test_accuracy)
-        return meta_test_accuracy
+            run_cl_exp(self.model_path, head, loss, test_tasks, device,
+                       self.params['ways'], self.params['shots'],
+                       cl_params=cl_params, features=features)
 
 
 if __name__ == '__main__':
