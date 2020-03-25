@@ -99,7 +99,7 @@ def meta_optimize(params, policy, baseline, iter_replays, iter_policies, cuda):
 
     # Compute CG step direction
     old_loss, old_kl = meta_surrogate_loss(iter_replays, iter_policies, policy, baseline,
-                                           params['tau'], params['gamma'], params['fast_lr'])
+                                           params['tau'], params['gamma'], params['inner_lr'])  # TODO: maybe outer_lr
 
     grad = torch.autograd.grad(old_loss,
                                policy.parameters(),
@@ -118,12 +118,12 @@ def meta_optimize(params, policy, baseline, iter_replays, iter_policies, cuda):
 
     # Line-search
     for ls_step in range(params['ls_max_steps']):
-        stepsize = params['backtrack_factor'] ** ls_step * params['meta_lr']
+        stepsize = params['backtrack_factor'] ** ls_step * params['outer_lr']  # TODO: maybe inner_lr
         clone = deepcopy(policy)
         for p, u in zip(clone.parameters(), step):
             p.data.add_(-stepsize, u.data)
         new_loss, kl = meta_surrogate_loss(iter_replays, iter_policies, clone, baseline,
-                                           params['tau'], params['gamma'], params['fast_lr'])
+                                           params['tau'], params['gamma'], params['inner_lr'])  # TODO: maybe outer_lr
         if new_loss < old_loss and kl < params['max_kl']:
             for p, u in zip(policy.parameters(), step):
                 p.data.add_(-stepsize, u.data)
