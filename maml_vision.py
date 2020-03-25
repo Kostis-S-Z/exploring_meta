@@ -23,6 +23,19 @@ params = {
     "seed": 42,
 }
 
+cl_params = {
+    "adapt_steps": 1,
+    "inner_lr": 0.1,
+    "n_tasks": 10
+}
+
+rep_params = {
+    "adapt_steps": 1,
+    "inner_lr": 0.1,
+    "n_tasks": 10,
+    "layers": [4]
+}
+
 dataset = "min"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
@@ -137,22 +150,18 @@ class MamlVision(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Meta-testing on unseen tasks
-        self.logger['test_acc'] = self.evaluate(test_tasks, maml, loss, device)
+        self.logger['test_acc'] = evaluate(self.params, test_tasks, maml, loss, device)
+        self.save_logs_to_file()
 
         if cl_test:
             print("Running Continual Learning experiment...")
-            acc_matrix, cl_res = run_cl_exp(maml, loss, test_tasks, device,
-                                            self.params['ways'], self.params['shots'], self.params['adapt_steps'])
-            self.save_acc_matrix(acc_matrix)
-            self.logger['cl_metrics'] = cl_res
+            run_cl_exp(self.model_path, maml, loss, test_tasks, device,
+                       self.params['ways'], self.params['shots'], cl_params=cl_params)
 
         if rep_test:
             print("Running Representation experiment...")
-            self.logger['cca'] = run_rep_exp(maml, loss, test_tasks, device,
-                                             self.params['ways'], self.params['shots'], self.model_path,
-                                             n_tasks=1)
-
-        self.save_logs_to_file()
+            run_rep_exp(self.model_path, maml, loss, test_tasks, device,
+                        self.params['ways'], self.params['shots'], rep_params=rep_params)
 
 
 def evaluate(prms, test_tasks, maml, loss, device):
