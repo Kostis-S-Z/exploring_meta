@@ -73,8 +73,6 @@ class Experiment:
     def save_model(self, model, name="model"):
         print('Saving ' + name + '...')
         torch.save(model.state_dict(), self.model_path + '/' + name + '.pt')
-        if self._use_wandb:
-            torch.save(model.state_dict(), os.path.join(wandb.run.dir, name + '.pt'))
 
     def save_model_checkpoint(self, model, epoch):
         self.save_model(model, name='/model_checkpoints/model_' + epoch)

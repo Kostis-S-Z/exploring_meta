@@ -9,18 +9,31 @@ from tqdm import trange
 import learn2learn as l2l
 
 from utils import *
-from core_funtions.vision import fast_adapt
+from core_functions.vision import fast_adapt, evaluate
 
 params = {
     "ways": 5,
     "shots": 1,
-    "meta_lr": 0.003,
-    "fast_lr": 0.5,
+    "outer_lr": 0.003,
+    "inner_lr": 0.5,
     "adapt_steps": 1,
     "meta_batch_size": 32,
     "num_iterations": 20000,
     "save_every": 1000,
     "seed": 42,
+}
+
+cl_params = {
+    "adapt_steps": 1,
+    "inner_lr": 0.1,
+    "n_tasks": 10
+}
+
+rep_params = {
+    "adapt_steps": 1,
+    "inner_lr": 0.1,
+    "n_tasks": 5,
+    "layers": [4]
 }
 
 dataset = "min"  # omni or min (omniglot / Mini ImageNet)
@@ -70,8 +83,8 @@ class MamlVision(Experiment):
     def run(self, train_tasks, valid_tasks, test_tasks, model, input_shape, device):
 
         model.to(device)
-        maml = l2l.algorithms.MAML(model, lr=self.params['fast_lr'], first_order=False)
-        opt = torch.optim.Adam(maml.parameters(), self.params['meta_lr'])
+        maml = l2l.algorithms.MAML(model, lr=self.params['inner_lr'], first_order=False)
+        opt = torch.optim.Adam(maml.parameters(), self.params['outer_lr'])
         loss = torch.nn.CrossEntropyLoss(reduction='mean')
 
         self.log_model(maml, device, input_shape=input_shape)  # Input shape is specific to dataset
@@ -137,41 +150,18 @@ class MamlVision(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Meta-testing on unseen tasks
-        self.logger['test_acc'] = self.evaluate(test_tasks, maml, loss, device)
+        self.logger['test_acc'] = evaluate(self.params, test_tasks, maml, loss, device)
+        self.save_logs_to_file()
 
         if cl_test:
             print("Running Continual Learning experiment...")
-            acc_matrix, cl_res = run_cl_exp(maml, loss, test_tasks, device,
-                                            self.params['ways'], self.params['shots'], self.params['adapt_steps'])
-            self.save_acc_matrix(acc_matrix)
-            self.logger['cl_metrics'] = cl_res
+            run_cl_exp(self.model_path, maml, loss, test_tasks, device,
+                       self.params['ways'], self.params['shots'], cl_params=cl_params)
 
         if rep_test:
             print("Running Representation experiment...")
-            self.logger['cca'] = run_rep_exp(maml, loss, test_tasks, device,
-                                             self.params['ways'], self.params['shots'], self.model_path,
-                                             n_tasks=1)
-
-        self.save_logs_to_file()
-
-    def evaluate(self, test_tasks, maml, loss, device):
-        meta_test_error = 0.0
-        meta_test_accuracy = 0.0
-        for task in range(self.params['meta_batch_size']):
-            # Compute meta-testing loss
-            learner = maml.clone()
-            batch = test_tasks.sample()
-
-            evaluation_error, evaluation_accuracy = fast_adapt(batch, learner, loss,
-                                                               self.params['adapt_steps'],
-                                                               self.params['shots'], self.params['ways'],
-                                                               device)
-            meta_test_error += evaluation_error.item()
-            meta_test_accuracy += evaluation_accuracy.item()
-
-        meta_test_accuracy = meta_test_accuracy / self.params['meta_batch_size']
-        print('Meta Test Accuracy', meta_test_accuracy)
-        return meta_test_accuracy
+            run_rep_exp(self.model_path, maml, loss, test_tasks, device,
+                        self.params['ways'], self.params['shots'], rep_params=rep_params)
 
 
 if __name__ == '__main__':
@@ -180,6 +170,14 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, default=dataset, help='Pick a dataset')
     parser.add_argument('--ways', type=int, default=params['ways'], help='N-ways (classes)')
     parser.add_argument('--shots', type=int, default=params['shots'], help='K-shots (samples per class)')
+
+    parser.add_argument('--outer_lr', type=float, default=params['outer_lr'], help='Outer lr')
+    parser.add_argument('--inner_lr', type=float, default=params['inner_lr'], help='Inner lr')
+    parser.add_argument('--adapt_steps', type=int, default=params['adapt_steps'], help='Adaptation steps in inner loop')
+    parser.add_argument('--meta_batch_size', type=int, default=params['meta_batch_size'], help='Batch size')
+    parser.add_argument('--num_iterations', type=int, default=params['num_iterations'], help='Number of epochs')
+    parser.add_argument('--save_every', type=int, default=params['save_every'], help='Interval to save model')
+
     parser.add_argument('--seed', type=int, default=params['seed'], help='Seed')
 
     args = parser.parse_args()
@@ -187,6 +185,13 @@ if __name__ == '__main__':
     dataset = args.dataset
     params['ways'] = args.ways
     params['shots'] = args.shots
+    params['outer_lr'] = args.outer_lr
+    params['inner_lr'] = args.inner_lr
+    params['adapt_steps'] = args.adapt_steps
+    params['meta_batch_size'] = args.meta_batch_size
+    params['num_iterations'] = args.num_iterations
+    params['save_every'] = args.save_every
+
     params['seed'] = args.seed
 
     MamlVision()
