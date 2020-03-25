@@ -10,11 +10,10 @@ from tqdm import trange
 
 import gym
 import cherry as ch
-import learn2learn as l2l
 
 from utils import *
-from core_funtions.policies import DiagNormalPolicy
-from core_funtions.rl import fast_adapt_a2c, meta_optimize
+from core_functions.policies import DiagNormalPolicy
+from core_functions.rl import fast_adapt_a2c, meta_optimize
 
 params = {
     "meta_lr": 1.0,  # ?
@@ -35,8 +34,8 @@ params = {
 #   - Particles2D-v1
 #   - AntDirection-v1
 #   - procgen:procgen-coinrun-v0
-env_name = "procgen:procgen-coinrun-v0"
-# env_name = "Particles2D-v1"
+# env_name = "procgen:procgen-coinrun-v0"
+env_name = "Particles2D-v1"
 
 workers = 4
 
