@@ -16,7 +16,7 @@ def plot_dict(a_dict, save=False):
     plt.xlabel(x_legend)
     plt.ylabel(y_legend)
 
-    for values, label in y_axis:
+    for label, values in y_axis.items():
         plt.plot(values, label=label)
 
     if save:
