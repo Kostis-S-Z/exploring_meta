@@ -17,7 +17,7 @@ Setting:
 import os
 import json
 import numpy as np
-from core_funtions.vision import accuracy
+from core_functions.vision import accuracy
 from utils import prepare_batch, plot_dict
 from utils import get_cca_similarity, get_linear_CKA, get_kernel_CKA
 from tqdm import tqdm
