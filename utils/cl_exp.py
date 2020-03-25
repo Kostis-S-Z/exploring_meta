@@ -6,18 +6,28 @@ Setting 2: Tr1 =/= Te1 (Same class, different samples)
 
 """
 
+import os
+import json
 import numpy as np
 from core_funtions.vision import accuracy
 from utils import calc_cl_metrics, prepare_batch
 
-setting = 2
+setting = 1
+
+default_params = {
+    "adapt_steps": 1,
+    "inner_lr": 0.1,
+    "n_tasks": 10
+}
 
 
-def run_cl_exp(maml, loss, tasks, device, ways, shots, adapt_steps, n_tasks=5, features=None):
+def run_cl_exp(path, maml, loss, tasks, device, ways, shots, cl_params=default_params, features=None):
+    cl_path = path + '/cl_exp'
+    os.mkdir(cl_path)
 
     # Randomly select some batches for training and evaluation
     tasks_pool = []
-    for task_i in range(n_tasks):
+    for task_i in range(cl_params['n_tasks']):
         batch = tasks.sample()
         adapt_d, adapt_l, eval_d, eval_l = prepare_batch(batch, shots, ways, device, features=features)
 
@@ -31,7 +41,7 @@ def run_cl_exp(maml, loss, tasks, device, ways, shots, adapt_steps, n_tasks=5, f
         tasks_pool.append(task)
 
     # Matrix R NxN of accuracies in tasks j after trained on a tasks i (x_axis = test tasks, y_axis = train tasks)
-    acc_matrix = np.zeros((n_tasks, n_tasks))
+    acc_matrix = np.zeros((cl_params['n_tasks'], cl_params['n_tasks']))
 
     # Training loop
     for i, task_i in enumerate(tasks_pool):
@@ -40,7 +50,7 @@ def run_cl_exp(maml, loss, tasks, device, ways, shots, adapt_steps, n_tasks=5, f
 
         learner = maml.clone()
         # Adapt to task i
-        for step in range(adapt_steps):
+        for step in range(cl_params['adapt_steps']):
             train_error = loss(learner(adapt_i_data), adapt_i_labels)
             learner.adapt(train_error)
 
@@ -54,4 +64,19 @@ def run_cl_exp(maml, loss, tasks, device, ways, shots, adapt_steps, n_tasks=5, f
 
             acc_matrix[i, j] = valid_accuracy_j  # Accuracy on task j after trained on task i
 
-    return acc_matrix, calc_cl_metrics(acc_matrix)
+    cl_res = calc_cl_metrics(acc_matrix)
+
+    save_acc_matrix(cl_path, acc_matrix)
+    with open(cl_path + '/cl_params.json', 'w') as fp:
+        json.dump(cl_params, fp, sort_keys=True, indent=4)
+
+    with open(cl_path + '/cl_res.json', 'w') as fp:
+        json.dump(cl_res, fp, sort_keys=True, indent=4)
+
+    return acc_matrix, cl_res
+
+
+def save_acc_matrix(path, acc_matrix):
+    print('Saving accuracy matrix..')
+    print(acc_matrix)
+    np.savetxt(path + '/acc_matrix.out', acc_matrix, fmt='%1.2f')
