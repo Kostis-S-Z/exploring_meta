@@ -75,7 +75,7 @@ def run_rep_exp(path, model, loss, tasks, device, ways, shots, rep_params=defaul
             # what is the difference with the activations? -> weights vs activations?
 
             # Get their representations for every layer
-            for i, layer in enumerate(tqdm(cca_results.keys(), desc="Layers", leave=None)):
+            for i, layer in enumerate(cca_results.keys()):
                 adapted_rep_i = get_rep_from_batch(adapt_model, adapt_d, i + 2)
                 init_rep_i = get_rep_from_batch(init_model, adapt_d, i + 2)
 
