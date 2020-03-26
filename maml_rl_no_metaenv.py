@@ -25,7 +25,7 @@ params = {
     "max_kl": 0.01,           # Meta-optimizer
     "adapt_batch_size": 20,
     "meta_batch_size": 32,
-    "adapt_steps": 5,
+    "adapt_steps": 1,
     "num_iterations": 100,
     "save_every": 1000,
     "seed": 42}
@@ -107,7 +107,7 @@ class MamlRL(Experiment):
                     clone = deepcopy(policy)
                     env.reset()
 
-                    task = ch.envs.Runner(env)
+                    task = ch.envs.Runner(env, meta_env=False)
                     task_replay = []
 
                     # Adapt

@@ -19,9 +19,9 @@ _Note: There is a [bug](https://stackoverflow.com/questions/26193365/pycharm-doe
 
 ```pip install git+https://github.com/sksq96/pytorch-summary.git@4ee5ac5#egg=torchsummary```
 
-4. Install github version of cherry-rl (because PyPI package hasn't been updated to support torch 1.3.+)
+4. Install my forked version of [cherry](https://github.com/Kostis-S-Z/cherry) specifically modified for experiments for this repo:
 
-```pip install git+git://github.com/learnables/cherry.git#egg=cherry```
+```pip install git+git://github.com/Kostis-S-Z/cherry.git#egg=cherry```
 
 5. Install baselines
 

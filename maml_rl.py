@@ -99,7 +99,7 @@ class MamlRL(Experiment):
                     env.set_task(task)
                     env.reset()
 
-                    task = ch.envs.Runner(env)
+                    task = ch.envs.Runner(env, meta_env=True)
                     task_replay = []
 
                     # Adapt
