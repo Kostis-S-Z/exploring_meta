@@ -16,8 +16,8 @@ from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import fast_adapt_a2c, meta_optimize
 
 params = {
-    "meta_lr": 1.0,  # ?
-    "fast_lr": 0.1,  # ?
+    "outer_lr": 0.1,  # ?
+    "inner_lr": 0.1,  # ?
     "tau": 1.0,
     "gamma": 0.99,
     "backtrack_factor": 0.5,  # Meta-optimizer
@@ -25,7 +25,7 @@ params = {
     "max_kl": 0.01,           # Meta-optimizer
     "adapt_batch_size": 20,
     "meta_batch_size": 32,
-    "adapt_steps": 1,
+    "adapt_steps": 5,
     "num_iterations": 100,
     "save_every": 1000,
     "seed": 42}
@@ -45,7 +45,7 @@ start_level = 0
 test_worker_interval = 0
 
 cl_test = False
-rep_test = True
+rep_test = False
 
 cuda = False
 
@@ -115,7 +115,7 @@ class MamlRL(Experiment):
                         train_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
                         task_replay.append(train_episodes)
                         clone = fast_adapt_a2c(clone, train_episodes, baseline,
-                                               self.params['fast_lr'], self.params['gamma'], self.params['tau'],
+                                               self.params['inner_lr'], self.params['gamma'], self.params['tau'],
                                                first_order=True)
 
                     # Compute validation Loss
