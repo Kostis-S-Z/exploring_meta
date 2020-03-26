@@ -50,7 +50,8 @@ wandb = False
 class MamlVision(Experiment):
 
     def __init__(self):
-        super(MamlVision, self).__init__("maml", dataset, params, path="results/", use_wandb=wandb)
+        super(MamlVision, self).__init__(f"maml_{params['ways']}w{params['shots']}s",
+                                         dataset, params, path="results/", use_wandb=wandb)
 
         random.seed(self.params['seed'])
         np.random.seed(self.params['seed'])

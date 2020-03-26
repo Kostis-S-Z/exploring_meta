@@ -53,7 +53,8 @@ class Lambda(torch.nn.Module):
 class AnilVision(Experiment):
 
     def __init__(self):
-        super(AnilVision, self).__init__("anil", dataset, params, path="results/", use_wandb=wandb)
+        super(AnilVision, self).__init__(f"anil_{params['ways']}w{params['shots']}s",
+                                         dataset, params, path="results/", use_wandb=wandb)
 
         random.seed(self.params['seed'])
         np.random.seed(self.params['seed'])
