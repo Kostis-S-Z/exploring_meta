@@ -160,6 +160,7 @@ class AnilVision(Experiment):
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Meta-testing on unseen tasks
         self.logger['test_acc'] = evaluate(self.params, test_tasks, head, loss, device, features=features)
+        self.log_metrics({'test_acc': self.logger['test_acc']})
 
         self.save_logs_to_file()
 
