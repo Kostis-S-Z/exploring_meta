@@ -144,8 +144,8 @@ class AnilVision(Experiment):
                 optimizer.step()
 
                 if iteration % self.params['save_every'] == 0:
-                    self.save_model(features, name='/model_checkpoints/model_' + str(iteration))
-                    self.save_model(head, name='/model_checkpoints/model_' + str(iteration))
+                    self.save_model(features, name='/model_checkpoints/features_' + str(iteration))
+                    self.save_model(head, name='/model_checkpoints/head_' + str(iteration))
 
         # Support safely manually interrupt training
         except KeyboardInterrupt:
@@ -175,6 +175,13 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, default=dataset, help='Pick a dataset')
     parser.add_argument('--ways', type=int, default=params['ways'], help='N-ways (classes)')
     parser.add_argument('--shots', type=int, default=params['shots'], help='K-shots (samples per class)')
+    parser.add_argument('--outer_lr', type=float, default=params['outer_lr'], help='Outer lr')
+    parser.add_argument('--inner_lr', type=float, default=params['inner_lr'], help='Inner lr')
+    parser.add_argument('--adapt_steps', type=int, default=params['adapt_steps'], help='Adaptation steps in inner loop')
+    parser.add_argument('--meta_batch_size', type=int, default=params['meta_batch_size'], help='Batch size')
+    parser.add_argument('--num_iterations', type=int, default=params['num_iterations'], help='Number of epochs')
+    parser.add_argument('--save_every', type=int, default=params['save_every'], help='Interval to save model')
+
     parser.add_argument('--seed', type=int, default=params['seed'], help='Seed')
 
     args = parser.parse_args()
@@ -182,6 +189,12 @@ if __name__ == '__main__':
     dataset = args.dataset
     params['ways'] = args.ways
     params['shots'] = args.shots
+    params['outer_lr'] = args.outer_lr
+    params['inner_lr'] = args.inner_lr
+    params['adapt_steps'] = args.adapt_steps
+    params['meta_batch_size'] = args.meta_batch_size
+    params['num_iterations'] = args.num_iterations
+    params['save_every'] = args.save_every
     params['seed'] = args.seed
 
     AnilVision()
