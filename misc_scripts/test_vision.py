@@ -11,11 +11,11 @@ from core_functions.vision import evaluate
 
 cuda = True
 
-base_path = "results/reprod_results/maml_min_04_03_16h43_42_2373"
+base_path = "../results/seed_check/anil_min_25_03_09h56_1_3936"
 
-eval_iters = False
+eval_iters = True
 cl_exp = False
-rep_exp = True
+rep_exp = False
 
 cl_params = {
     "adapt_steps": 1,
@@ -31,6 +31,16 @@ rep_params = {
 }
 
 
+class Lambda(torch.nn.Module):
+
+    def __init__(self, fn):
+        super(Lambda, self).__init__()
+        self.fn = fn
+
+    def forward(self, x):
+        return self.fn(x)
+
+
 def run(path):
     # Initialize
     with open(path + "/logger.json", "r") as f:
@@ -41,15 +51,22 @@ def run(path):
         torch.cuda.manual_seed(params['seed'])
         device = torch.device('cuda')
 
-    if "min" in path:
-        _, _, test_tasks = get_mini_imagenet(params['ways'], params['shots'])
-        model = l2l.vision.models.MiniImagenetCNN(params['ways'])
-    else:
-        _, _, test_tasks = get_omniglot(params['ways'], params['shots'])
-        if params['model_type'] == 'omni_CNN':
-            model = l2l.vision.models.OmniglotCNN(params['ways'])
+    if "maml" in path:
+        if "min" in path:
+            _, _, test_tasks = get_mini_imagenet(params['ways'], params['shots'])
+            model = l2l.vision.models.MiniImagenetCNN(params['ways'])
         else:
-            model = l2l.vision.models.OmniglotFC(28 ** 2, params['ways'])
+            _, _, test_tasks = get_omniglot(params['ways'], params['shots'])
+            if params['model_type'] == 'omni_CNN':
+                model = l2l.vision.models.OmniglotCNN(params['ways'])
+            else:
+                model = l2l.vision.models.OmniglotFC(28 ** 2, params['ways'])
+    else:
+        features = l2l.vision.models.ConvBase(output_size=64, channels=3, max_pool=True)
+        features = torch.nn.Sequential(features, Lambda(lambda x: x.view(-1, params['fc_neurons'])))
+        features.to(device)
+        head = torch.nn.Linear(params['fc_neurons'], params['ways'])
+        head = l2l.algorithms.MAML(head, lr=params['inner_lr'])
 
     # Evaluate the model at every checkpoint
     if eval_iters:
