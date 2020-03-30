@@ -18,7 +18,7 @@ params = {
     "inner_lr": 0.5,
     "adapt_steps": 1,
     "meta_batch_size": 32,
-    "num_iterations": 20000,
+    "num_iterations": 10000,
     "save_every": 1000,
     "seed": 42,
 }
@@ -152,7 +152,6 @@ class MamlVision(Experiment):
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Meta-testing on unseen tasks
         self.logger['test_acc'] = evaluate(self.params, test_tasks, maml, loss, device)
-        self.log_metrics({'test_acc': self.logger['test_acc']})
         self.save_logs_to_file()
 
         if cl_test:

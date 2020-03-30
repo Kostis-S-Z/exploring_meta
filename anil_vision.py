@@ -14,12 +14,12 @@ from core_functions.vision import fast_adapt, evaluate
 params = {
     "ways": 5,
     "shots": 1,
-    "outer_lr": 0.001,
-    "inner_lr": 0.1,
+    "outer_lr": 0.001,  # Outer LR should not be higher than 0.01
+    "inner_lr": 0.1,  # 0.5 for 1-shot, 0.1 for 5+-shot
     "fc_neurons": 1600,
     "adapt_steps": 1,
     "meta_batch_size": 32,
-    "num_iterations": 20000,
+    "num_iterations": 10000,
     "save_every": 1000,
     "seed": 42,
 }
@@ -145,8 +145,8 @@ class AnilVision(Experiment):
                 optimizer.step()
 
                 if iteration % self.params['save_every'] == 0:
-                    self.save_model(features, name='/model_checkpoints/model_' + str(iteration))
-                    self.save_model(head, name='/model_checkpoints/model_' + str(iteration))
+                    self.save_model(features, name='/model_checkpoints/features_' + str(iteration))
+                    self.save_model(head, name='/model_checkpoints/head_' + str(iteration))
 
         # Support safely manually interrupt training
         except KeyboardInterrupt:
@@ -160,7 +160,6 @@ class AnilVision(Experiment):
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Meta-testing on unseen tasks
         self.logger['test_acc'] = evaluate(self.params, test_tasks, head, loss, device, features=features)
-        self.log_metrics({'test_acc': self.logger['test_acc']})
 
         self.save_logs_to_file()
 
