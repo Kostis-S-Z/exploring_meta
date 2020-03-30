@@ -18,7 +18,7 @@ params = {
     "inner_lr": 0.5,
     "adapt_steps": 1,
     "meta_batch_size": 32,
-    "num_iterations": 20000,
+    "num_iterations": 10000,
     "save_every": 1000,
     "seed": 42,
 }
@@ -50,7 +50,8 @@ wandb = False
 class MamlVision(Experiment):
 
     def __init__(self):
-        super(MamlVision, self).__init__("maml", dataset, params, path="results/", use_wandb=wandb)
+        super(MamlVision, self).__init__(f"maml_{params['ways']}w{params['shots']}s",
+                                         dataset, params, path="results/", use_wandb=wandb)
 
         random.seed(self.params['seed'])
         np.random.seed(self.params['seed'])
@@ -151,6 +152,7 @@ class MamlVision(Experiment):
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Meta-testing on unseen tasks
         self.logger['test_acc'] = evaluate(self.params, test_tasks, maml, loss, device)
+        self.log_metrics({'test_acc': self.logger['test_acc']})
         self.save_logs_to_file()
 
         if cl_test:
