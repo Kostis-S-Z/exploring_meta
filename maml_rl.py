@@ -35,6 +35,13 @@ params = {
 # Meta_batch_size (=ways): how many tasks an epoch has. (a task can have one or many episodes)
 # Adapt_batch_size (=shots): number of episodes (not steps!) during adaptation
 
+cl_params = {
+    "adapt_steps": 1,
+    "inner_lr": 0.1,
+    "n_tasks": 10
+}
+
+
 # Environments:
 #   - Particles2D-v1
 #   - AntDirection-v1
@@ -144,6 +151,12 @@ class MamlRL(Experiment):
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
 
         self.save_logs_to_file()
+
+        if cl_test:
+            print("Running Continual Learning experiment...")
+            tasks = env.sample_tasks(cl_params['n_tasks'])
+            run_cl_rl_exp(self.model_path, maml, loss, tasks, device,
+                       self.params['ways'], self.params['shots'], cl_params=cl_params)
 
 
 if __name__ == '__main__':
