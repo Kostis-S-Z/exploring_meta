@@ -16,8 +16,8 @@ from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import fast_adapt_a2c, meta_optimize
 
 params = {
-    "outer_lr": 0.1,  # ?
-    "inner_lr": 0.1,  # ?
+    "outer_lr": 0.05,  # ?
+    "inner_lr": 0.2,  # ?
     "tau": 1.0,
     "gamma": 0.99,
     "backtrack_factor": 0.5,  # Meta-optimizer
@@ -26,7 +26,7 @@ params = {
     "adapt_batch_size": 20,
     "meta_batch_size": 32,
     "adapt_steps": 1,
-    "num_iterations": 100,
+    "num_iterations": 1000,
     "save_every": 1000,
     "seed": 42}
 
@@ -157,6 +157,26 @@ if __name__ == '__main__':
 
     parser.add_argument('--env', type=str, default=env_name, help='Pick an environment')
 
+    parser.add_argument('--outer_lr', type=float, default=params['outer_lr'], help='Outer lr')
+    parser.add_argument('--inner_lr', type=float, default=params['inner_lr'], help='Inner lr')
+    parser.add_argument('--adapt_steps', type=int, default=params['adapt_steps'], help='Adaptation steps in inner loop')
+    parser.add_argument('--meta_batch_size', type=int, default=params['meta_batch_size'], help='Batch size')
+    parser.add_argument('--adapt_batch_size', type=int, default=params['adapt_batch_size'], help='Adapt Batch size')
+    parser.add_argument('--num_iterations', type=int, default=params['num_iterations'], help='Number of epochs')
+    parser.add_argument('--save_every', type=int, default=params['save_every'], help='Interval to save model')
+
+    parser.add_argument('--seed', type=int, default=params['seed'], help='Seed')
+
     args = parser.parse_args()
+
+    env_name = args.env
+    params['outer_lr'] = args.outer_lr
+    params['inner_lr'] = args.inner_lr
+    params['adapt_steps'] = args.adapt_steps
+    params['meta_batch_size'] = args.meta_batch_size
+    params['adapt_batch_size'] = args.adapt_batch_size
+    params['num_iterations'] = args.num_iterations
+
+    params['save_every'] = args.save_every
 
     MamlRL()

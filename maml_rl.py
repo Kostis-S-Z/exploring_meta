@@ -17,8 +17,8 @@ from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import fast_adapt_a2c, meta_optimize
 
 params = {
-    "outer_lr": 0.01,  # ?
-    "inner_lr": 0.3,  # ?
+    "outer_lr": 0.05,  # ?
+    "inner_lr": 0.2,  # ?
     "tau": 1.0,
     "gamma": 0.99,
     "backtrack_factor": 0.5,  # Meta-optimizer
@@ -27,9 +27,13 @@ params = {
     "adapt_batch_size": 20,
     "meta_batch_size": 32,
     "adapt_steps": 1,
-    "num_iterations": 100,
+    "num_iterations": 500,
     "save_every": 1000,
     "seed": 42}
+
+# Adapt steps: how many times you will replay & learn a specific number of episodes (=adapt_batch_size)
+# Meta_batch_size (=ways): how many tasks an epoch has. (a task can have one or many episodes)
+# Adapt_batch_size (=shots): number of episodes (not steps!) during adaptation
 
 # Environments:
 #   - Particles2D-v1
@@ -38,7 +42,7 @@ env_name = "Particles2D-v1"
 workers = 4
 
 cl_test = False
-rep_test = True
+rep_test = False
 
 cuda = False
 
