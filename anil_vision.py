@@ -53,7 +53,8 @@ class Lambda(torch.nn.Module):
 class AnilVision(Experiment):
 
     def __init__(self):
-        super(AnilVision, self).__init__("anil", dataset, params, path="results/", use_wandb=wandb)
+        super(AnilVision, self).__init__(f"anil_{params['ways']}w{params['shots']}s",
+                                         dataset, params, path="results/", use_wandb=wandb)
 
         random.seed(self.params['seed'])
         np.random.seed(self.params['seed'])
@@ -159,7 +160,7 @@ class AnilVision(Experiment):
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Meta-testing on unseen tasks
         self.logger['test_acc'] = evaluate(self.params, test_tasks, head, loss, device, features=features)
-
+        self.log_metrics({'test_acc': self.logger['test_acc']})
         self.save_logs_to_file()
 
         if cl_test:
