@@ -70,7 +70,6 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params=default_params):
             task_j_reward = valid_episodes.reward().sum().item() / cl_params['adapt_batch_size']
             rew_matrix[i, j] = task_j_reward
 
-        del clone
         print(rew_matrix)
     exit()
     # cl_res = calc_cl_metrics(rew_matrix)

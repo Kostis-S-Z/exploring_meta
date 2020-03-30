@@ -35,10 +35,14 @@ params = {
 # Meta_batch_size (=ways): how many tasks an epoch has. (a task can have one or many episodes)
 # Adapt_batch_size (=shots): number of episodes (not steps!) during adaptation
 
+
 cl_params = {
-    "adapt_steps": 1,
-    "inner_lr": 0.1,
-    "n_tasks": 10
+    "adapt_steps": 10,
+    "adapt_batch_size": 10,  # shots
+    "inner_lr": 0.3,
+    "gamma": 0.99,
+    "tau": 1.0,
+    "n_tasks": 5
 }
 
 
@@ -154,9 +158,7 @@ class MamlRL(Experiment):
 
         if cl_test:
             print("Running Continual Learning experiment...")
-            tasks = env.sample_tasks(cl_params['n_tasks'])
-            run_cl_rl_exp(self.model_path, maml, loss, tasks, device,
-                       self.params['ways'], self.params['shots'], cl_params=cl_params)
+            run_cl_rl_exp(self.model_path, env, policy, baseline, cl_params=cl_params)
 
 
 if __name__ == '__main__':
