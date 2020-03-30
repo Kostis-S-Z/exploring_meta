@@ -28,37 +28,53 @@ default_params = {
 
 def run_cl_rl_exp(path, env, policy, baseline, cl_params=default_params):
     cl_path = path + '/cl_exp'
-    os.mkdir(cl_path)
+    # os.mkdir(cl_path)
 
     # Matrix R NxN of accuracies in tasks j after trained on a tasks i (x_axis = test tasks, y_axis = train tasks)
     rew_matrix = np.zeros((cl_params['n_tasks'], cl_params['n_tasks']))
 
-    iter_reward = 0
+    # Sample tasks
+    # tasks = env.sample_tasks(cl_params['n_tasks'])
+    tasks = [
+        {'goal': np.array((0, 0))},
+        {'goal': np.array((0.5, 0.5))},
+        {'goal': np.array((-0.5, 0.5))},
+        {'goal': np.array((-0.5, -0.5))},
+        {'goal': np.array((0.5, -0.5))}]
 
-    # Training loop
-    for task_i in range(cl_params['n_tasks']):
+    for i, train_task in enumerate(tasks):
 
         clone = deepcopy(policy)
+        env.set_task(train_task)
         env.reset()
 
-        task = ch.envs.Runner(env, meta_env=False)
-        task_replay = []
+        task_i = ch.envs.Runner(env, meta_env=False)
 
+        # Adapt to specific task
         for step in range(cl_params['adapt_steps']):
-            train_episodes = task.run(clone, episodes=cl_params['adapt_batch_size'])
-            task_replay.append(train_episodes)
+            print(f"Step {step}")
+            train_episodes = task_i.run(clone, episodes=cl_params['adapt_batch_size'])
             clone = fast_adapt_a2c(clone, train_episodes, baseline,
                                    cl_params['inner_lr'], cl_params['gamma'], cl_params['tau'],
-                                   first_order=True)
+                                   first_order=False)
 
-        # Compute validation Loss
-        valid_episodes = task.run(clone, episodes=cl_params['adapt_batch_size'])
-        task_replay.append(valid_episodes)
-        iter_reward += valid_episodes.reward().sum().item() / cl_params['adapt_batch_size']
+        print(f"Adapt reward {train_episodes.reward().sum().item() / cl_params['adapt_batch_size']}")
 
-    print(iter_reward)
-    cl_res = calc_cl_metrics(rew_matrix)
+        # Evaluate on all tasks
+        for j, valid_task in enumerate(tasks):
+            env.set_task(valid_task)
+            env.reset()
+            task_j = ch.envs.Runner(env, meta_env=False)
 
+            valid_episodes = task_j.run(clone, episodes=cl_params['adapt_batch_size'])
+            task_j_reward = valid_episodes.reward().sum().item() / cl_params['adapt_batch_size']
+            rew_matrix[i, j] = task_j_reward
+
+        del clone
+        print(rew_matrix)
+    exit()
+    # cl_res = calc_cl_metrics(rew_matrix)
+    # print(cl_res)
     # save_acc_matrix(cl_path, rew_matrix)
     # with open(cl_path + '/cl_params.json', 'w') as fp:
     #     json.dump(cl_params, fp, sort_keys=True, indent=4)
