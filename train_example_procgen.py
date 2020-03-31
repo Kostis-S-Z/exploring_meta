@@ -19,19 +19,22 @@ import argparse
 
 LOG_DIR = '/tmp/procgen'
 
+params = dict(
+    num_envs=64,
+    learning_rate=5e-4,
+    ent_coef=.01,
+    gamma=.999,
+    lam=.95,
+    nsteps=256,
+    nminibatches=8,
+    ppo_epochs=3,
+    clip_range=.2,
+    timesteps_per_proc=50_000_000,
+    use_vf_clipping=True
+)
+
 
 def main():
-    num_envs = 64
-    learning_rate = 5e-4
-    ent_coef = .01
-    gamma = .999
-    lam = .95
-    nsteps = 256
-    nminibatches = 8
-    ppo_epochs = 3
-    clip_range = .2
-    timesteps_per_proc = 50_000_000
-    use_vf_clipping = True
 
     parser = argparse.ArgumentParser(description='Process procgen training arguments.')
     parser.add_argument('--env_name', type=str, default='coinrun')
@@ -61,7 +64,7 @@ def main():
     logger.configure(dir=LOG_DIR, format_strs=format_strs)
 
     logger.info("creating environment")
-    venv = ProcgenEnv(num_envs=num_envs, env_name=args.env_name, num_levels=num_levels, start_level=args.start_level,
+    venv = ProcgenEnv(num_envs=params['num_envs'], env_name=args.env_name, num_levels=num_levels, start_level=args.start_level,
                       distribution_mode=args.distribution_mode)
     venv = VecExtractDictObs(venv, "rgb")
 
@@ -84,20 +87,20 @@ def main():
     ppo2.learn(
         env=venv,
         network=conv_fn,
-        total_timesteps=timesteps_per_proc,
+        total_timesteps=params['timesteps_per_proc'],
         save_interval=0,
-        nsteps=nsteps,
-        nminibatches=nminibatches,
-        lam=lam,
-        gamma=gamma,
-        noptepochs=ppo_epochs,
+        nsteps=params['nsteps'],
+        nminibatches=params['nminibatches'],
+        lam=params['lam'],
+        gamma=params['gamma'],
+        noptepochs=params['ppo_epochs'],
         log_interval=1,
-        ent_coef=ent_coef,
+        ent_coef=params['ent_coef'],
         mpi_rank_weight=mpi_rank_weight,
-        clip_vf=use_vf_clipping,
+        clip_vf=params['use_vf_clipping'],
         comm=comm,
-        lr=learning_rate,
-        cliprange=clip_range,
+        lr=params['learning_rate'],
+        cliprange=params['clip_range'],
         update_fn=None,
         init_fn=None,
         vf_coef=0.5,
