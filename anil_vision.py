@@ -19,7 +19,7 @@ params = {
     "fc_neurons": 1600,
     "adapt_steps": 1,
     "meta_batch_size": 32,
-    "num_iterations": 10000,
+    "num_iterations": 10000,  # 10k for Mini-ImageNet, 5k for Omniglot
     "save_every": 1000,
     "seed": 42,
 }
