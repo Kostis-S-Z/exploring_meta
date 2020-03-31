@@ -128,3 +128,30 @@ def meta_optimize(params, policy, baseline, iter_replays, iter_policies, cuda):
             for p, u in zip(policy.parameters(), step):
                 p.data.add_(-stepsize, u.data)
             break
+
+
+def evaluate(env, policy, baseline, eval_params):
+    tasks_reward = 0
+    eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
+
+    for i, task in enumerate(eval_task_list):
+        clone = deepcopy(policy)
+        env.set_task(task)
+        env.reset()
+        task = ch.envs.Runner(env, meta_env=True)
+
+        # Adapt
+        for step in range(eval_params['n_eval_adapt_steps']):
+            train_episodes = task.run(clone, episodes=eval_params['n_eval_episodes'])
+            clone = fast_adapt_a2c(clone, train_episodes, baseline,
+                                   eval_params['inner_lr'], eval_params['gamma'], eval_params['tau'],
+                                   first_order=True)
+
+        valid_episodes = task.run(clone, episodes=eval_params['n_eval_episodes'])
+
+        task_reward = valid_episodes.reward().sum().item() / eval_params['n_eval_episodes']
+        print(f"Reward for task {i} : {task_reward}")
+        tasks_reward += task_reward
+
+    final_eval_reward = tasks_reward / eval_params['n_eval_tasks']
+    return final_eval_reward

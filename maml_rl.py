@@ -14,7 +14,10 @@ import learn2learn as l2l
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import fast_adapt_a2c, meta_optimize
+from core_functions.rl import fast_adapt_a2c, meta_optimize, evaluate
+
+# ANIL Defaults: meta_batch_size: 40, adapt_steps: 1, adapt_batch_size: 20, inner_lr: 0.1
+# Train for 500 epochs then evaluate on a new set of tasks.
 
 params = {
     "outer_lr": 0.05,  # ?
@@ -28,13 +31,21 @@ params = {
     "meta_batch_size": 32,
     "adapt_steps": 1,
     "num_iterations": 500,
-    "save_every": 1000,
+    "save_every": 50,
     "seed": 42}
 
 # Adapt steps: how many times you will replay & learn a specific number of episodes (=adapt_batch_size)
 # Meta_batch_size (=ways): how many tasks an epoch has. (a task can have one or many episodes)
 # Adapt_batch_size (=shots): number of episodes (not steps!) during adaptation
 
+eval_params = {
+    'n_eval_adapt_steps': 1,  # Number of steps to adapt to a new task
+    'n_eval_episodes': 5,  # Number of shots per task
+    'n_eval_tasks': 20,  # Number of different tasks to evaluate on
+    'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
+    'tau': params['tau'],
+    'gamma': params['gamma'],
+}
 
 cl_params = {
     "adapt_steps": 10,
@@ -153,7 +164,9 @@ class MamlRL(Experiment):
         self.save_model(policy)
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
-
+        # Evaluate on new test tasks
+        self.logger['test_reward'] = evaluate(env, policy, baseline, eval_params)
+        self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
 
         if cl_test:
