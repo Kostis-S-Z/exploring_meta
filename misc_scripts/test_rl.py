@@ -62,10 +62,13 @@ def run(path):
     obs_size = env.observation_space.shape[0]
     act_size = env.action_space.shape[0]
 
+    final_model = base_path + '/model.pt'
+
     baseline = ch.models.robotics.LinearValue(obs_size, act_size)
     policy = DiagNormalPolicy(obs_size, act_size)
 
-    final_model = base_path + '/model.pt'
+    # policy.load_state_dict(torch.load(final_model))
+    policy.to(device)
 
     if evaluate_model:
         eval_reward = evaluate(env, policy, baseline, eval_params)
@@ -74,8 +77,6 @@ def run(path):
     # Run a Continual Learning experiment
     if cl_exp:
         print("Running Continual Learning experiment...")
-        policy.load_state_dict(torch.load(final_model))
-        policy.to(device)
 
         run_cl_rl_exp(base_path, env, policy, baseline, cl_params=cl_params)
 
