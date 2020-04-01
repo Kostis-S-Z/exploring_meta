@@ -51,7 +51,7 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params=default_params):
         env.set_task(train_task)
         env.reset()
 
-        task_i = ch.envs.Runner(env, meta_env=True)
+        task_i = ch.envs.Runner(env)
 
         # Adapt to specific task
         for step in range(cl_params['adapt_steps']):
@@ -67,7 +67,7 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params=default_params):
         for j, valid_task in enumerate(tasks):
             env.set_task(valid_task)
             env.reset()
-            task_j = ch.envs.Runner(env, meta_env=True)
+            task_j = ch.envs.Runner(env)
 
             valid_episodes = task_j.run(clone, episodes=cl_params['adapt_batch_size'])
             task_j_reward = valid_episodes.reward().sum().item() / cl_params['adapt_batch_size']

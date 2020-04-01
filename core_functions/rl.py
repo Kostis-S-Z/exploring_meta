@@ -138,7 +138,7 @@ def evaluate(env, policy, baseline, eval_params):
         clone = deepcopy(policy)
         env.set_task(task)
         env.reset()
-        task = ch.envs.Runner(env, meta_env=True)
+        task = ch.envs.Runner(env)
 
         # Adapt
         for step in range(eval_params['n_eval_adapt_steps']):
