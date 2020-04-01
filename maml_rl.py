@@ -22,14 +22,14 @@ from misc_scripts import run_cl_rl_exp
 
 params = {
     "outer_lr": 0.05,  # ?
-    "inner_lr": 0.2,  # ?
+    "inner_lr": 0.1,  # ?
     "tau": 1.0,
     "gamma": 0.99,
     "backtrack_factor": 0.5,  # Meta-optimizer
     "ls_max_steps": 15,       # Meta-optimizer
     "max_kl": 0.01,           # Meta-optimizer
-    "adapt_batch_size": 20,
-    "meta_batch_size": 32,
+    "adapt_batch_size": 20,  # "shots"
+    "meta_batch_size": 16,  # "ways"
     "adapt_steps": 1,
     "num_iterations": 500,
     "save_every": 50,
@@ -40,9 +40,9 @@ params = {
 # Adapt_batch_size (=shots): number of episodes (not steps!) during adaptation
 
 eval_params = {
-    'n_eval_adapt_steps': 1,  # Number of steps to adapt to a new task
-    'n_eval_episodes': 5,  # Number of shots per task
-    'n_eval_tasks': 20,  # Number of different tasks to evaluate on
+    'n_eval_adapt_steps': 5,  # Number of steps to adapt to a new task
+    'n_eval_episodes': 10,  # Number of shots per task
+    'n_eval_tasks': 10,  # Number of different tasks to evaluate on
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
     'tau': params['tau'],
     'gamma': params['gamma'],
@@ -180,6 +180,28 @@ if __name__ == '__main__':
 
     parser.add_argument('--env', type=str, default=env_name, help='Pick an environment')
 
+    parser.add_argument('--outer_lr', type=float, default=params['outer_lr'], help='Outer lr')
+    parser.add_argument('--inner_lr', type=float, default=params['inner_lr'], help='Inner lr')
+    parser.add_argument('--adapt_steps', type=int, default=params['adapt_steps'], help='Adaptation steps in inner loop')
+    parser.add_argument('--meta_batch_size', type=int, default=params['meta_batch_size'], help='Batch size')
+    parser.add_argument('--adapt_batch_size', type=int, default=params['adapt_batch_size'], help='Adapt batch size')
+
+    parser.add_argument('--num_iterations', type=int, default=params['num_iterations'], help='Number of epochs')
+    parser.add_argument('--save_every', type=int, default=params['save_every'], help='Interval to save model')
+
+    parser.add_argument('--seed', type=int, default=params['seed'], help='Seed')
+
     args = parser.parse_args()
+
+    params['outer_lr'] = args.outer_lr
+    params['inner_lr'] = args.inner_lr
+    params['adapt_steps'] = args.adapt_steps
+    params['meta_batch_size'] = args.meta_batch_size
+    params['adapt_batch_size'] = args.adapt_batch_size
+
+    params['num_iterations'] = args.num_iterations
+    params['save_every'] = args.save_every
+
+    params['seed'] = args.seed
 
     MamlRL()
