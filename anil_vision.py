@@ -16,10 +16,9 @@ params = {
     "shots": 1,
     "outer_lr": 0.001,  # Outer LR should not be higher than 0.01
     "inner_lr": 0.1,  # 0.5 for 1-shot, 0.1 for 5+-shot
-    "fc_neurons": 1600,
     "adapt_steps": 1,
     "meta_batch_size": 32,
-    "num_iterations": 10000,
+    "num_iterations": 10000,  # 10k for Mini-ImageNet, 5k for Omniglot
     "save_every": 1000,
     "seed": 42,
 }
@@ -30,7 +29,7 @@ cl_params = {
     "n_tasks": 10
 }
 
-dataset = "min"  # omni or min (omniglot / Mini ImageNet)
+dataset = "omni"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
 cl_test = False
@@ -38,6 +37,11 @@ cl_test = False
 cuda = True
 
 wandb = False
+
+if dataset == "omni":
+    fc_neurons = 128
+else:
+    fc_neurons = 1600
 
 
 class Lambda(torch.nn.Module):
@@ -80,11 +84,14 @@ class AnilVision(Experiment):
     def run(self, train_tasks, valid_tasks, test_tasks, input_shape, device):
 
         # Create model
-        features = l2l.vision.models.ConvBase(output_size=64, channels=3, max_pool=True)
-        features = torch.nn.Sequential(features, Lambda(lambda x: x.view(-1, self.params['fc_neurons'])))
+        if dataset == "omni":
+            features = l2l.vision.models.ConvBase(output_size=64, hidden=32, channels=1, max_pool=False)
+        else:
+            features = l2l.vision.models.ConvBase(output_size=64, channels=3, max_pool=True)
+        features = torch.nn.Sequential(features, Lambda(lambda x: x.view(-1, fc_neurons)))
         features.to(device)
 
-        head = torch.nn.Linear(self.params['fc_neurons'], self.params['ways'])
+        head = torch.nn.Linear(fc_neurons, self.params['ways'])
         head = l2l.algorithms.MAML(head, lr=self.params['inner_lr'])
         head.to(device)
 
@@ -94,7 +101,7 @@ class AnilVision(Experiment):
         loss = torch.nn.CrossEntropyLoss(reduction='mean')
 
         self.log_model(features, device, input_shape=input_shape, name='features')  # Input shape is specific to dataset
-        head_input_shape = (5, self.params['fc_neurons'])
+        head_input_shape = (self.params['ways'], fc_neurons)
         self.log_model(head, device, input_shape=head_input_shape, name='head')  # Input shape is specific to dataset
 
         t = trange(self.params['num_iterations'])
