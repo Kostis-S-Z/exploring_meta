@@ -11,9 +11,12 @@ import json
 import numpy as np
 from copy import deepcopy
 import cherry as ch
-from core_functions.rl import fast_adapt_a2c
+
 from utils import calc_cl_metrics
+from core_functions import fast_adapt_a2c
 from sklearn import preprocessing
+
+
 setting = 1
 
 default_params = {

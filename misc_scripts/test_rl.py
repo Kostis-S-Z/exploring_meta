@@ -4,11 +4,11 @@ import os
 import json
 import torch
 
+from misc_scripts import run_cl_rl_exp
 from core_functions.rl import evaluate
 from core_functions.policies import DiagNormalPolicy
 import cherry as ch
 
-from utils import run_cl_rl_exp
 import random
 import numpy as np
 import gym

@@ -6,8 +6,9 @@ import torch
 
 import learn2learn as l2l
 
-from utils import *
+from utils import get_mini_imagenet, get_omniglot
 from core_functions.vision import evaluate
+from misc_scripts import run_cl_exp, run_rep_exp
 
 cuda = True
 
