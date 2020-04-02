@@ -114,13 +114,13 @@ class MamlRL(Experiment):
         try:
             for iteration in t:
 
-                print(iteration)
-                if iteration == self.params['outer_lrs'][lr_checkpoint](0):
+                if iteration == self.params['outer_lrs'][lr_checkpoint][0]:
                     print(f"Dropping outer lr from {self.params['outer_lr']} to "
-                          f"{self.params['outer_lrs'][lr_checkpoint](1)}")
-                    self.params['outer_lr'] = self.params['outer_lrs'][lr_checkpoint](1)
-                    lr_checkpoint += 1
-                continue
+                          f"{self.params['outer_lrs'][lr_checkpoint][1]}")
+                    self.params['outer_lr'] = self.params['outer_lrs'][lr_checkpoint][1]
+                    # Stop at the last element
+                    if lr_checkpoint < len(self.params['outer_lrs']) - 1:
+                        lr_checkpoint += 1
 
                 iter_reward = 0
                 iter_replays = []
