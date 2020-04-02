@@ -21,16 +21,17 @@ from misc_scripts import run_cl_rl_exp
 # Train for 500 epochs then evaluate on a new set of tasks.
 
 params = {
-    "outer_lr": 0.05,  # ?
-    "inner_lr": 0.1,  # ?
+    "outer_lr": 0.1,  # ?
+    "inner_lr": 0.2,  # ?
+    "outer_lrs": [(0, 0.3), (100, 0.1), (300, 0.03)],
     "tau": 1.0,
     "gamma": 0.99,
     "backtrack_factor": 0.5,  # Meta-optimizer
     "ls_max_steps": 15,       # Meta-optimizer
     "max_kl": 0.01,           # Meta-optimizer
-    "adapt_batch_size": 20,  # "shots"
+    "adapt_batch_size": 32,  # "shots"
     "meta_batch_size": 16,  # "ways"
-    "adapt_steps": 1,
+    "adapt_steps": 5,
     "num_iterations": 500,
     "save_every": 50,
     "seed": 42}
@@ -109,10 +110,17 @@ class MamlRL(Experiment):
         self.log_model(policy, device, input_shape=(1, env.state_size))  # Input shape is specific to dataset
 
         t = trange(self.params['num_iterations'])
+        lr_checkpoint = 0
         try:
-
             for iteration in t:
-                # opt.zero_grad()
+
+                print(iteration)
+                if iteration == self.params['outer_lrs'][lr_checkpoint](0):
+                    print(f"Dropping outer lr from {self.params['outer_lr']} to "
+                          f"{self.params['outer_lrs'][lr_checkpoint](1)}")
+                    self.params['outer_lr'] = self.params['outer_lrs'][lr_checkpoint](1)
+                    lr_checkpoint += 1
+                continue
 
                 iter_reward = 0
                 iter_replays = []
