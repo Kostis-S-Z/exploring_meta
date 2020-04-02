@@ -104,8 +104,7 @@ class MamlRL(Experiment):
 
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
         policy = DiagNormalPolicy(env.state_size, env.action_size)
-        if cuda:
-            policy.to('cuda')
+        policy.to(device)
 
         self.log_model(policy, device, input_shape=(1, env.state_size))  # Input shape is specific to dataset
 
