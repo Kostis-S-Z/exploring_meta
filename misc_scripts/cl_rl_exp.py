@@ -16,6 +16,7 @@ from utils import calc_cl_metrics
 from core_functions import fast_adapt_a2c
 from sklearn import preprocessing
 
+from matplotlib import pyplot as plt
 
 setting = 1
 
@@ -45,6 +46,8 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params=default_params):
     #     {'goal': np.array((-0.5, -0.5))},
     #     {'goal': np.array((0.5, -0.5))}]
 
+    adapt_progress = {}
+
     for i, train_task in enumerate(tasks):
 
         clone = deepcopy(policy)
@@ -53,6 +56,7 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params=default_params):
 
         task_i = ch.envs.Runner(env)
 
+        adapt_progress[f'task_{i}'] = {}
         # Adapt to specific task
         for step in range(cl_params['adapt_steps']):
             # print(f"Step {step}")
@@ -61,7 +65,10 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params=default_params):
                                    cl_params['inner_lr'], cl_params['gamma'], cl_params['tau'],
                                    first_order=False)
 
-        print(f"Adapt reward {train_episodes.reward().sum().item() / cl_params['adapt_batch_size']}")
+            train_reward = train_episodes.reward().sum().item()
+            adapt_progress[f'task_{i}'][f'step_{step}'] = train_reward / cl_params['adapt_batch_size']
+
+        print(f"Last adapt reward {train_reward / cl_params['adapt_batch_size']}")
 
         # Evaluate on all tasks
         for j, valid_task in enumerate(tasks):
@@ -72,6 +79,11 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params=default_params):
             valid_episodes = task_j.run(clone, episodes=cl_params['adapt_batch_size'])
             task_j_reward = valid_episodes.reward().sum().item() / cl_params['adapt_batch_size']
             rew_matrix[i, j] = task_j_reward
+
+    # Plot adaptation progress
+    plot_progress(adapt_progress)
+
+    #
 
     print(rew_matrix)
 
@@ -97,3 +109,15 @@ def save_acc_matrix(path, acc_matrix):
     print('Saving accuracy matrix..')
     print(acc_matrix)
     np.savetxt(path + '/acc_matrix.out', acc_matrix, fmt='%1.2f')
+
+
+def plot_progress(progress_dict):
+
+    plt.title("Adaptation progress")
+    plt.xlabel("Adaptation steps")
+    plt.ylabel("Reward")
+    for task, steps in progress_dict.items():
+        y_axis = list(steps.values())
+        x_axis = range(1, len(y_axis) + 1)
+        plt.plot(x_axis, y_axis, label=task, marker="o")
+    plt.show()

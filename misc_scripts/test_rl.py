@@ -15,10 +15,10 @@ import gym
 
 
 env_name = "Particles2D-v1"
-base_path = "/home/kosz/Projects/KTH/Thesis/exploring_meta/rl_results/maml_Particles2D-v1_26_03_09h50_42_7376"
+base_path = "/home/kosz/Projects/KTH/Thesis/exploring_meta/rl_results/maml_Particles2D-v1_25_03_16h23_42_1570"
 
-evaluate_model = True
-cl_exp = False
+evaluate_model = False
+cl_exp = True
 rep_exp = False
 
 cuda = False
@@ -32,9 +32,9 @@ eval_params = {
 }
 
 cl_params = {
-    "adapt_steps": 10,
+    "adapt_steps": 5,
     "adapt_batch_size": 10,  # shots
-    "inner_lr": 0.3,
+    "inner_lr": 0.05,
     "gamma": 0.99,
     "tau": 1.0,
     "n_tasks": 5
@@ -67,7 +67,7 @@ def run(path):
     baseline = ch.models.robotics.LinearValue(obs_size, act_size)
     policy = DiagNormalPolicy(obs_size, act_size)
 
-    # policy.load_state_dict(torch.load(final_model))
+    policy.load_state_dict(torch.load(final_model))
     policy.to(device)
 
     if evaluate_model:
