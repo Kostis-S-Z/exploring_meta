@@ -6,7 +6,7 @@ import torch
 import numpy as np
 from copy import deepcopy
 
-from tqdm import trange
+from tqdm import trange, tqdm
 
 import gym
 import cherry as ch
@@ -21,19 +21,19 @@ from misc_scripts import run_cl_rl_exp
 # Train for 500 epochs then evaluate on a new set of tasks.
 
 params = {
-    "outer_lr": 0.1,  # ?
-    "inner_lr": 0.2,  # ?
+    "outer_lr": 0.1,  #
+    "inner_lr": 0.1,  # Default: 0.1
     "outer_lrs": [(0, 0.3), (100, 0.1), (300, 0.03)],
     "tau": 1.0,
     "gamma": 0.99,
     "backtrack_factor": 0.5,  # Meta-optimizer
     "ls_max_steps": 15,       # Meta-optimizer
     "max_kl": 0.01,           # Meta-optimizer
-    "adapt_batch_size": 32,  # "shots"
-    "meta_batch_size": 16,  # "ways"
-    "adapt_steps": 5,
-    "num_iterations": 500,
-    "save_every": 50,
+    "adapt_batch_size": 20,  # "shots"  Default: 20
+    "meta_batch_size": 40,  # "ways" Default: 20
+    "adapt_steps": 1,  # Default 1
+    "num_iterations": 500,  # Default 500
+    "save_every": 25,
     "seed": 42}
 
 # Adapt steps: how many times you will replay & learn a specific number of episodes (=adapt_batch_size)
@@ -108,7 +108,7 @@ class MamlRL(Experiment):
 
         self.log_model(policy, device, input_shape=(1, env.state_size))  # Input shape is specific to dataset
 
-        t = trange(self.params['num_iterations'])
+        t = trange(self.params['num_iterations'], desc="Iteration", position=0)
         lr_checkpoint = 0
         try:
             for iteration in t:
@@ -127,7 +127,8 @@ class MamlRL(Experiment):
 
                 task_list = env.sample_tasks(self.params['meta_batch_size'])
 
-                for task in task_list:
+                for task_i in trange(len(task_list), leave=False, desc="Task", position=0):
+                    task = task_list[task_i]
 
                     clone = deepcopy(policy)
                     env.set_task(task)
