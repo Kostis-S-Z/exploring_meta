@@ -62,6 +62,7 @@ cl_params = {
 # Environments:
 #   - Particles2D-v1
 #   - AntDirection-v1
+#   - procgen:procgen-coinrun-v0
 env_name = "Particles2D-v1"
 workers = 4
 
