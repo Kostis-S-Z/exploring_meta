@@ -1,5 +1,12 @@
 """
 Code taken directly from https://github.com/openai/train-procgen
+
+Logger explanation:
+
+fps: how many frames per second it manages to play calculated based of number of steps & time elapsed
+misc/nupdates: number of epochs / iterations / updates per environment
+misc/serial_timesteps: number of total steps it took across epochs / iterations / updates per environment
+misc:total_timesteps: number of total steps across iterations across all envs (serial_timesteps * num_envs)
 """
 
 import tensorflow as tf
@@ -17,10 +24,14 @@ from baselines import logger
 from mpi4py import MPI
 import argparse
 
+import wandb
+
+use_wandb = True
+
 LOG_DIR = '/tmp/procgen'
 
 params = dict(
-    num_envs=64,
+    num_envs=32,  # 32env ~ 7gb VRAM,
     learning_rate=5e-4,
     ent_coef=.01,
     gamma=.999,
@@ -47,6 +58,11 @@ def main():
     args = parser.parse_args()
 
     test_worker_interval = args.test_worker_interval
+
+    if use_wandb:
+        wandb_run = wandb.init(project="l2l", id=args.env_name + '_1', config=params)
+    else:
+        wandb_run = None
 
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -85,6 +101,7 @@ def main():
 
     logger.info("training")
     ppo2.learn(
+        wandb_run=wandb_run,
         env=venv,
         network=conv_fn,
         total_timesteps=params['timesteps_per_proc'],
