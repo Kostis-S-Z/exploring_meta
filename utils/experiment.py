@@ -11,6 +11,9 @@ import wandb
 
 
 class Experiment:
+    """
+    A class to be inherited from different experiments for easy logging and saving models.
+    """
 
     def __init__(self, algo, dataset, params, path="", use_wandb=False):
 
@@ -20,14 +23,14 @@ class Experiment:
             seed = params['seed']
         else:
             seed = 42
-            self.params.update(dict(seed=seed))
+            self.params.update({"seed": seed})
 
-        self.logger = dict(
-            config=self.params,
-            date=datetime.datetime.now().strftime("%d_%m_%Hh%M"),
-            model_id=str(seed) + '_' + str(np.random.randint(1, 9999)))  # Generate a unique ID based on seed + randint
+        self.logger = {
+            "config": self.params,
+            "date": datetime.datetime.now().strftime("%d_%m_%Hh%M"),
+            "model_id": str(seed) + '_' + str(np.random.randint(1, 9999))}  # Generate a unique ID with seed + randint
 
-        self.metrics = dict()
+        self.metrics = {}
 
         if not os.path.exists(path):
             os.mkdir(path)
@@ -44,6 +47,9 @@ class Experiment:
             self._use_wandb = False
 
     def log_model(self, model, device, input_shape=None, name="model"):
+        """
+        Save information (such as architecture) of the network.
+        """
         model_info, _ = summary_string(model, input_shape, device=device)
         print(model_info)
         with open(self.model_path + '/' + name + '.summary', 'w') as file:
