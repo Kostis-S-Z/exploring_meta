@@ -23,7 +23,6 @@ from misc_scripts import run_cl_rl_exp
 params = {
     "outer_lr": 0.1,  #
     "inner_lr": 0.1,  # Default: 0.1
-    "outer_lrs": [(0, 0.3), (100, 0.1), (300, 0.03)],
     "tau": 1.0,
     "gamma": 0.99,
     "backtrack_factor": 0.5,  # Meta-optimizer
@@ -110,17 +109,8 @@ class MamlRL(Experiment):
         self.log_model(policy, device, input_shape=(1, env.state_size))  # Input shape is specific to dataset
 
         t = trange(self.params['num_iterations'], desc="Iteration", position=0)
-        lr_checkpoint = 0
         try:
             for iteration in t:
-
-                if iteration == self.params['outer_lrs'][lr_checkpoint][0]:
-                    print(f"Dropping outer lr from {self.params['outer_lr']} to "
-                          f"{self.params['outer_lrs'][lr_checkpoint][1]}")
-                    self.params['outer_lr'] = self.params['outer_lrs'][lr_checkpoint][1]
-                    # Stop at the last element
-                    if lr_checkpoint < len(self.params['outer_lrs']) - 1:
-                        lr_checkpoint += 1
 
                 iter_reward = 0
                 iter_replays = []
@@ -183,6 +173,20 @@ class MamlRL(Experiment):
             print("Running Continual Learning experiment...")
             run_cl_rl_exp(self.model_path, env, policy, baseline, cl_params=cl_params)
 
+
+"""
+Use this if you want a very basic LR scheduler
+
+"outer_lrs": [(0, 0.3), (100, 0.1), (300, 0.03)],
+lr_checkpoint = 0
+if iteration == self.params['outer_lrs'][lr_checkpoint][0]:
+    print(f"Dropping outer lr from {self.params['outer_lr']} to "
+          f"{self.params['outer_lrs'][lr_checkpoint][1]}")
+    self.params['outer_lr'] = self.params['outer_lrs'][lr_checkpoint][1]
+    # Stop at the last element
+    if lr_checkpoint < len(self.params['outer_lrs']) - 1:
+        lr_checkpoint += 1
+"""
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MAML on RL tasks')

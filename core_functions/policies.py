@@ -55,6 +55,50 @@ class DiagNormalPolicy(nn.Module):
         return action
 
 
+class DiagNormalPolicyCNN(nn.Module):
+
+    def __init__(self, input_size, output_size, hiddens=None, activation='relu'):
+        super(DiagNormalPolicyCNN, self).__init__()
+
+        # Define default architecture
+        network = {
+            "conv1": nn.Conv2d(in_channels=1, out_channels=6, kernel_size=5),
+            "conv2": nn.Conv2d(in_channels=6, out_channels=12, kernel_size=5),
+            "out": nn.Linear(in_features=60, out_features=output_size)
+        }
+
+        activation == nn.ReLU
+
+        # Define input layer
+        layers = [linear_init(nn.Linear(input_size, hiddens[0])), activation()]
+
+        # Define hidden layers
+        for i, o in zip(hiddens[:-1], hiddens[1:]):
+            layers.append(linear_init(nn.Linear(i, o)))
+            layers.append(activation())
+
+        # Define output layer
+        layers.append(linear_init(nn.Linear(hiddens[-1], output_size)))
+
+        self.mean = nn.Sequential(*layers)
+        self.sigma = nn.Parameter(torch.Tensor(output_size))
+        self.sigma.data.fill_(math.log(1))
+
+    def density(self, state):
+        loc = self.mean(state)
+        scale = torch.exp(torch.clamp(self.sigma, min=math.log(EPSILON)))
+        return Normal(loc=loc, scale=scale)
+
+    def log_prob(self, state, action):
+        density = self.density(state)
+        return density.log_prob(action).mean(dim=1, keepdim=True)
+
+    def forward(self, state):
+        density = self.density(state)
+        action = density.sample()
+        return action
+
+
 class CategoricalPolicy(nn.Module):
 
     def __init__(self, input_size, output_size, hiddens=None):
