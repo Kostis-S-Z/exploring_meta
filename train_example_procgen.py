@@ -26,7 +26,7 @@ import argparse
 
 import wandb
 
-use_wandb = True
+use_wandb = False
 
 LOG_DIR = '/tmp/procgen'
 
@@ -60,7 +60,7 @@ def main():
     test_worker_interval = args.test_worker_interval
 
     if use_wandb:
-        wandb_run = wandb.init(project="l2l", id=args.env_name + '_1', config=params)
+        wandb_run = wandb.init(project="l2l", id=args.env_name + '_5', config=params)
     else:
         wandb_run = None
 
@@ -98,6 +98,7 @@ def main():
     sess.__enter__()
 
     conv_fn = lambda x: build_impala_cnn(x, depths=[16, 32, 32], emb_size=256)
+
 
     logger.info("training")
     ppo2.learn(

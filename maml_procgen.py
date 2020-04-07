@@ -29,8 +29,8 @@ params = {
     "backtrack_factor": 0.5,  # Meta-optimizer
     "ls_max_steps": 15,  # Meta-optimizer
     "max_kl": 0.01,  # Meta-optimizer
-    "adapt_batch_size": 20,  # "shots"  Default: 20
-    "meta_batch_size": 40,  # "ways" Default: 20
+    "adapt_batch_size": 5,  # "shots"  Default: 20
+    "meta_batch_size": 2,  # "ways" Default: 20
     "adapt_steps": 1,  # Default 1
     "num_iterations": 500,  # Default 500
     "save_every": 25,
@@ -38,11 +38,29 @@ params = {
 
 network = [32, 64, 64]
 
+eval_params = {
+    'n_eval_adapt_steps': 5,  # Number of steps to adapt to a new task
+    'n_eval_episodes': 10,  # Number of shots per task
+    'n_eval_tasks': 10,  # Number of different tasks to evaluate on
+    'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
+    'tau': params['tau'],
+    'gamma': params['gamma'],
+}
+cl_test = True
+cl_params = {
+    "adapt_steps": 10,
+    "adapt_batch_size": 10,  # shots
+    "inner_lr": 0.3,
+    "gamma": 0.99,
+    "tau": 1.0,
+    "n_tasks": 5
+}
+
 env_name = "coinrun"
 distribution_mode = 'easy'
 num_levels = 0
 start_level = 0
-num_envs = 16  # 32env ~ 7gb VRAM,
+num_envs = 4  # 32env ~ 7gb VRAM,
 test_worker_interval = 0
 
 cuda = False
@@ -103,13 +121,13 @@ class MamlRL(Experiment):
         print(observ_space)
         print(observ_size)
         print(observ_space_flat)
+        print(action_space)
 
         baseline = ch.models.robotics.LinearValue(observ_space_flat, action_space)
         policy = DiagNormalPolicyCNN(observ_size, action_space, network=network)
         policy.to(device)
 
         self.log_model(policy, device, input_shape=observ_space)  # Input shape is specific to dataset
-        exit()
 
         t = trange(self.params['num_iterations'], desc="Iteration", position=0)
         try:
@@ -119,14 +137,14 @@ class MamlRL(Experiment):
                 iter_replays = []
                 iter_policies = []
 
-                task_list = env.sample_tasks(self.params['meta_batch_size'])
+                # task_list = env.sample_tasks(self.params['meta_batch_size'])
 
-                for task_i in trange(len(task_list), leave=False, desc="Task", position=0):
-                    task = task_list[task_i]
+                for task_i in trange(2, leave=False, desc="Task", position=0):
+                    # task = task_list[task_i]
 
                     clone = deepcopy(policy)
-                    env.set_task(task)
-                    env.reset()
+                    # env.set_task(task)
+                    # env.reset()
 
                     task = ch.envs.Runner(env)
                     task_replay = []
