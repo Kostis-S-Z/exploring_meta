@@ -45,7 +45,9 @@ class Sampler:
         self.dones = np.array([False for _ in range(num_envs)])
 
     def run(self):
-        storage = defaultdict(list)
+        # Its a defaultdict and not a dict in order to initialize the default value with a list and append without
+        # raising KeyError
+        storage = defaultdict(list)  # should contain (state, action, reward, done, next state)
         epinfos = []
         self.model.eval()
 
@@ -54,17 +56,19 @@ class Sampler:
             for _ in range(self.num_steps):
                 obs = input_preprocessing(self.obs, device=self.device)
                 prediction = self.model.step(obs)
-                actions = to_np(prediction)
+                # Take the Argmax from every env
+                actions = np.argmax(to_np(prediction), axis=1)
                 storage["actions"] += [actions]
-                # actions = to_np(prediction["action"])
-                # storage["states"] += [to_np(obs.clone())]
+                storage["states"] += [to_np(obs.clone())]
                 # storage["actions"] += [to_np(prediction["action"])]
                 # storage["values"] += [to_np(prediction["value"])]
                 # storage["neg_log_prob_a"] += [to_np(prediction["neg_log_prob_a"])]
-                storage["dones"] += [self.dones]
 
                 self.obs[:], rewards, self.dones, infos = self.env.step(actions)
                 storage["rewards"] += [rewards]
+                # Convert booleans to integers
+                storage["dones"] += [int(d is True) for d in self.dones]
+                storage["next_states"] += [to_np(obs.clone())]
                 for info in infos:
                     if "episode" in info:
                         epinfos.append(info["episode"])
@@ -73,6 +77,7 @@ class Sampler:
             for key in storage:
                 storage[key] = np.asarray(storage[key])
 
+            """ NO NEED FOR THIS. THIS IS PPO DEPENDENT
             lastvalues = to_np(
                 self.model.step(input_preprocessing(self.obs, device=self.device))[
                     "value"
@@ -103,7 +108,7 @@ class Sampler:
                 )
 
             storage["returns"] = storage["advantages"] + storage["values"]
-
+            """
         for key in storage:
             if len(storage[key].shape) < 3:
                 storage[key] = np.expand_dims(storage[key], -1)

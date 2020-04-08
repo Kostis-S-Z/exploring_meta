@@ -27,11 +27,18 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
 
 def maml_a2c_loss(train_episodes, learner, baseline, gamma, tau):
     # Update policy and baseline
-    states = train_episodes.state()
-    actions = train_episodes.action()
-    rewards = train_episodes.reward()
-    dones = train_episodes.done()
-    next_states = train_episodes.next_state()
+    if isinstance(train_episodes, dict):
+        states = torch.from_numpy(train_episodes["states"])
+        actions = torch.from_numpy(train_episodes["actions"])
+        rewards = torch.from_numpy(train_episodes["rewards"])
+        dones = torch.from_numpy(train_episodes["dones"])
+        next_states = torch.from_numpy(train_episodes["next_states"])
+    else:
+        states = train_episodes.state()
+        actions = train_episodes.action()
+        rewards = train_episodes.reward()
+        dones = train_episodes.done()
+        next_states = train_episodes.next_state()
 
     log_probs = learner.log_prob(states, actions)
 

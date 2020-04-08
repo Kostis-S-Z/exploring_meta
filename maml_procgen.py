@@ -136,14 +136,7 @@ class MamlRL(Experiment):
 
         self.log_model(policy, device, input_shape=observ_space)  # Input shape is specific to dataset
 
-        # Sampler uses policy.eval() which turns off training
-        sampler = Sampler(env=env, model=policy, num_steps=100, gamma_coef=params['gamma'], lambda_coef=params['tau'],
-                          device=device, num_envs=num_envs)
-
-        data_sampled, epinfos = sampler.run()
-
         t = trange(self.params['num_iterations'], desc="Iteration", position=0)
-        exit()
         try:
             for iteration in t:
 
@@ -151,30 +144,30 @@ class MamlRL(Experiment):
                 iter_replays = []
                 iter_policies = []
 
-                # task_list = env.sample_tasks(self.params['meta_batch_size'])
-
                 for task_i in trange(2, leave=False, desc="Task", position=0):
 
                     clone = deepcopy(policy)
-                    # env.set_task(task)
-                    # env.reset()
 
-                    task = ch.envs.Runner(env)
+                    # Sampler uses policy.eval() which turns off training to sample the actions
+                    sampler = Sampler(env=env, model=clone, num_steps=self.params['adapt_batch_size'],
+                                      gamma_coef=params['gamma'], lambda_coef=params['tau'],
+                                      device=device, num_envs=num_envs)
                     task_replay = []
 
                     # Adapt
                     for step in range(self.params['adapt_steps']):
-                        train_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
-                        task_replay.append(train_episodes)
-                        clone = fast_adapt_a2c(clone, train_episodes, baseline,
+
+                        tr_ep_samples, tr_ep_info = sampler.run()
+                        task_replay.append(tr_ep_samples)
+                        clone = fast_adapt_a2c(clone, tr_ep_samples, baseline,
                                                self.params['inner_lr'], self.params['gamma'], self.params['tau'],
                                                first_order=True)
 
                     # Compute validation Loss
-                    valid_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
-                    task_replay.append(valid_episodes)
+                    val_ep_samples, val_ep_info = sampler.run()
+                    task_replay.append(val_ep_samples)
 
-                    iter_reward += valid_episodes.reward().sum().item() / self.params['adapt_batch_size']
+                    iter_reward += val_ep_samples["rewards"].sum().item() / self.params['adapt_batch_size']
                     iter_replays.append(task_replay)
                     iter_policies.append(clone)
 
