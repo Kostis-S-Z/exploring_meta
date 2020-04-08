@@ -69,6 +69,8 @@ class DiagNormalPolicyCNN(nn.Module):
 
         activation = nn.ReLU
 
+        # Building a network using a dictionary this way ONLY THIS ONLY WORKS FOR PYTHON 3.7
+        # Otherwise the dictionary won't remember the order!
         # Define input layer
         features = {"conv_0": nn.Conv2d(in_channels=input_size, out_channels=network[0], kernel_size=3, padding=1),
                     "bn_0": nn.BatchNorm2d(network[0]),

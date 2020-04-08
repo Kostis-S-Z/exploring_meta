@@ -30,3 +30,8 @@ _Note: There is a [bug](https://stackoverflow.com/questions/26193365/pycharm-doe
 6. Install extra dependencies:
 
 ```pip install -r requirements.txt```
+
+
+#### Warning
+
+There is a part of code that is Python 3.7+ dependent. When building a network in policies.py a dictionary is used which assumes the order is kept. This is true only for Python 3.7+
