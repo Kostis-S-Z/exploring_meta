@@ -20,11 +20,17 @@ from core_functions.policies import DiagNormalPolicyCNN
 from core_functions.rl import fast_adapt_a2c, meta_optimize, evaluate
 from misc_scripts import run_cl_rl_exp
 
+from sampler import Sampler
+
+# updates = total timesteps / batch
+# 1.000.000 serial timesteps takes around 3hours
+# 25.000.000 timesteps for easy difficulty
+# 200.000.000 timesteps for hard difficulty
 
 params = {
     "outer_lr": 0.1,  #
     "inner_lr": 0.1,  # Default: 0.1
-    "tau": 1.0,
+    "tau": 0.95,
     "gamma": 0.99,
     "backtrack_factor": 0.5,  # Meta-optimizer
     "ls_max_steps": 15,  # Meta-optimizer
@@ -56,6 +62,7 @@ cl_params = {
     "n_tasks": 5
 }
 
+# caveflyer, coinrun, dodgeball, maze, starpilot
 env_name = "coinrun"
 distribution_mode = 'easy'
 num_levels = 0
@@ -129,7 +136,14 @@ class MamlRL(Experiment):
 
         self.log_model(policy, device, input_shape=observ_space)  # Input shape is specific to dataset
 
+        # Sampler uses policy.eval() which turns off training
+        sampler = Sampler(env=env, model=policy, num_steps=100, gamma_coef=params['gamma'], lambda_coef=params['tau'],
+                          device=device, num_envs=num_envs)
+
+        data_sampled, epinfos = sampler.run()
+
         t = trange(self.params['num_iterations'], desc="Iteration", position=0)
+        exit()
         try:
             for iteration in t:
 
@@ -140,7 +154,6 @@ class MamlRL(Experiment):
                 # task_list = env.sample_tasks(self.params['meta_batch_size'])
 
                 for task_i in trange(2, leave=False, desc="Task", position=0):
-                    # task = task_list[task_i]
 
                     clone = deepcopy(policy)
                     # env.set_task(task)

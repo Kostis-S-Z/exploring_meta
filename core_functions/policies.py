@@ -100,6 +100,8 @@ class DiagNormalPolicyCNN(nn.Module):
         self.mean = head
         self.sigma = nn.Parameter(torch.Tensor(output_size))
         self.sigma.data.fill_(math.log(1))
+        # This is just a trivial assignment to follow the implementation of the sampler
+        self.step = self.forward
 
     def density(self, state):
         # Pass images through CNN to get features
