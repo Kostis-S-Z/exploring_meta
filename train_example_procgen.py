@@ -31,7 +31,7 @@ use_wandb = False
 LOG_DIR = '/tmp/procgen'
 
 params = dict(
-    num_envs=32,  # 32env ~ 7gb VRAM,
+    num_envs=4,  # max should be 32env ~ 7gb VRAM, 8 is probably optimal
     learning_rate=5e-4,
     ent_coef=.01,
     gamma=.999,
@@ -40,8 +40,10 @@ params = dict(
     nminibatches=8,
     ppo_epochs=3,
     clip_range=.2,
-    timesteps_per_proc=50_000_000,
-    use_vf_clipping=True
+    timesteps_per_proc=25_000_000,
+    use_vf_clipping=True,
+    log_interval=100,  # per update = timesteps / batch
+    save_interval=10_000,  # per update
 )
 
 
@@ -49,7 +51,7 @@ def main():
 
     parser = argparse.ArgumentParser(description='Process procgen training arguments.')
     parser.add_argument('--env_name', type=str, default='coinrun')
-    parser.add_argument('--distribution_mode', type=str, default='hard',
+    parser.add_argument('--distribution_mode', type=str, default='easy',
                         choices=["easy", "hard", "exploration", "memory", "extreme"])
     parser.add_argument('--num_levels', type=int, default=0)
     parser.add_argument('--start_level', type=int, default=0)
@@ -60,7 +62,9 @@ def main():
     test_worker_interval = args.test_worker_interval
 
     if use_wandb:
-        wandb_run = wandb.init(project="l2l", id=args.env_name + '_5', config=params)
+        import datetime
+        date = datetime.datetime.now().strftime("%d_%m_%Hh%M")
+        wandb_run = wandb.init(project="l2l", id=args.env_name + '_' + date, config=params)
     else:
         wandb_run = None
 
@@ -106,13 +110,13 @@ def main():
         env=venv,
         network=conv_fn,
         total_timesteps=params['timesteps_per_proc'],
-        save_interval=0,
+        save_interval=params['save_interval'],
         nsteps=params['nsteps'],
         nminibatches=params['nminibatches'],
         lam=params['lam'],
         gamma=params['gamma'],
         noptepochs=params['ppo_epochs'],
-        log_interval=1,
+        log_interval=params['log_interval'],
         ent_coef=params['ent_coef'],
         mpi_rank_weight=mpi_rank_weight,
         clip_vf=params['use_vf_clipping'],
