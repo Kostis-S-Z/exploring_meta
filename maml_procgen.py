@@ -133,7 +133,7 @@ class MamlRL(Experiment):
 
         self.log_model(policy, device, input_shape=observ_space)  # Input shape is specific to dataset
 
-        t = trange(self.params['num_iterations'], desc="Iteration", position=0)
+        t_iter = trange(self.params['num_iterations'], desc="Iteration", position=0)
         try:
             for iteration in t_iter:
 
