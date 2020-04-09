@@ -12,6 +12,11 @@ from cherry.pg import generalized_advantage
 def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states):
     # Update baseline
     returns = ch.td.discount(gamma, rewards, dones)
+    if baseline.linear.weight.dim() != states.dim():  # if dimensions are not equal, try to flatten
+        states = states.flatten(1, -1)
+        next_states = next_states.flatten(1, -1)
+        dones = dones.reshape(-1, 1)
+
     baseline.fit(states, returns)
     values = baseline(states)
     next_values = baseline(next_states)
@@ -72,11 +77,18 @@ def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, tau, gamm
                                         fast_lr, gamma, tau, first_order=False)
 
         # Useful values
-        states = valid_episodes.state()
-        actions = valid_episodes.action()
-        next_states = valid_episodes.next_state()
-        rewards = valid_episodes.reward()
-        dones = valid_episodes.done()
+        if isinstance(valid_episodes, dict):
+            states = torch.from_numpy(valid_episodes["states"])
+            actions = torch.from_numpy(valid_episodes["actions"])
+            rewards = torch.from_numpy(valid_episodes["rewards"])
+            dones = torch.from_numpy(valid_episodes["dones"])
+            next_states = torch.from_numpy(valid_episodes["next_states"])
+        else:
+            states = valid_episodes.state()
+            actions = valid_episodes.action()
+            rewards = valid_episodes.reward()
+            dones = valid_episodes.done()
+            next_states = valid_episodes.next_state()
 
         # Compute KL
         old_densities = old_policy.density(states)
