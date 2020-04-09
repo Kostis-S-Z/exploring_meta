@@ -97,7 +97,6 @@ class DiagNormalPolicyCNN(nn.Module):
         # and how "fast" (=stride) it downscales the image
         final_pixel_dim = int(64 / (math.pow(2, n_layers)))
         self.flatten_size = network[-1] * final_pixel_dim * final_pixel_dim
-        print(final_pixel_dim, self.flatten_size)
         head = nn.Linear(in_features=self.flatten_size, out_features=output_size, bias=True)  # No activation for output
         maml_init_(head)
 

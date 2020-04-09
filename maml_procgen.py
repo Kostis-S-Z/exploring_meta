@@ -65,8 +65,8 @@ cl_params = {
 }
 
 # caveflyer, coinrun, dodgeball, maze, starpilot
-env_name = "coinrun"
-num_envs = 4  # 32env ~ 7gb VRAM,
+game_envs = ["coinrun", "maze", "starpilot"]
+num_envs_per_game = 2
 start_level = 0
 test_worker_interval = 0
 
@@ -78,7 +78,7 @@ wandb = False
 class MamlRL(Experiment):
 
     def __init__(self):
-        super(MamlRL, self).__init__("maml", env_name, params, path="rl_results/", use_wandb=wandb)
+        super(MamlRL, self).__init__("maml", "multi_env", params, path="rl_results/", use_wandb=wandb)
 
         device = torch.device('cpu')
         random.seed(self.params['seed'])
@@ -103,29 +103,36 @@ class MamlRL(Experiment):
         format_strs = ['csv', 'stdout'] if log_comm.Get_rank() == 0 else []
 
         logger.configure(dir=self.model_path, format_strs=format_strs)
-        logger.info(f"Creating {num_envs} {env_name} environments")
+        logger.info(f"Creating {num_envs_per_game} environments for every {game_envs}")
 
-        venv = ProcgenEnv(num_envs=num_envs, env_name=env_name, num_levels=n_levels,
-                          start_level=start_level, distribution_mode=self.params['distribution_mode'])
+        print("Initializing games:")
+        venvs = []
+        for env_name in game_envs:
+            venv = ProcgenEnv(num_envs=num_envs_per_game, env_name=env_name, num_levels=n_levels,
+                              start_level=start_level, distribution_mode=self.params['distribution_mode'])
 
-        venv = VecExtractDictObs(venv, "rgb")
+            venv = VecExtractDictObs(venv, "rgb")
 
-        venv = VecMonitor(venv=venv, filename=None, keep_buf=100, )
+            venv = VecMonitor(venv=venv, filename=None, keep_buf=100, )
 
-        venv = VecNormalize(venv=venv, ob=False)
+            venv = VecNormalize(venv=venv, ob=False)
+
+            print(f"\t {env_name} done!")
+            venvs.append(venv)
 
         setup_mpi_gpus()
 
-        self.run(venv, device)
+        self.run(venvs, device)
 
-    def run(self, env, device):
+    def run(self, envs, device):
 
-        observ_space = env.observation_space.shape[::-1]
+        # All games have the same observation and action space
+        observ_space = envs[0].observation_space.shape[::-1]
         observ_size = len(observ_space)
         observ_space_flat = observ_space[0] * observ_space[1] * observ_space[2]
-        action_space = env.action_space.n + 1
+        action_space = envs[0].action_space.n + 1
 
-        samples_across_workers = self.params['adapt_batch_size'] * num_envs
+        samples_across_workers = self.params['adapt_batch_size'] * num_envs_per_game
 
         baseline = ch.models.robotics.LinearValue(observ_space_flat, action_space)
         policy = DiagNormalPolicyCNN(observ_size, action_space, network=network)
@@ -142,15 +149,16 @@ class MamlRL(Experiment):
                 iter_replays = []
                 iter_policies = []
 
-                t_task = trange(self.params['meta_batch_size'], leave=False, desc="Task", position=0)
+                t_task = trange(len(envs), leave=False, desc=f"Task", position=0)
                 for task in t_task:
-
+                    # Set game as environment
+                    env = envs[task]
                     clone = deepcopy(policy)
 
                     # Sampler uses policy.eval() which turns off training to sample the actions
                     sampler = Sampler(env=env, model=clone, num_steps=self.params['adapt_batch_size'],
                                       gamma_coef=params['gamma'], lambda_coef=params['tau'],
-                                      device=device, num_envs=num_envs)
+                                      device=device, num_envs=num_envs_per_game)
                     task_replay = []
                     tr_task_reward = 0
                     # Adapt
@@ -213,7 +221,7 @@ class MamlRL(Experiment):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MAML on RL tasks')
 
-    parser.add_argument('--env', type=str, default=env_name, help='Pick an environment')
+    parser.add_argument('--env', type=str, default=game_envs, help='Pick environments')
 
     parser.add_argument('--outer_lr', type=float, default=params['outer_lr'], help='Outer lr')
     parser.add_argument('--inner_lr', type=float, default=params['inner_lr'], help='Inner lr')
