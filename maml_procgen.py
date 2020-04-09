@@ -35,16 +35,17 @@ params = {
     "backtrack_factor": 0.5,    # Meta-optimizer param
     "ls_max_steps": 15,         # Meta-optimizer param
     "max_kl": 0.01,             # Meta-optimizer param
-    "meta_batch_size": 2,  # "ways" / tasks per iteration  Default: 20
-    "adapt_batch_size": 1,  # "shots" / episodes per task Default: 20
-    "num_levels": 200,  # 200 for easy, 500 for hard"
+    "meta_batch_size": 10,  # "ways" / tasks per iteration  Default: 20
+    "adapt_batch_size": 1,  # "shots" / episodes per task Default:
+    "num_steps": 256,  # number of steps to take in an episode / rollout length
+    "num_levels": 1,  # 200 for easy, 500 for hard"
     "distribution_mode": "easy",  # easy or hard
     "adapt_steps": 1,  # Default 1
     "num_iterations": 500,  # Default 500
     "save_every": 25,
     "seed": 42}
 
-network = [64, 32, 16]
+network = [64, 64, 32]
 
 eval_params = {
     'n_eval_adapt_steps': 5,  # Number of steps to adapt to a new task
@@ -64,9 +65,16 @@ cl_params = {
     "n_tasks": 5
 }
 
-# caveflyer, coinrun, dodgeball, maze, starpilot
-env_name = "coinrun"
-num_envs = 4  # 32env ~ 7gb VRAM,
+# Potential games:
+#   caveflyer
+#   coinrun
+#   dodgeball
+#   maze: fast rewards
+#   starpilot: fast rewards
+#   jumper: fast rewards
+
+env_name = "starpilot"
+num_envs = 1  # 32env ~ 7gb VRAM,
 start_level = 0
 test_worker_interval = 0
 
@@ -148,7 +156,7 @@ class MamlRL(Experiment):
                     clone = deepcopy(policy)
 
                     # Sampler uses policy.eval() which turns off training to sample the actions
-                    sampler = Sampler(env=env, model=clone, num_steps=self.params['adapt_batch_size'],
+                    sampler = Sampler(env=env, model=clone, num_steps=self.params['num_steps'],
                                       gamma_coef=params['gamma'], lambda_coef=params['tau'],
                                       device=device, num_envs=num_envs)
                     task_replay = []
@@ -175,6 +183,7 @@ class MamlRL(Experiment):
                     iter_replays.append(task_replay)
                     iter_policies.append(clone)
 
+                    print(f"Train reward of task {task} is {val_iter_reward}")
                     task_metrics = {f'av_train_task_{task}': tr_task_reward}
                     t_task.set_postfix(task_metrics)
 
