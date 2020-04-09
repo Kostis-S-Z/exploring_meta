@@ -32,17 +32,19 @@ params = {
     "inner_lr": 0.1,  # Default: 0.1
     "tau": 0.95,
     "gamma": 0.99,
-    "backtrack_factor": 0.5,  # Meta-optimizer
-    "ls_max_steps": 15,  # Meta-optimizer
-    "max_kl": 0.01,  # Meta-optimizer
-    "adapt_batch_size": 5,  # "shots"  Default: 20
-    "meta_batch_size": 2,  # "ways" Default: 20
+    "backtrack_factor": 0.5,    # Meta-optimizer param
+    "ls_max_steps": 15,         # Meta-optimizer param
+    "max_kl": 0.01,             # Meta-optimizer param
+    "meta_batch_size": 2,  # "ways" / tasks per iteration  Default: 20
+    "adapt_batch_size": 1,  # "shots" / episodes per task Default: 20
+    "num_levels": 200,  # 200 for easy, 500 for hard"
+    "distribution_mode": "easy",  # easy or hard
     "adapt_steps": 1,  # Default 1
     "num_iterations": 500,  # Default 500
     "save_every": 25,
     "seed": 42}
 
-network = [32, 64, 64]
+network = [64, 32, 16]
 
 eval_params = {
     'n_eval_adapt_steps': 5,  # Number of steps to adapt to a new task
@@ -64,10 +66,8 @@ cl_params = {
 
 # caveflyer, coinrun, dodgeball, maze, starpilot
 env_name = "coinrun"
-distribution_mode = 'easy'
-num_levels = 200  # 200 for easy, 500 for hard
-start_level = 0
 num_envs = 4  # 32env ~ 7gb VRAM,
+start_level = 0
 test_worker_interval = 0
 
 cuda = False
@@ -97,7 +97,7 @@ class MamlRL(Experiment):
             is_test_worker = comm.Get_rank() % test_worker_interval == (test_worker_interval - 1)
 
         mpi_rank_weight = 0 if is_test_worker else 1
-        n_levels = 0 if is_test_worker else num_levels
+        n_levels = 0 if is_test_worker else self.params['num_levels']
 
         log_comm = comm.Split(1 if is_test_worker else 0, 0)
         format_strs = ['csv', 'stdout'] if log_comm.Get_rank() == 0 else []
@@ -106,7 +106,7 @@ class MamlRL(Experiment):
         logger.info(f"Creating {num_envs} {env_name} environments")
 
         venv = ProcgenEnv(num_envs=num_envs, env_name=env_name, num_levels=n_levels,
-                          start_level=start_level, distribution_mode=distribution_mode)
+                          start_level=start_level, distribution_mode=self.params['distribution_mode'])
 
         venv = VecExtractDictObs(venv, "rgb")
 
@@ -125,10 +125,7 @@ class MamlRL(Experiment):
         observ_space_flat = observ_space[0] * observ_space[1] * observ_space[2]
         action_space = env.action_space.n + 1
 
-        print(observ_space)
-        print(observ_size)
-        print(observ_space_flat)
-        print(action_space)
+        samples_across_workers = self.params['adapt_batch_size'] * num_envs
 
         baseline = ch.models.robotics.LinearValue(observ_space_flat, action_space)
         policy = DiagNormalPolicyCNN(observ_size, action_space, network=network)
@@ -138,13 +135,15 @@ class MamlRL(Experiment):
 
         t = trange(self.params['num_iterations'], desc="Iteration", position=0)
         try:
-            for iteration in t:
+            for iteration in t_iter:
 
-                iter_reward = 0
+                train_iter_reward = 0
+                val_iter_reward = 0
                 iter_replays = []
                 iter_policies = []
 
-                for task_i in trange(2, leave=False, desc="Task", position=0):
+                t_task = trange(self.params['meta_batch_size'], leave=False, desc="Task", position=0)
+                for task in t_task:
 
                     clone = deepcopy(policy)
 
@@ -153,28 +152,38 @@ class MamlRL(Experiment):
                                       gamma_coef=params['gamma'], lambda_coef=params['tau'],
                                       device=device, num_envs=num_envs)
                     task_replay = []
-
+                    tr_task_reward = 0
                     # Adapt
                     for step in range(self.params['adapt_steps']):
 
                         tr_ep_samples, tr_ep_info = sampler.run()
+                        tr_task_reward += tr_ep_samples["rewards"].sum().item() / samples_across_workers
                         task_replay.append(tr_ep_samples)
                         clone = fast_adapt_a2c(clone, tr_ep_samples, baseline,
                                                self.params['inner_lr'], self.params['gamma'], self.params['tau'],
                                                first_order=True)
+                    # Average train reward of task i
+                    tr_task_reward = tr_task_reward / self.params['adapt_steps']
+                    # Average train reward across tasks
+                    train_iter_reward += tr_task_reward
 
                     # Compute validation Loss
                     val_ep_samples, val_ep_info = sampler.run()
                     task_replay.append(val_ep_samples)
 
-                    iter_reward += val_ep_samples["rewards"].sum().item() / self.params['adapt_batch_size']
+                    val_iter_reward += val_ep_samples["rewards"].sum().item() / samples_across_workers
                     iter_replays.append(task_replay)
                     iter_policies.append(clone)
 
-                adapt_reward = iter_reward / self.params['meta_batch_size']
-                metrics = {'adapt_reward': adapt_reward}
+                    task_metrics = {f'av_train_task_{task}': tr_task_reward}
+                    t_task.set_postfix(task_metrics)
 
-                t.set_postfix(metrics)
+                train_adapt_reward = train_iter_reward / self.params['meta_batch_size']
+                val_adapt_reward = val_iter_reward / self.params['meta_batch_size']
+                metrics = {'train_adapt_reward': train_adapt_reward,
+                           'val_adapt_reward': val_adapt_reward}
+
+                t_iter.set_postfix(metrics)
                 self.log_metrics(metrics)
 
                 meta_optimize(self.params, policy, baseline, iter_replays, iter_policies, cuda)
@@ -190,10 +199,10 @@ class MamlRL(Experiment):
 
         self.save_model(policy)
 
-        self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
+        self.logger['elapsed_time'] = str(round(t_iter.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
-        self.logger['test_reward'] = evaluate(env, policy, baseline, eval_params)
-        self.log_metrics({'test_reward': self.logger['test_reward']})
+        # self.logger['test_reward'] = evaluate(env, policy, baseline, eval_params)
+        # self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
 
         if cl_test:
