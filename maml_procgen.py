@@ -65,7 +65,7 @@ cl_params = {
 # caveflyer, coinrun, dodgeball, maze, starpilot
 env_name = "coinrun"
 distribution_mode = 'easy'
-num_levels = 0
+num_levels = 200  # 200 for easy, 500 for hard
 start_level = 0
 num_envs = 4  # 32env ~ 7gb VRAM,
 test_worker_interval = 0
