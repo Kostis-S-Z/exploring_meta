@@ -28,24 +28,29 @@ from sampler import Sampler
 # 200.000.000 timesteps for hard difficulty
 
 params = {
+    # Algorithm params
     "outer_lr": 0.1,  #
     "inner_lr": 0.1,  # Default: 0.1
     "tau": 0.95,
     "gamma": 0.99,
-    "backtrack_factor": 0.5,    # Meta-optimizer param
-    "ls_max_steps": 15,         # Meta-optimizer param
-    "max_kl": 0.01,             # Meta-optimizer param
-    "meta_batch_size": 10,  # "ways" / tasks per iteration  Default: 20
-    "adapt_batch_size": 1,  # "shots" / episodes per task Default:
-    "num_steps": 256,  # number of steps to take in an episode / rollout length
-    "num_levels": 1,  # 200 for easy, 500 for hard"
+    # Meta optimizer params
+    "backtrack_factor": 0.5,
+    "ls_max_steps": 15,
+    "max_kl": 0.01,
+    # Environment params
+    "n_iters": 500,  # Default 500
+    "n_tasks_per_iter": 1,  # "ways" (prev. meta_batch_size)
+    "n_episodes_per_task": 1,  # "shots" (prev. adapt_batch_size)
+    "n_steps_per_episode": 256,  # rollout length
+    "n_levels": 1,  # 0-unlimited, 1-debug, 200-easy, 500-hard
+    "n_envs": 1,  # 32envs ~7gb RAM (Original was 64)
     "distribution_mode": "easy",  # easy or hard
-    "adapt_steps": 1,  # Default 1
-    "num_iterations": 500,  # Default 500
+    "test_worker_interval": 0,  # One of the workers will test, define how often (train & test in parallel)
+    # Model params
     "save_every": 25,
     "seed": 42}
 
-network = [64, 64, 32]
+network = [64, 128, 128]  # Their impala was 16-32-32
 
 eval_params = {
     'n_eval_adapt_steps': 5,  # Number of steps to adapt to a new task
@@ -71,14 +76,12 @@ cl_params = {
 #   dodgeball
 #   maze: fast rewards
 #   starpilot: fast rewards
-#   jumper: fast rewards
+#   bigfish: fast rewards
 
 env_name = "starpilot"
-num_envs = 1  # 32env ~ 7gb VRAM,
-start_level = 0
-test_worker_interval = 0  # One of the workers will test, define how often (train & test in parallel)
+start_level = 0  # ???
 
-cuda = False
+cuda = True
 
 wandb = False
 
@@ -101,19 +104,19 @@ class MamlRL(Experiment):
         rank = comm.Get_rank()
 
         is_test_worker = False
-        if test_worker_interval > 0:
-            is_test_worker = comm.Get_rank() % test_worker_interval == (test_worker_interval - 1)
+        if params['test_worker_interval'] > 0:
+            is_test_worker = comm.Get_rank() % params['test_worker_interval'] == (params['test_worker_interval'] - 1)
 
         mpi_rank_weight = 0 if is_test_worker else 1
-        n_levels = 0 if is_test_worker else self.params['num_levels']
+        n_levels = 0 if is_test_worker else self.params['n_levels']
 
         log_comm = comm.Split(1 if is_test_worker else 0, 0)
         format_strs = ['csv', 'stdout'] if log_comm.Get_rank() == 0 else []
 
         logger.configure(dir=self.model_path, format_strs=format_strs)
-        logger.info(f"Creating {num_envs} {env_name} environments")
+        logger.info(f"Creating {self.params['n_envs']} {env_name} environments")
 
-        venv = ProcgenEnv(num_envs=num_envs, env_name=env_name, num_levels=n_levels,
+        venv = ProcgenEnv(num_envs=self.params['n_envs'], env_name=env_name, num_levels=n_levels,
                           start_level=start_level, distribution_mode=self.params['distribution_mode'])
 
         venv = VecExtractDictObs(venv, "rgb")
@@ -133,15 +136,19 @@ class MamlRL(Experiment):
         observ_space_flat = observ_space[0] * observ_space[1] * observ_space[2]
         action_space = env.action_space.n + 1
 
-        samples_across_workers = self.params['adapt_batch_size'] * num_envs
+        final_pixel_dim = int(64 / (np.power(2, len(network))))
+        fc_neurons = network[-1] * final_pixel_dim * final_pixel_dim
+
+        samples_across_workers = self.params['n_steps_per_episode'] * self.params['n_envs']
 
         baseline = ch.models.robotics.LinearValue(observ_space_flat, action_space)
         policy = DiagNormalPolicyCNN(observ_size, action_space, network=network)
         policy.to(device)
 
         self.log_model(policy, device, input_shape=observ_space)  # Input shape is specific to dataset
+        print("FC Neurons: ", fc_neurons)
 
-        t_iter = trange(self.params['num_iterations'], desc="Iteration", position=0)
+        t_iter = trange(self.params['n_iters'], desc="Iteration", position=0)
         try:
             for iteration in t_iter:
 
@@ -150,28 +157,28 @@ class MamlRL(Experiment):
                 iter_replays = []
                 iter_policies = []
 
-                t_task = trange(self.params['meta_batch_size'], leave=False, desc="Task", position=0)
+                t_task = trange(self.params['n_tasks_per_iter'], leave=False, desc="Task", position=0)
                 for task in t_task:
 
                     clone = deepcopy(policy)
 
                     # Sampler uses policy.eval() which turns off training to sample the actions
-                    sampler = Sampler(env=env, model=clone, num_steps=self.params['num_steps'],
+                    sampler = Sampler(env=env, model=clone, num_steps=self.params['n_steps_per_episode'],
                                       gamma_coef=params['gamma'], lambda_coef=params['tau'],
-                                      device=device, num_envs=num_envs)
+                                      device=device, num_envs=self.params['n_envs'])
                     task_replay = []
                     tr_task_reward = 0
                     # Adapt
-                    for step in range(self.params['adapt_steps']):
+                    for step in range(self.params['n_episodes_per_task']):
 
                         tr_ep_samples, tr_ep_info = sampler.run()
                         tr_task_reward += tr_ep_samples["rewards"].sum().item() / samples_across_workers
                         task_replay.append(tr_ep_samples)
                         clone = fast_adapt_a2c(clone, tr_ep_samples, baseline,
                                                self.params['inner_lr'], self.params['gamma'], self.params['tau'],
-                                               first_order=True)
+                                               first_order=True, device=device)
                     # Average train reward of task i
-                    tr_task_reward = tr_task_reward / self.params['adapt_steps']
+                    tr_task_reward = tr_task_reward / self.params['n_episodes_per_task']
                     # Average train reward across tasks
                     train_iter_reward += tr_task_reward
 
@@ -187,8 +194,8 @@ class MamlRL(Experiment):
                     task_metrics = {f'av_train_task_{task}': tr_task_reward}
                     t_task.set_postfix(task_metrics)
 
-                train_adapt_reward = train_iter_reward / self.params['meta_batch_size']
-                val_adapt_reward = val_iter_reward / self.params['meta_batch_size']
+                train_adapt_reward = train_iter_reward / self.params['n_tasks_per_iter']
+                val_adapt_reward = val_iter_reward / self.params['n_tasks_per_iter']
                 metrics = {'train_adapt_reward': train_adapt_reward,
                            'val_adapt_reward': val_adapt_reward}
 
@@ -226,11 +233,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--outer_lr', type=float, default=params['outer_lr'], help='Outer lr')
     parser.add_argument('--inner_lr', type=float, default=params['inner_lr'], help='Inner lr')
-    parser.add_argument('--adapt_steps', type=int, default=params['adapt_steps'], help='Adaptation steps in inner loop')
-    parser.add_argument('--meta_batch_size', type=int, default=params['meta_batch_size'], help='Batch size')
-    parser.add_argument('--adapt_batch_size', type=int, default=params['adapt_batch_size'], help='Adapt batch size')
 
-    parser.add_argument('--num_iterations', type=int, default=params['num_iterations'], help='Number of epochs')
+    parser.add_argument('--n_iters', type=int, default=params['n_iters'], help='Number of epochs')
     parser.add_argument('--save_every', type=int, default=params['save_every'], help='Interval to save model')
 
     parser.add_argument('--seed', type=int, default=params['seed'], help='Seed')
@@ -239,11 +243,8 @@ if __name__ == '__main__':
 
     params['outer_lr'] = args.outer_lr
     params['inner_lr'] = args.inner_lr
-    params['adapt_steps'] = args.adapt_steps
-    params['meta_batch_size'] = args.meta_batch_size
-    params['adapt_batch_size'] = args.adapt_batch_size
 
-    params['num_iterations'] = args.num_iterations
+    params['n_iters'] = args.n_iters
     params['save_every'] = args.save_every
 
     params['seed'] = args.seed
