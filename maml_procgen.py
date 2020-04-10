@@ -76,7 +76,7 @@ cl_params = {
 env_name = "starpilot"
 num_envs = 1  # 32env ~ 7gb VRAM,
 start_level = 0
-test_worker_interval = 0
+test_worker_interval = 0  # One of the workers will test, define how often (train & test in parallel)
 
 cuda = False
 
