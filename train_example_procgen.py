@@ -28,7 +28,7 @@ import wandb
 
 use_wandb = False
 
-LOG_DIR = '/tmp/procgen'
+LOG_DIR = '~/Projects/KTH/Thesis/exploring_meta/procgen'
 
 params = dict(
     env_name="starpilot",  # coinrun, starpilot
