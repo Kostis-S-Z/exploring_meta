@@ -7,8 +7,10 @@ def fast_adapt(batch, learner, loss, adaptation_steps, shots, ways, device, feat
     adapt_data, adapt_labels, eval_data, eval_labels = prepare_batch(batch, shots, ways, device, features=features)
 
     for step in range(adaptation_steps):
-        train_error = loss(learner(adapt_data), adapt_labels)
-        learner.adapt(train_error)
+        # Calculate loss based on predictions & actual labels
+        train_loss = loss(learner(adapt_data), adapt_labels)
+        # Calculate gradients & update the model's parameters based on the loss
+        learner.adapt(train_loss)
 
     predictions = learner(eval_data)
     valid_loss = loss(predictions, eval_labels)
