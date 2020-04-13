@@ -40,7 +40,7 @@ params = {
     # Environment params
     "n_iters": 500,  # Default 500
     "n_tasks_per_iter": 1,  # "ways" (prev. meta_batch_size)
-    "n_episodes_per_task": 1,  # "shots" (prev. adapt_batch_size)
+    "n_episodes_per_task": 100,  # "shots" (prev. adapt_batch_size)
     "n_steps_per_episode": 256,  # rollout length
     "n_levels": 1,  # 0-unlimited, 1-debug, 200-easy, 500-hard
     "n_envs": 1,  # 32envs ~7gb RAM (Original was 64)
@@ -173,6 +173,7 @@ class MamlRL(Experiment):
 
                         tr_ep_samples, tr_ep_info = sampler.run()
                         tr_task_reward += tr_ep_samples["rewards"].sum().item() / samples_across_workers
+                        print(f"Step {step} train reward: {tr_task_reward}")
                         task_replay.append(tr_ep_samples)
                         clone = fast_adapt_a2c(clone, tr_ep_samples, baseline,
                                                self.params['inner_lr'], self.params['gamma'], self.params['tau'],
@@ -188,9 +189,10 @@ class MamlRL(Experiment):
 
                     val_iter_reward += val_ep_samples["rewards"].sum().item() / samples_across_workers
                     iter_replays.append(task_replay)
-                    iter_policies.append(clone)
+                    # iter_policies.append(clone)
 
-                    print(f"Train reward of task {task} is {val_iter_reward}")
+                    print(f"Train reward of task {task} is {tr_task_reward}")
+                    print(f"Valid reward of task {task} is {val_iter_reward}")
                     task_metrics = {f'av_train_task_{task}': tr_task_reward}
                     t_task.set_postfix(task_metrics)
 
@@ -199,9 +201,11 @@ class MamlRL(Experiment):
                 metrics = {'train_adapt_reward': train_adapt_reward,
                            'val_adapt_reward': val_adapt_reward}
 
+                print(f"Train average reward: {train_adapt_reward}")
+                print(f"Validation average reward: {val_adapt_reward}")
                 t_iter.set_postfix(metrics)
                 self.log_metrics(metrics)
-
+                exit()
                 meta_optimize(self.params, policy, baseline, iter_replays, iter_policies, cuda)
 
                 if iteration % self.params['save_every'] == 0:
