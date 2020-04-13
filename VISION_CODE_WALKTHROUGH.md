@@ -11,16 +11,24 @@
 
 ### Omniglot
 1623 classes (characters). 20 samples per class.
+
 Train set: 0-1100
+
 Valid set: 1100-1200
+
 Test set: 1200-1623
+
 Random rotations of 90 / 180 / 270 degrees.
 
 ### Mini-ImageNet
 100 classes. 600 samples per class.
+
 84x84x3 (RGB) images
+
 Train set: 64 classes
+
 Valid set: 16 classes
+
 Test set: 20 classes
 
 ## __Parameter configuration__
@@ -31,9 +39,10 @@ Test set: 20 classes
 - Number of adaptation steps
 - Number of batches to adapt to during one iteration / epoch
 - Number of iterations
-    - Experiment parameters:
-        - Ways (=number of classes to train on per batch)
-        - Shots (=number of samples per class to learn from)
+
+#### Experiment parameters:
+- Ways (=number of classes to train on per batch)
+- Shots (=number of samples per class to learn from)
 
 
 ## __Experiment__
