@@ -19,11 +19,15 @@ _Note: There is a [bug](https://stackoverflow.com/questions/26193365/pycharm-doe
 
 ```pip install git+https://github.com/sksq96/pytorch-summary.git@4ee5ac5#egg=torchsummary```
 
-4. Install github version of cherry-rl (because PyPI package hasn't been updated to support torch 1.3.+)
+4. Install my forked version of [cherry](https://github.com/Kostis-S-Z/cherry) specifically modified for experiments for this repo (For RL):
 
-```pip install git+git://github.com/learnables/cherry.git#egg=cherry```
+```pip install git+git://github.com/Kostis-S-Z/cherry.git#egg=cherry```
 
-5. Install the rest of dependencies:
+5. Install baselines (For RL):
+
+```pip install https://github.com/openai/baselines/archive/9ee399f5b20cd70ac0a871927a6cf043b478193f.zip```
+
+6. Install the rest of dependencies:
 
 ```pip install -r requirements.txt```
 
@@ -50,4 +54,5 @@ For scripts that can use MPI run:
 ```mpiexec -np 8 python3 maml_rl.py ```
 
 ## Acknowledgements
+
 

@@ -99,7 +99,7 @@ def meta_optimize(params, policy, baseline, iter_replays, iter_policies, cuda):
 
     # Compute CG step direction
     old_loss, old_kl = meta_surrogate_loss(iter_replays, iter_policies, policy, baseline,
-                                           params['tau'], params['gamma'], params['fast_lr'])
+                                           params['tau'], params['gamma'], params['inner_lr'])  # TODO: maybe outer_lr
 
     grad = torch.autograd.grad(old_loss,
                                policy.parameters(),
@@ -118,13 +118,40 @@ def meta_optimize(params, policy, baseline, iter_replays, iter_policies, cuda):
 
     # Line-search
     for ls_step in range(params['ls_max_steps']):
-        stepsize = params['backtrack_factor'] ** ls_step * params['meta_lr']
+        stepsize = params['backtrack_factor'] ** ls_step * params['outer_lr']  # TODO: maybe inner_lr
         clone = deepcopy(policy)
         for p, u in zip(clone.parameters(), step):
             p.data.add_(-stepsize, u.data)
         new_loss, kl = meta_surrogate_loss(iter_replays, iter_policies, clone, baseline,
-                                           params['tau'], params['gamma'], params['fast_lr'])
+                                           params['tau'], params['gamma'], params['inner_lr'])  # TODO: maybe outer_lr
         if new_loss < old_loss and kl < params['max_kl']:
             for p, u in zip(policy.parameters(), step):
                 p.data.add_(-stepsize, u.data)
             break
+
+
+def evaluate(env, policy, baseline, eval_params):
+    tasks_reward = 0
+    eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
+
+    for i, task in enumerate(eval_task_list):
+        clone = deepcopy(policy)
+        env.set_task(task)
+        env.reset()
+        task = ch.envs.Runner(env)
+
+        # Adapt
+        for step in range(eval_params['n_eval_adapt_steps']):
+            train_episodes = task.run(clone, episodes=eval_params['n_eval_episodes'])
+            clone = fast_adapt_a2c(clone, train_episodes, baseline,
+                                   eval_params['inner_lr'], eval_params['gamma'], eval_params['tau'],
+                                   first_order=True)
+
+        valid_episodes = task.run(clone, episodes=eval_params['n_eval_episodes'])
+
+        task_reward = valid_episodes.reward().sum().item() / eval_params['n_eval_episodes']
+        print(f"Reward for task {i} : {task_reward}")
+        tasks_reward += task_reward
+
+    final_eval_reward = tasks_reward / eval_params['n_eval_tasks']
+    return final_eval_reward

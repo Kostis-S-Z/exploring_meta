@@ -1,0 +1,18 @@
+{
+    "config": {
+        "adapt_steps": 1,
+        "fc_neurons": 1600,
+        "inner_lr": 0.5,
+        "meta_batch_size": 32,
+        "num_iterations": 10000,
+        "outer_lr": 0.003,
+        "save_every": 1000,
+        "seed": 2,
+        "shots": 1,
+        "ways": 5
+    },
+    "date": "26_03_19h35",
+    "elapsed_time": "9962.34 sec",
+    "model_id": "2_8719",
+    "test_acc": 0.4437500098720193
+}
