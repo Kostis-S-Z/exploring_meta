@@ -64,14 +64,14 @@ class Sampler:
                 # storage["values"] += [to_np(prediction["value"])]
                 # storage["neg_log_prob_a"] += [to_np(prediction["neg_log_prob_a"])]
 
-                self.obs[:], rewards, self.dones, infos = self.env.step(actions)
+                self.obs[:], rewards, self.dones, _ = self.env.step(actions)
                 storage["rewards"] += [rewards]
                 # Convert booleans to integers
                 storage["dones"] += [int(d is True) for d in self.dones]
                 storage["next_states"] += [to_np(obs.clone())]
-                for info in infos:
-                    if "episode" in info:
-                        epinfos.append(info["episode"])
+                # for info in infos:
+                #     if "episode" in info:
+                #         epinfos.append(info["episode"])
 
             # batch of steps to batch of rollouts
             for key in storage:

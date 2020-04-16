@@ -28,9 +28,12 @@ import wandb
 
 use_wandb = False
 
-LOG_DIR = '/tmp/procgen'
+LOG_DIR = '~/Projects/KTH/Thesis/exploring_meta/procgen'
 
 params = dict(
+    env_name="starpilot",  # coinrun, starpilot
+    mode="easy",  # easy, hard
+    num_lvls=1,  # 0-unlimited, 1-test, 200-easy, 500-hard
     num_envs=4,  # max should be 32env ~ 7gb VRAM, 8 is probably optimal
     learning_rate=5e-4,
     ent_coef=.01,
@@ -50,10 +53,10 @@ params = dict(
 def main():
 
     parser = argparse.ArgumentParser(description='Process procgen training arguments.')
-    parser.add_argument('--env_name', type=str, default='coinrun')
-    parser.add_argument('--distribution_mode', type=str, default='easy',
+    parser.add_argument('--env_name', type=str, default=params['env_name'])
+    parser.add_argument('--distribution_mode', type=str, default=params['mode'],
                         choices=["easy", "hard", "exploration", "memory", "extreme"])
-    parser.add_argument('--num_levels', type=int, default=0)
+    parser.add_argument('--num_levels', type=int, default=params['num_lvls'])
     parser.add_argument('--start_level', type=int, default=0)
     parser.add_argument('--test_worker_interval', type=int, default=0)
 

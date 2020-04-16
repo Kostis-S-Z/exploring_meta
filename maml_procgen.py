@@ -28,23 +28,49 @@ from sampler import Sampler
 # 200.000.000 timesteps for hard difficulty
 
 params = {
-    "outer_lr": 0.1,  #
+    # Inner loop parameters
+    "n_adapt_steps": 3,  # Number of inner loop iterations
     "inner_lr": 0.1,  # Default: 0.1
+    # Outer loop parameters
+    "outer_lr": 0.1,
+    "backtrack_factor": 0.5,
+    "ls_max_steps": 15,
+    "max_kl": 0.01,
+    # Common parameters
     "tau": 0.95,
     "gamma": 0.99,
-    "backtrack_factor": 0.5,    # Meta-optimizer param
-    "ls_max_steps": 15,         # Meta-optimizer param
-    "max_kl": 0.01,             # Meta-optimizer param
-    "meta_batch_size": 2,  # "ways" / tasks per iteration  Default: 20
-    "adapt_batch_size": 1,  # "shots" / episodes per task Default: 20
-    "num_levels": 200,  # 200 for easy, 500 for hard"
-    "distribution_mode": "easy",  # easy or hard
-    "adapt_steps": 1,  # Default 1
-    "num_iterations": 500,  # Default 500
+
+    # Environment params
+
+    # Total timesteps:
+    # nbatch = nenvs * nsteps
+    # nbatch_train = nbatch // nminibatches
+    # nupdates = total_timesteps//nbatch
+    #
+    # batch_size = n_envs * n_steps
+
+    # easy or hard: only affects the visual variance between levels
+    "distribution_mode": "easy",
+    # Number of environments OF THE SAME LEVEL to run in parallel -> 32envs ~7gb RAM (Original was 64)
+    "n_envs": 64,
+    # 0-unlimited, 1-debug. For generalization: 200-easy, 500-hard
+    "n_levels": 0,
+    # iters = outer updates = epochs PPO: 64envs, 25M -> 1.525, 200M-> 12.207
+    # We could have more epochs in one iterations, but for simplicity now we make it the same
+    "n_iters": 500,
+    # Number of different levels the agent should train on in an iteration (="ways") prev. meta_batch_size
+    "n_tasks_per_iter": 1,
+    # Number of runs on the same level for one inner iteration (="shots") prev. adapt_batch_size
+    # "n_episodes_per_task": 100,  # TODO: Currently not in use.
+    # Rollout length of each of the above runs
+    "n_steps_per_episode": 256,
+    # One of the workers will test, define how often (train & test in parallel)
+    "test_worker_interval": 0,
+    # Model params
     "save_every": 25,
     "seed": 42}
 
-network = [64, 32, 16]
+network = [32, 64, 64]
 
 eval_params = {
     'n_eval_adapt_steps': 5,  # Number of steps to adapt to a new task
@@ -68,7 +94,6 @@ cl_params = {
 game_envs = ["coinrun", "maze", "starpilot"]
 num_envs_per_game = 2
 start_level = 0
-test_worker_interval = 0
 
 cuda = False
 
@@ -93,11 +118,11 @@ class MamlRL(Experiment):
         rank = comm.Get_rank()
 
         is_test_worker = False
-        if test_worker_interval > 0:
-            is_test_worker = comm.Get_rank() % test_worker_interval == (test_worker_interval - 1)
+        if params['test_worker_interval'] > 0:
+            is_test_worker = comm.Get_rank() % params['test_worker_interval'] == (params['test_worker_interval'] - 1)
 
         mpi_rank_weight = 0 if is_test_worker else 1
-        n_levels = 0 if is_test_worker else self.params['num_levels']
+        n_levels = 0 if is_test_worker else self.params['n_levels']
 
         log_comm = comm.Split(1 if is_test_worker else 0, 0)
         format_strs = ['csv', 'stdout'] if log_comm.Get_rank() == 0 else []
@@ -132,15 +157,19 @@ class MamlRL(Experiment):
         observ_space_flat = observ_space[0] * observ_space[1] * observ_space[2]
         action_space = envs[0].action_space.n + 1
 
-        samples_across_workers = self.params['adapt_batch_size'] * num_envs_per_game
+        final_pixel_dim = int(64 / (np.power(2, len(network))))
+        fc_neurons = network[-1] * final_pixel_dim * final_pixel_dim
+
+        samples_across_workers = self.params['n_steps_per_episode'] * num_envs_per_game
 
         baseline = ch.models.robotics.LinearValue(observ_space_flat, action_space)
         policy = DiagNormalPolicyCNN(observ_size, action_space, network=network)
         policy.to(device)
 
         self.log_model(policy, device, input_shape=observ_space)  # Input shape is specific to dataset
+        print("FC Neurons: ", fc_neurons)
 
-        t_iter = trange(self.params['num_iterations'], desc="Iteration", position=0)
+        t_iter = trange(self.params['n_iters'], desc="Iteration", position=0)
         try:
             for iteration in t_iter:
 
@@ -159,42 +188,48 @@ class MamlRL(Experiment):
                     sampler = Sampler(env=env, model=clone, num_steps=self.params['adapt_batch_size'],
                                       gamma_coef=params['gamma'], lambda_coef=params['tau'],
                                       device=device, num_envs=num_envs_per_game)
-                    task_replay = []
-                    tr_task_reward = 0
-                    # Adapt
-                    for step in range(self.params['adapt_steps']):
+                    tr_ep_samples, tr_ep_info = sampler.run()
+                    tr_task_reward += tr_ep_samples["rewards"].sum().item() / samples_across_workers
+                    print(f"Train reward of task {task} is {tr_task_reward}")
 
-                        tr_ep_samples, tr_ep_info = sampler.run()
-                        tr_task_reward += tr_ep_samples["rewards"].sum().item() / samples_across_workers
-                        task_replay.append(tr_ep_samples)
+                    # Adapt
+                    for step in range(self.params['n_adapt_steps']):
                         clone = fast_adapt_a2c(clone, tr_ep_samples, baseline,
                                                self.params['inner_lr'], self.params['gamma'], self.params['tau'],
-                                               first_order=True)
-                    # Average train reward of task i
-                    tr_task_reward = tr_task_reward / self.params['adapt_steps']
-                    # Average train reward across tasks
-                    train_iter_reward += tr_task_reward
+                                               first_order=True, device=device)
 
                     # Compute validation Loss
                     val_ep_samples, val_ep_info = sampler.run()
-                    task_replay.append(val_ep_samples)
 
+                    # Average train / valid reward of task i
+                    tr_task_reward = tr_ep_samples["rewards"].sum().item() / samples_across_workers
                     val_iter_reward += val_ep_samples["rewards"].sum().item() / samples_across_workers
-                    iter_replays.append(task_replay)
+
+                    # Average train reward across tasks
+                    train_iter_reward += tr_task_reward
+
+                    iter_replays.append(tr_ep_samples)
+                    iter_replays.append(val_ep_samples)
                     iter_policies.append(clone)
+
+                    print(f"Train reward of task {task} is {tr_task_reward}")
+                    print(f"Valid reward of task {task} is {val_iter_reward}")
 
                     task_metrics = {f'av_train_task_{task}': tr_task_reward}
                     t_task.set_postfix(task_metrics)
 
-                train_adapt_reward = train_iter_reward / self.params['meta_batch_size']
-                val_adapt_reward = val_iter_reward / self.params['meta_batch_size']
+                train_adapt_reward = train_iter_reward / self.params['n_tasks_per_iter']
+                val_adapt_reward = val_iter_reward / self.params['n_tasks_per_iter']
                 metrics = {'train_adapt_reward': train_adapt_reward,
                            'val_adapt_reward': val_adapt_reward}
+
+                print(f"Train average reward: {train_adapt_reward}")
+                print(f"Validation average reward: {val_adapt_reward}")
 
                 t_iter.set_postfix(metrics)
                 self.log_metrics(metrics)
 
-                meta_optimize(self.params, policy, baseline, iter_replays, iter_policies, cuda)
+                # meta_optimize(self.params, policy, baseline, iter_replays, iter_policies, cuda)
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy, str(iteration))
@@ -225,11 +260,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--outer_lr', type=float, default=params['outer_lr'], help='Outer lr')
     parser.add_argument('--inner_lr', type=float, default=params['inner_lr'], help='Inner lr')
-    parser.add_argument('--adapt_steps', type=int, default=params['adapt_steps'], help='Adaptation steps in inner loop')
-    parser.add_argument('--meta_batch_size', type=int, default=params['meta_batch_size'], help='Batch size')
-    parser.add_argument('--adapt_batch_size', type=int, default=params['adapt_batch_size'], help='Adapt batch size')
 
-    parser.add_argument('--num_iterations', type=int, default=params['num_iterations'], help='Number of epochs')
+    parser.add_argument('--n_iters', type=int, default=params['n_iters'], help='Number of epochs')
     parser.add_argument('--save_every', type=int, default=params['save_every'], help='Interval to save model')
 
     parser.add_argument('--seed', type=int, default=params['seed'], help='Seed')
@@ -238,11 +270,8 @@ if __name__ == '__main__':
 
     params['outer_lr'] = args.outer_lr
     params['inner_lr'] = args.inner_lr
-    params['adapt_steps'] = args.adapt_steps
-    params['meta_batch_size'] = args.meta_batch_size
-    params['adapt_batch_size'] = args.adapt_batch_size
 
-    params['num_iterations'] = args.num_iterations
+    params['n_iters'] = args.n_iters
     params['save_every'] = args.save_every
 
     params['seed'] = args.seed
