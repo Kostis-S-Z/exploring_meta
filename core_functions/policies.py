@@ -4,7 +4,6 @@
 Taken directly from https://github.com/learnables/learn2learn/tree/master/examples/rl
 """
 
-from functools import reduce
 import math
 
 import cherry as ch
@@ -67,8 +66,11 @@ class DiagNormalPolicyCNN(nn.Module):
     def __init__(self, input_size, output_size, network=[32, 64, 64]):
         super(DiagNormalPolicyCNN, self).__init__()
 
+        n_layers = len(network)
         activation = nn.ReLU
 
+        # Building a network using a dictionary this way ONLY THIS ONLY WORKS FOR PYTHON 3.7
+        # Otherwise the dictionary won't remember the order!
         # Define input layer
         features = {"conv_0": nn.Conv2d(in_channels=input_size, out_channels=network[0], kernel_size=3, padding=1),
                     "bn_0": nn.BatchNorm2d(network[0]),
@@ -80,7 +82,7 @@ class DiagNormalPolicyCNN(nn.Module):
         nn.init.uniform_(features["bn_0"].weight)
 
         # Define rest of hidden layers and initialize their weights
-        for i in range(1, len(network)):
+        for i in range(1, n_layers):
             layer_i = {f"conv_{i}": nn.Conv2d(in_channels=network[i - 1], out_channels=network[i],
                                               kernel_size=3, stride=1, padding=1),
                        f"bn_{i}": nn.BatchNorm2d(network[i]),
@@ -91,8 +93,11 @@ class DiagNormalPolicyCNN(nn.Module):
             nn.init.uniform_(layer_i[f"bn_{i}"].weight)
             features.update(layer_i)
 
-        # TODO: Automatically calculate flatten size
-        self.flatten_size = 64 * 8 * 8
+        # Given a 64x64 pixel calculate the flatten size needed based on the depth of the network
+        # and how "fast" (=stride) it downscales the image
+        final_pixel_dim = int(64 / (math.pow(2, n_layers)))
+        self.flatten_size = network[-1] * final_pixel_dim * final_pixel_dim
+
         head = nn.Linear(in_features=self.flatten_size, out_features=output_size, bias=True)  # No activation for output
         maml_init_(head)
 
@@ -100,6 +105,8 @@ class DiagNormalPolicyCNN(nn.Module):
         self.mean = head
         self.sigma = nn.Parameter(torch.Tensor(output_size))
         self.sigma.data.fill_(math.log(1))
+        # This is just a trivial assignment to follow the implementation of the sampler
+        self.step = self.forward
 
     def density(self, state):
         # Pass images through CNN to get features

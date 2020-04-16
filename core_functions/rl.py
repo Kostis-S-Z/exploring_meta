@@ -12,6 +12,11 @@ from cherry.pg import generalized_advantage
 def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states):
     # Update baseline
     returns = ch.td.discount(gamma, rewards, dones)
+    if baseline.linear.weight.dim() != states.dim():  # if dimensions are not equal, try to flatten
+        states = states.flatten(1, -1)
+        next_states = next_states.flatten(1, -1)
+        dones = dones.reshape(-1, 1)
+
     baseline.fit(states, returns)
     values = baseline(states)
     next_values = baseline(next_states)
@@ -25,13 +30,20 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
                                  next_value=next_value)
 
 
-def maml_a2c_loss(train_episodes, learner, baseline, gamma, tau):
+def maml_a2c_loss(train_episodes, learner, baseline, gamma, tau, device):
     # Update policy and baseline
-    states = train_episodes.state()
-    actions = train_episodes.action()
-    rewards = train_episodes.reward()
-    dones = train_episodes.done()
-    next_states = train_episodes.next_state()
+    if isinstance(train_episodes, dict):
+        states = torch.from_numpy(train_episodes["states"]).to(device)
+        actions = torch.from_numpy(train_episodes["actions"]).to(device)
+        rewards = torch.from_numpy(train_episodes["rewards"]).to(device)
+        dones = torch.from_numpy(train_episodes["dones"]).to(device)
+        next_states = torch.from_numpy(train_episodes["next_states"]).to(device)
+    else:
+        states = train_episodes.state()
+        actions = train_episodes.action()
+        rewards = train_episodes.reward()
+        dones = train_episodes.done()
+        next_states = train_episodes.next_state()
 
     log_probs = learner.log_prob(states, actions)
 
@@ -41,9 +53,9 @@ def maml_a2c_loss(train_episodes, learner, baseline, gamma, tau):
     return a2c.policy_loss(log_probs, advantages)
 
 
-def fast_adapt_a2c(clone, train_episodes, baseline, fast_lr, gamma, tau, first_order=False):
+def fast_adapt_a2c(clone, train_episodes, baseline, fast_lr, gamma, tau, first_order=False, device='cpu'):
     second_order = not first_order
-    loss = maml_a2c_loss(train_episodes, clone, baseline, gamma, tau)
+    loss = maml_a2c_loss(train_episodes, clone, baseline, gamma, tau, device)
     gradients = torch.autograd.grad(loss,
                                     clone.parameters(),
                                     retain_graph=second_order,
@@ -65,11 +77,18 @@ def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, tau, gamm
                                         fast_lr, gamma, tau, first_order=False)
 
         # Useful values
-        states = valid_episodes.state()
-        actions = valid_episodes.action()
-        next_states = valid_episodes.next_state()
-        rewards = valid_episodes.reward()
-        dones = valid_episodes.done()
+        if isinstance(valid_episodes, dict):
+            states = torch.from_numpy(valid_episodes["states"])
+            actions = torch.from_numpy(valid_episodes["actions"])
+            rewards = torch.from_numpy(valid_episodes["rewards"])
+            dones = torch.from_numpy(valid_episodes["dones"])
+            next_states = torch.from_numpy(valid_episodes["next_states"])
+        else:
+            states = valid_episodes.state()
+            actions = valid_episodes.action()
+            rewards = valid_episodes.reward()
+            dones = valid_episodes.done()
+            next_states = valid_episodes.next_state()
 
         # Compute KL
         old_densities = old_policy.density(states)

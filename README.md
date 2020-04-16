@@ -56,3 +56,7 @@ For scripts that can use MPI run:
 ## Acknowledgements
 
 
+#### Warning
+
+There is a part of code that is Python 3.7+ dependent. When building a network in policies.py a dictionary is used which assumes the order is kept. This is true only for Python 3.7+
+
