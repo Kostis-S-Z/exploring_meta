@@ -42,7 +42,8 @@ def maml_vpg_a2c_loss(train_episodes, learner, baseline, gamma, tau, device='cpu
         states = torch.from_numpy(train_episodes["states"]).to(device)
         actions = torch.from_numpy(train_episodes["actions"]).to(device)
         rewards = torch.from_numpy(train_episodes["rewards"]).to(device)
-        dones = torch.from_numpy(train_episodes["dones"]).to(device)
+        # Due to older pytorch version there is bug where all parameters should be floats and not integers
+        dones = torch.from_numpy(train_episodes["dones"]).to(device).float()
         next_states = torch.from_numpy(train_episodes["next_states"]).to(device)
     else:
         states = train_episodes.state()
@@ -50,7 +51,9 @@ def maml_vpg_a2c_loss(train_episodes, learner, baseline, gamma, tau, device='cpu
         rewards = train_episodes.reward()
         dones = train_episodes.done()
         next_states = train_episodes.next_state()
+
     log_probs = learner.log_prob(states, actions)
+
     weights = torch.ones_like(dones)
     weights[1:].add_(-1.0, dones[:-1])
     weights /= dones.sum()
