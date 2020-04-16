@@ -118,6 +118,7 @@ class MamlRL(Experiment):
         torch.manual_seed(self.params['seed'])
 
         if cuda and torch.cuda.device_count():
+            print(f"Running on {torch.cuda.get_device_name(0)}")
             torch.cuda.manual_seed(self.params['seed'])
             device = torch.device('cuda')
 
