@@ -52,9 +52,9 @@ params = {
     # easy or hard: only affects the visual variance between levels
     "distribution_mode": "easy",
     # Number of environments OF THE SAME LEVEL to run in parallel -> 32envs ~7gb RAM (Original was 64)
-    "n_envs": 8,
+    "n_envs": 64,
     # 0-unlimited, 1-debug. For generalization: 200-easy, 500-hard
-    "n_levels": 1,
+    "n_levels": 0,
     # iters = outer updates = epochs PPO: 64envs, 25M -> 1.525, 200M-> 12.207
     # We could have more epochs in one iterations, but for simplicity now we make it the same
     "n_iters": 500,
@@ -63,14 +63,14 @@ params = {
     # Number of runs on the same level for one inner iteration (="shots") prev. adapt_batch_size
     # "n_episodes_per_task": 100,  # TODO: Currently not in use.
     # Rollout length of each of the above runs
-    "n_steps_per_episode": 100,
+    "n_steps_per_episode": 256,
     # One of the workers will test, define how often (train & test in parallel)
     "test_worker_interval": 0,
     # Model params
     "save_every": 25,
     "seed": 42}
 
-network = [32, 64, 64]  # Their impala was 16-32-32
+network = [32, 64, 64]
 
 eval_params = {
     'n_eval_adapt_steps': 5,  # Number of steps to adapt to a new task
@@ -101,7 +101,7 @@ cl_params = {
 env_name = "starpilot"
 start_level = 0  # ???
 
-cuda = False
+cuda = True
 
 wandb = False
 
@@ -168,6 +168,11 @@ class MamlRL(Experiment):
         self.log_model(policy, device, input_shape=observ_space)  # Input shape is specific to dataset
         print("FC Neurons: ", fc_neurons)
 
+        # Sampler uses policy.eval() which turns off training to sample the actions
+        sampler = Sampler(env=env, model=policy, num_steps=self.params['n_steps_per_episode'],
+                          gamma_coef=params['gamma'], lambda_coef=params['tau'],
+                          device=device, num_envs=self.params['n_envs'])
+
         t_iter = trange(self.params['n_iters'], desc="Iteration", position=0)
         try:
             for iteration in t_iter:
@@ -183,11 +188,7 @@ class MamlRL(Experiment):
 
                     clone = deepcopy(policy)
 
-                    # Sampler uses policy.eval() which turns off training to sample the actions
-                    sampler = Sampler(env=env, model=clone, num_steps=self.params['n_steps_per_episode'],
-                                      gamma_coef=params['gamma'], lambda_coef=params['tau'],
-                                      device=device, num_envs=self.params['n_envs'])
-
+                    # The sampler for 64envs, 256 length takes less than 1GB
                     tr_ep_samples, tr_ep_infos = sampler.run()
                     tr_task_reward = tr_ep_samples["rewards"].sum().item() / samples_across_workers
                     print(f"Train reward of task {task} is {tr_task_reward}")
