@@ -53,7 +53,7 @@ params = {
     # easy or hard: only affects the visual variance between levels
     "distribution_mode": "easy",
     # Number of environments OF THE SAME LEVEL to run in parallel -> 32envs ~7gb RAM (Original was 64)
-    "n_envs": 64,
+    "n_envs": 32,
     # 0-unlimited, 1-debug. For generalization: 200-easy, 500-hard
     "n_levels": 0,
     # iters = outer updates = epochs PPO: 64envs, 25M -> 1.525, 200M-> 12.207
@@ -62,7 +62,7 @@ params = {
     # Number of different levels the agent should train on in an iteration (="ways") prev. meta_batch_size
     "n_tasks_per_iter": 1,
     # Number of runs on the same level for one inner iteration (="shots") prev. adapt_batch_size
-    # "n_episodes_per_task": 100,  # TODO: Currently not in use.
+    # "n_episodes_per_task": 100,  # Currently not in use. So just one episode per environment
     # Rollout length of each of the above runs
     "n_steps_per_episode": 256,
     # One of the workers will test, define how often (train & test in parallel)
@@ -163,6 +163,7 @@ class MamlRL(Experiment):
         samples_across_workers = self.params['n_steps_per_episode'] * self.params['n_envs']
 
         baseline = ch.models.robotics.LinearValue(observ_space_flat, action_space)
+        baseline.to(device)
         policy = DiagNormalPolicyCNN(observ_size, action_space, network=network)
         policy.to(device)
         meta_learner = l2l.algorithms.MAML(policy, lr=self.params['inner_lr'])
@@ -189,6 +190,8 @@ class MamlRL(Experiment):
                 t_task = trange(self.params['n_tasks_per_iter'], leave=False, desc="Task", position=0)
                 for task in t_task:
 
+                    tr_task_reward = 0.0
+                    tr_task_loss = 0.0
                     learner = meta_learner.clone()
 
                     for step in range(self.params['n_adapt_steps']):
@@ -201,43 +204,48 @@ class MamlRL(Experiment):
                         learner.adapt(loss)
 
                         # Metrics
-                        tr_iter_loss += loss
-                        tr_task_reward = tr_ep_samples["rewards"].sum().item() / samples_across_workers
+                        tr_task_loss += loss
+                        tr_task_reward += tr_ep_samples["rewards"].sum().item() / samples_across_workers
                         print(f"Train reward of task {task} is {tr_task_reward}")
 
                     # Compute validation Loss
                     val_ep_samples, val_ep_info = sampler.run()
                     loss = maml_vpg_a2c_loss(val_ep_samples, learner, baseline,
                                              self.params['gamma'], self.params['tau'], device)
+
+                    # Validation reward & loss for task i
+                    val_task_reward = val_ep_samples["rewards"].sum().item() / samples_across_workers
+
+                    # Average train reward / loss across tasks
+                    tr_iter_reward += tr_task_reward / self.params['n_adapt_steps']
+                    tr_iter_loss = tr_task_loss / self.params['n_adapt_steps']
+
+                    # Average valid reward / loss across tasks
+                    val_iter_reward += val_task_reward
                     val_iter_loss += loss
 
-                    # Average train / valid reward of task i
-                    tr_task_reward = tr_ep_samples["rewards"].sum().item() / samples_across_workers
-                    val_iter_reward += val_ep_samples["rewards"].sum().item() / samples_across_workers
-
-                    # Average train reward across tasks
-                    tr_iter_reward += tr_task_reward
-
                     print(f"Train reward of task {task} is {tr_task_reward}")
-                    print(f"Valid reward of task {task} is {val_iter_reward}")
+                    print(f"Valid reward of task {task} is {val_task_reward}")
 
-                    task_metrics = {f'av_train_task_{task}': tr_task_reward}
+                    task_metrics = {f'av_train_task_{task}': tr_task_reward,
+                                    f'av_valid_task_{task}':val_task_reward}
                     t_task.set_postfix(task_metrics)
 
-                train_adapt_reward = tr_iter_reward / self.params['n_tasks_per_iter']
-                val_adapt_reward = val_iter_reward / self.params['n_tasks_per_iter']
-                metrics = {'train_adapt_reward': train_adapt_reward,
-                           'val_adapt_reward': val_adapt_reward}
+                tr_iter_reward = tr_iter_reward / self.params['n_tasks_per_iter']
+                tr_iter_loss = tr_iter_loss / self.params['n_tasks_per_iter']
+                val_iter_reward = val_iter_reward / self.params['n_tasks_per_iter']
+                val_iter_loss = val_iter_loss / self.params['n_tasks_per_iter']
 
-                print(f"Train average reward: {train_adapt_reward}")
-                print(f"Validation average reward: {val_adapt_reward}")
+                metrics = {'tr_iter_reward': tr_iter_reward,
+                           'tr_iter_loss': tr_iter_loss,
+                           'val_iter_reward': val_iter_reward,
+                           'val_iter_loss': val_iter_loss}
 
                 t_iter.set_postfix(metrics)
                 self.log_metrics(metrics)
 
                 opt.zero_grad()
-                adaptation_loss = val_iter_loss / self.params['n_tasks_per_iter']
-                adaptation_loss.backward()
+                val_iter_loss.backward()
                 opt.step()
 
                 if iteration % self.params['save_every'] == 0:
