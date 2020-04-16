@@ -18,7 +18,7 @@ from baselines.common.vec_env import (VecExtractDictObs, VecMonitor, VecNormaliz
 
 from utils import *
 from core_functions.policies import DiagNormalPolicyCNN
-from core_functions.rl import fast_adapt_a2c, meta_optimize, evaluate
+from core_functions.rl import maml_vpg_a2c_loss, evaluate
 from misc_scripts import run_cl_rl_exp
 
 from sampler import Sampler
@@ -196,7 +196,8 @@ class MamlRL(Experiment):
                         tr_ep_samples, tr_ep_infos = sampler.run()
 
                         # Adapt
-                        loss = maml_a2c_loss(tr_ep_samples, learner, baseline, self.params['gamma'], self.params['tau'])
+                        loss = maml_vpg_a2c_loss(tr_ep_samples, learner, baseline,
+                                                 self.params['gamma'], self.params['tau'], device)
                         learner.adapt(loss)
 
                         # Metrics
@@ -204,10 +205,10 @@ class MamlRL(Experiment):
                         tr_task_reward = tr_ep_samples["rewards"].sum().item() / samples_across_workers
                         print(f"Train reward of task {task} is {tr_task_reward}")
 
-
                     # Compute validation Loss
                     val_ep_samples, val_ep_info = sampler.run()
-                    loss = maml_a2c_loss(val_ep_samples, learner, baseline, self.params['gamma'], self.params['tau'])
+                    loss = maml_vpg_a2c_loss(val_ep_samples, learner, baseline,
+                                             self.params['gamma'], self.params['tau'], device)
                     val_iter_loss += loss
 
                     # Average train / valid reward of task i

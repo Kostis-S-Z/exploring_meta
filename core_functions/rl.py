@@ -9,6 +9,12 @@ from cherry.algorithms import a2c, trpo
 from cherry.pg import generalized_advantage
 
 
+def weighted_cumsum(values, weights):
+    for i in range(values.size(0)):
+        values[i] += values[i - 1] * weights[i]
+    return values
+
+
 def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states):
     # Update baseline
     returns = ch.td.discount(gamma, rewards, dones)
@@ -30,7 +36,34 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
                                  next_value=next_value)
 
 
-def maml_a2c_loss(train_episodes, learner, baseline, gamma, tau, device):
+def maml_vpg_a2c_loss(train_episodes, learner, baseline, gamma, tau, device='cpu'):
+    # Update policy and baseline
+    if isinstance(train_episodes, dict):
+        states = torch.from_numpy(train_episodes["states"]).to(device)
+        actions = torch.from_numpy(train_episodes["actions"]).to(device)
+        rewards = torch.from_numpy(train_episodes["rewards"]).to(device)
+        dones = torch.from_numpy(train_episodes["dones"]).to(device)
+        next_states = torch.from_numpy(train_episodes["next_states"]).to(device)
+    else:
+        states = train_episodes.state()
+        actions = train_episodes.action()
+        rewards = train_episodes.reward()
+        dones = train_episodes.done()
+        next_states = train_episodes.next_state()
+    log_probs = learner.log_prob(states, actions)
+    weights = torch.ones_like(dones)
+    weights[1:].add_(-1.0, dones[:-1])
+    weights /= dones.sum()
+
+    cum_log_probs = weighted_cumsum(log_probs, weights)
+
+    advantages = compute_advantages(baseline, tau, gamma, rewards,
+                                    dones, states, next_states)
+
+    return a2c.policy_loss(l2l.magic_box(cum_log_probs), advantages)
+
+
+def maml_trpo_a2c_loss(train_episodes, learner, baseline, gamma, tau, device):
     # Update policy and baseline
     if isinstance(train_episodes, dict):
         states = torch.from_numpy(train_episodes["states"]).to(device)
@@ -53,9 +86,9 @@ def maml_a2c_loss(train_episodes, learner, baseline, gamma, tau, device):
     return a2c.policy_loss(log_probs, advantages)
 
 
-def fast_adapt_a2c(clone, train_episodes, baseline, fast_lr, gamma, tau, first_order=False, device='cpu'):
+def fast_adapt_trpo_a2c(clone, train_episodes, baseline, fast_lr, gamma, tau, first_order=False, device='cpu'):
     second_order = not first_order
-    loss = maml_a2c_loss(train_episodes, clone, baseline, gamma, tau, device)
+    loss = maml_trpo_a2c_loss(train_episodes, clone, baseline, gamma, tau, device)
     gradients = torch.autograd.grad(loss,
                                     clone.parameters(),
                                     retain_graph=second_order,
@@ -73,8 +106,8 @@ def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, tau, gamm
 
         # Fast Adapt
         for train_episodes in train_replays:
-            new_policy = fast_adapt_a2c(new_policy, train_episodes, baseline,
-                                        fast_lr, gamma, tau, first_order=False)
+            new_policy = fast_adapt_trpo_a2c(new_policy, train_episodes, baseline,
+                                             fast_lr, gamma, tau, first_order=False)
 
         # Useful values
         if isinstance(valid_episodes, dict):
@@ -162,9 +195,9 @@ def evaluate(env, policy, baseline, eval_params):
         # Adapt
         for step in range(eval_params['n_eval_adapt_steps']):
             train_episodes = task.run(clone, episodes=eval_params['n_eval_episodes'])
-            clone = fast_adapt_a2c(clone, train_episodes, baseline,
-                                   eval_params['inner_lr'], eval_params['gamma'], eval_params['tau'],
-                                   first_order=True)
+            clone = fast_adapt_trpo_a2c(clone, train_episodes, baseline,
+                                        eval_params['inner_lr'], eval_params['gamma'], eval_params['tau'],
+                                        first_order=True)
 
         valid_episodes = task.run(clone, episodes=eval_params['n_eval_episodes'])
 

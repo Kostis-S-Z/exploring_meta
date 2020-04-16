@@ -17,7 +17,7 @@ from baselines.common.vec_env import (VecExtractDictObs, VecMonitor, VecNormaliz
 
 from utils import *
 from core_functions.policies import DiagNormalPolicyCNN
-from core_functions.rl import fast_adapt_a2c, meta_optimize, evaluate
+from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize, evaluate
 from misc_scripts import run_cl_rl_exp
 
 from sampler import Sampler
@@ -194,9 +194,9 @@ class MamlRL(Experiment):
 
                     # Adapt
                     for step in range(self.params['n_adapt_steps']):
-                        clone = fast_adapt_a2c(clone, tr_ep_samples, baseline,
-                                               self.params['inner_lr'], self.params['gamma'], self.params['tau'],
-                                               first_order=True, device=device)
+                        clone = fast_adapt_trpo_a2c(clone, tr_ep_samples, baseline,
+                                                    self.params['inner_lr'], self.params['gamma'], self.params['tau'],
+                                                    first_order=True, device=device)
 
                     # Compute validation Loss
                     val_ep_samples, val_ep_info = sampler.run()

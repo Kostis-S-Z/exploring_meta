@@ -14,7 +14,7 @@ import learn2learn as l2l
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import fast_adapt_a2c, meta_optimize, evaluate
+from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize, evaluate
 from misc_scripts import run_cl_rl_exp
 
 # ANIL Defaults: meta_batch_size: 40, adapt_steps: 1, adapt_batch_size: 20, inner_lr: 0.1
