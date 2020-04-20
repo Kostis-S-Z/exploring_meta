@@ -53,7 +53,7 @@ params = {
     # easy or hard: only affects the visual variance between levels
     "distribution_mode": "easy",
     # Number of environments OF THE SAME LEVEL to run in parallel -> 32envs ~7gb RAM (Original was 64)
-    "n_envs": 32,
+    "n_envs": 4,
     # 0-unlimited, 1-debug. For generalization: 200-easy, 500-hard
     "n_levels": 0,
     # iters = outer updates = epochs PPO: 64envs, 25M -> 1.525, 200M-> 12.207
@@ -66,14 +66,14 @@ params = {
     # Rollout length of each of the above runs
     "n_steps_per_episode": 256,
     # Split the batch in mini batches for faster adaptation
-    "n_steps_per_mini_batch": 32,
+    "n_steps_per_mini_batch": 16,
     # One of the workers will test, define how often (train & test in parallel)
     "test_worker_interval": 0,
     # Model params
     "save_every": 25,
     "seed": 42}
 
-network = [32, 64, 64]
+network = [128, 256, 256]
 
 eval_params = {
     'n_eval_adapt_steps': 5,  # Number of steps to adapt to a new task
@@ -104,7 +104,7 @@ cl_params = {
 env_name = "starpilot"
 start_level = 0  # ???
 
-cuda = True
+cuda = False
 
 wandb = False
 
@@ -203,7 +203,7 @@ class MamlRL(Experiment):
                         # Sample training episodes (64envs, 256 length takes less than 1GB)
                         tr_ep_samples, tr_ep_infos = sampler.run()
 
-                        for mini_batch in range(n_mini_batches):
+                        for mini_batch in trange(n_mini_batches):
                             # Split the train batch in mini batches
                             i_start = mini_batch * self.params['n_steps_per_mini_batch']
                             i_end = i_start + self.params['n_steps_per_mini_batch']
