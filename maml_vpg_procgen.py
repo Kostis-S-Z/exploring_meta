@@ -65,6 +65,8 @@ params = {
     # "n_episodes_per_task": 100,  # Currently not in use. So just one episode per environment
     # Rollout length of each of the above runs
     "n_steps_per_episode": 256,
+    # Split the batch in mini batches for faster adaptation
+    "n_steps_per_mini_batch": 32,
     # One of the workers will test, define how often (train & test in parallel)
     "test_worker_interval": 0,
     # Model params
@@ -162,6 +164,8 @@ class MamlRL(Experiment):
         fc_neurons = network[-1] * final_pixel_dim * final_pixel_dim
 
         samples_across_workers = self.params['n_steps_per_episode'] * self.params['n_envs']
+        steps_per_task = int(self.params['n_steps_per_episode'] * self.params['n_envs'])
+        n_mini_batches = int(steps_per_task / self.params['n_steps_per_mini_batch'])
 
         baseline = ch.models.robotics.LinearValue(observ_space_flat, action_space)
         baseline.to(device)
@@ -199,10 +203,17 @@ class MamlRL(Experiment):
                         # Sample training episodes (64envs, 256 length takes less than 1GB)
                         tr_ep_samples, tr_ep_infos = sampler.run()
 
-                        # Adapt
-                        loss = maml_vpg_a2c_loss(tr_ep_samples, learner, baseline,
-                                                 self.params['gamma'], self.params['tau'], device)
-                        learner.adapt(loss)
+                        for mini_batch in range(n_mini_batches):
+                            # Split the train batch in mini batches
+                            i_start = mini_batch * self.params['n_steps_per_mini_batch']
+                            i_end = i_start + self.params['n_steps_per_mini_batch']
+
+                            tr_mini_batch = {k: v[i_start:i_end] for k, v in tr_ep_samples.items()}
+
+                            # Adapt
+                            loss = maml_vpg_a2c_loss(tr_mini_batch, learner, baseline,
+                                                     self.params['gamma'], self.params['tau'], device)
+                            learner.adapt(loss)
 
                         # Metrics
                         tr_task_loss += loss
