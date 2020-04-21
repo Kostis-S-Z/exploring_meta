@@ -43,24 +43,16 @@ params = {
 
     # Environment params
 
-    # Total timesteps:
-    # nbatch = nenvs * nsteps
-    # nbatch_train = nbatch // nminibatches
-    # nupdates = total_timesteps//nbatch
-    #
-    # batch_size = n_envs * n_steps
-
     # easy or hard: only affects the visual variance between levels
     "distribution_mode": "easy",
     # Number of environments OF THE SAME LEVEL to run in parallel -> 32envs ~7gb RAM (Original was 64)
     "n_envs": 4,
     # 0-unlimited, 1-debug. For generalization: 200-easy, 500-hard
     "n_levels": 0,
-    # iters = outer updates = epochs PPO: 64envs, 25M -> 1.525, 200M-> 12.207
-    # We could have more epochs in one iterations, but for simplicity now we make it the same
-    "n_iters": 500,
     # Number of different levels the agent should train on in an iteration (="ways") prev. meta_batch_size
     "n_tasks_per_iter": 1,
+    # Number of total timesteps performed
+    "n_timesteps": 25_000_000,
     # Number of runs on the same level for one inner iteration (="shots") prev. adapt_batch_size
     # "n_episodes_per_task": 100,  # Currently not in use. So just one episode per environment
     # Rollout length of each of the above runs
@@ -72,6 +64,17 @@ params = {
     # Model params
     "save_every": 25,
     "seed": 42}
+
+
+# Timesteps performed per task in each iteration
+params['steps_per_task'] = int(params['n_steps_per_episode'] * params['n_envs'])
+# Split the episode in mini batches
+params['n_mini_batches'] = int(params['steps_per_task'] / params['n_steps_per_mini_batch'])
+# iters = outer updates: 64envs, 25M -> 1.525, 200M-> 12.207
+params['n_iters'] = int(params['n_timesteps'] // params['steps_per_task'])
+# Total timesteps performed per task (if task==1, then total timesteps==total steps per task)
+params['total_steps_per_task'] = int(params['steps_per_task'] * params['n_iters'])
+
 
 network = [128, 256, 256]
 
@@ -163,10 +166,6 @@ class MamlRL(Experiment):
         final_pixel_dim = int(64 / (np.power(2, len(network))))
         fc_neurons = network[-1] * final_pixel_dim * final_pixel_dim
 
-        samples_across_workers = self.params['n_steps_per_episode'] * self.params['n_envs']
-        steps_per_task = int(self.params['n_steps_per_episode'] * self.params['n_envs'])
-        n_mini_batches = int(steps_per_task / self.params['n_steps_per_mini_batch'])
-
         baseline = ch.models.robotics.LinearValue(observ_space_flat, action_space)
         baseline.to(device)
         policy = DiagNormalPolicyCNN(observ_size, action_space, network=network)
@@ -199,11 +198,12 @@ class MamlRL(Experiment):
                     tr_task_loss = 0.0
                     learner = meta_learner.clone()
 
-                    for step in range(self.params['n_adapt_steps']):
-                        # Sample training episodes (64envs, 256 length takes less than 1GB)
-                        tr_ep_samples, tr_ep_infos = sampler.run()
+                    # Sample training episodes (64envs, 256 length takes less than 1GB)
+                    tr_ep_samples, tr_ep_infos = sampler.run()
 
-                        for mini_batch in trange(n_mini_batches):
+                    for step in range(self.params['n_adapt_steps']):
+
+                        for mini_batch in trange(self.params['n_mini_batches']):
                             # Split the train batch in mini batches
                             i_start = mini_batch * self.params['n_steps_per_mini_batch']
                             i_end = i_start + self.params['n_steps_per_mini_batch']
@@ -217,7 +217,7 @@ class MamlRL(Experiment):
 
                         # Metrics
                         tr_task_loss += loss
-                        tr_task_reward += tr_ep_samples["rewards"].sum().item() / samples_across_workers
+                        tr_task_reward += tr_ep_samples["rewards"].sum().item() / self.params['n_steps_per_task']
                         print(f"Train reward of task {task} is {tr_task_reward}")
 
                     # Compute validation Loss
@@ -226,7 +226,7 @@ class MamlRL(Experiment):
                                              self.params['gamma'], self.params['tau'], device)
 
                     # Validation reward & loss for task i
-                    val_task_reward = val_ep_samples["rewards"].sum().item() / samples_across_workers
+                    val_task_reward = val_ep_samples["rewards"].sum().item() / self.params['n_steps_per_task']
 
                     # Average train reward / loss across tasks
                     tr_iter_reward += tr_task_reward / self.params['n_adapt_steps']
