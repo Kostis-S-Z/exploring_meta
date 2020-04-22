@@ -27,13 +27,6 @@ def maml_init_(module):
     return module
 
 
-def layer_init(layer, w_scale=1.0):
-    nn.init.orthogonal_(layer.weight.data)
-    layer.weight.data.mul_(w_scale)
-    nn.init.constant_(layer.bias.data, 0)
-    return layer
-
-
 class DiagNormalPolicy(nn.Module):
 
     def __init__(self, input_size, output_size, hiddens=None, activation='relu'):
@@ -135,61 +128,6 @@ class DiagNormalPolicyCNN(nn.Module):
         return action
 
 
-class CategoricalActorCriticPolicy(nn.Module):
-    def __init__(
-            self,
-            action_dim: int,
-            phi_body: nn.Module,
-            actor_body: nn.Module,
-            critic_body: nn.Module,
-    ):
-        super(CategoricalActorCriticPolicy, self).__init__()
-
-        self.phi_body = phi_body
-        self.actor_body = actor_body
-        self.critic_body = critic_body
-
-        self.fc_action = layer_init(
-            nn.Linear(self.actor_body.feature_dim, action_dim), w_scale=1e-3
-        )
-        self.fc_critic = layer_init(
-            nn.Linear(self.critic_body.feature_dim, 1), w_scale=1e-3
-        )
-
-        # self.actor_params = list(self.actor_body.parameters()) + list(
-        #     self.fc_action.parameters()
-        # )
-
-        # self.critic_params = list(self.critic_body.parameters()) + list(
-        #     self.fc_critic.parameters()
-        # )
-
-        # self.phi_params = list(self.phi_body.parameters())
-
-    def forward(self, obs, action=None):
-        phi = self.phi_body(obs)
-        phi_action = self.actor_body(phi)
-        phi_value = self.critic_body(phi)
-
-        logits = self.fc_action(phi_action)
-        value = self.fc_critic(phi_value).squeeze()
-
-        distribution = torch.distributions.Categorical(logits=logits)
-
-        if action is None:
-            action = distribution.sample()
-
-        log_prob = distribution.log_prob(action)
-        entropy = distribution.entropy()
-
-        return {
-            "action": action,
-            "neg_log_prob_a": -log_prob,
-            "entropy": entropy,
-            "value": value,
-        }
-
-
 class CategoricalPolicy(nn.Module):
 
     def __init__(self, input_size, output_size, hiddens=None):
@@ -211,3 +149,107 @@ class CategoricalPolicy(nn.Module):
         action = density.sample()
         log_prob = density.log_prob(action).mean().view(-1, 1).detach()
         return action, {'density': density, 'log_prob': log_prob}
+
+
+def build_procgen_cnn(input_size, output_size, network):
+    n_layers = len(network)
+    activation = nn.ReLU
+
+    # Building a network using a dictionary this way ONLY THIS ONLY WORKS FOR PYTHON 3.7
+    # Otherwise the dictionary won't remember the order!
+    # Define input layer
+    features = {"conv_0": nn.Conv2d(in_channels=input_size, out_channels=network[0], kernel_size=3, padding=1),
+                "bn_0": nn.BatchNorm2d(network[0]),
+                "activation_0": activation(),
+                "max_pool_0": nn.MaxPool2d(kernel_size=2, stride=2)}
+
+    # Initialize weights of input layer
+    maml_init_(features["conv_0"])
+    nn.init.uniform_(features["bn_0"].weight)
+
+    # Define rest of hidden layers and initialize their weights
+    for i in range(1, n_layers):
+        layer_i = {f"conv_{i}": nn.Conv2d(in_channels=network[i - 1], out_channels=network[i],
+                                          kernel_size=3, stride=1, padding=1),
+                   f"bn_{i}": nn.BatchNorm2d(network[i]),
+                   f"activation_{i}": activation(),
+                   f"max_pool_{i}": nn.MaxPool2d(kernel_size=2, stride=2)}
+
+        maml_init_(layer_i[f"conv_{i}"])
+        nn.init.uniform_(layer_i[f"bn_{i}"].weight)
+        features.update(layer_i)
+
+    # Given a 64x64 pixel calculate the flatten size needed based on the depth of the network
+    # and how "fast" (=stride) it downscales the image
+    final_pixel_dim = int(64 / (math.pow(2, n_layers)))
+    flatten_size = network[-1] * final_pixel_dim * final_pixel_dim
+
+    network_body = nn.Sequential(*list(features.values()))
+
+    head = nn.Linear(in_features=flatten_size, out_features=output_size, bias=True)  # No activation for output
+    maml_init_(head)
+
+    return flatten_size, network_body, head
+
+
+class Actor(nn.Module):
+    def __init__(self, input_size, output_size, network, stochastic=True):
+        super().__init__()
+
+        self.flatten_size, self.features, self.head = build_procgen_cnn(input_size, output_size, network)
+
+        if stochastic:
+            self.policy_log_std = nn.Parameter(torch.tensor([[0.]]))
+
+    def forward(self, state):
+        # Pass images through CNN to get features
+        features = self.features(state)
+        # Flatten features to 1-dim for the FC layer
+        features = features.view(-1, self.flatten_size)
+        # Pass features to the FC output layer
+        policy = self.head(features)
+        return policy
+
+
+class Critic(nn.Module):
+    def __init__(self, input_size, output_size, network, state_action=False):
+        super().__init__()
+        self.state_action = state_action
+
+        self.flatten_size, self.features, self.head = build_procgen_cnn(input_size, output_size, network)
+
+    def forward(self, state, action=None):
+        if self.state_action:
+            input_state = torch.cat([state, action], dim=1)
+        else:
+            input_state = state
+
+        # Pass images through CNN to get features
+        features = self.features(input_state)
+        # Flatten features to 1-dim for the FC layer
+        features = features.view(-1, self.flatten_size)
+        # Pass features to the FC output layer
+        value = self.head(features)
+        return value.squeeze(dim=1)
+
+
+class ActorCritic(nn.Module):
+    def __init__(self,  input_size, output_size, network=[32, 64, 64]):
+        super().__init__()
+        self.actor = Actor(input_size, output_size, network, stochastic=True)
+        self.critic = Critic(input_size, 1, network)
+
+        # This is just a trivial assignment to follow the implementation of the sampler
+        self.step = self.forward
+
+    def forward(self, state):
+        # policy = Normal(self.actor(state), self.actor.policy_log_std.exp())
+        policy = Categorical(logits=self.actor(state))
+        value = self.critic(state)
+        action = policy.sample()
+        log_prob = policy.log_prob(action)
+        return action, {
+                'mass': policy,
+                'log_prob': log_prob,
+                'value': value,
+        }
