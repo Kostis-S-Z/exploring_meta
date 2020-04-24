@@ -11,7 +11,6 @@ import cherry as ch
 
 from mpi4py import MPI
 from procgen import ProcgenEnv
-from baselines import logger
 from baselines.common.mpi_util import setup_mpi_gpus
 from baselines.common.vec_env import (VecExtractDictObs, VecMonitor, VecNormalize)
 
@@ -30,7 +29,7 @@ from sampler import Sampler
 
 params = {
     # Inner loop parameters
-    "n_adapt_steps": 3,  # Number of inner loop iterations
+    "n_adapt_steps": 15,  # Number of inner loop iterations
     "inner_lr": 0.1,  # Default: 0.1
     # Outer loop parameters
     "outer_lr": 0.1,
@@ -43,37 +42,38 @@ params = {
 
     # Environment params
 
-    # Total timesteps:
-    # nbatch = nenvs * nsteps
-    # nbatch_train = nbatch // nminibatches
-    # nupdates = total_timesteps//nbatch
-    #
-    # batch_size = n_envs * n_steps
-
     # easy or hard: only affects the visual variance between levels
     "distribution_mode": "easy",
-    # Number of environments OF THE SAME LEVEL to run in parallel ->
-    "n_envs": 4,
+    # Number of environments OF THE SAME LEVEL to run in parallel -> 32envs ~7gb RAM (Original was 64)
+    "n_envs": 1,
     # 0-unlimited, 1-debug. For generalization: 200-easy, 500-hard
     "n_levels": 1,
-    # iters = outer updates = epochs PPO: 64envs, 25M -> 1.525, 200M-> 12.207
-    # We could have more epochs in one iterations, but for simplicity now we make it the same
-    "n_iters": 500,
     # Number of different levels the agent should train on in an iteration (="ways") prev. meta_batch_size
-    "n_tasks_per_iter": 5,
+    "n_tasks_per_iter": 10,
+    # Number of total timesteps performed
+    "n_timesteps": 25_000_000,
     # Number of runs on the same level for one inner iteration (="shots") prev. adapt_batch_size
     # "n_episodes_per_task": 100,  # Currently not in use. So just one episode per environment
     # Rollout length of each of the above runs
-    "n_steps_per_episode": 256,
+    "n_steps_per_episode": 128,
     # Split the batch in mini batches for faster adaptation
-    # "n_steps_per_mini_batch": 32,
-    # One of the workers will test, define how often (train & test in parallel)
-    "test_worker_interval": 0,
+    "n_steps_per_mini_batch": 256,
     # Model params
     "save_every": 25,
     "seed": 42}
 
-network = [64, 128, 128]
+
+# Timesteps performed per task in each iteration
+params['steps_per_task'] = int(params['n_steps_per_episode'] * params['n_envs'])
+# Split the episode in mini batches
+# params['n_mini_batches'] = int(params['steps_per_task'] / params['n_steps_per_mini_batch'])
+# iters = outer updates: 64envs, 25M -> 1.525, 200M-> 12.207
+params['n_iters'] = int(params['n_timesteps'] // params['steps_per_task'])
+# Total timesteps performed per task (if task==1, then total timesteps==total steps per task)
+params['total_steps_per_task'] = int(params['steps_per_task'] * params['n_iters'])
+
+
+network = [32, 64, 64]
 
 eval_params = {
     'n_eval_adapt_steps': 5,  # Number of steps to adapt to a new task
@@ -104,7 +104,7 @@ cl_params = {
 env_name = "starpilot"
 start_level = 0  # ???
 
-cuda = False
+cuda = True
 
 wandb = False
 
@@ -124,30 +124,12 @@ class MamlRL(Experiment):
             torch.cuda.manual_seed(self.params['seed'])
             device = torch.device('cuda')
 
-        comm = MPI.COMM_WORLD
-        rank = comm.Get_rank()
-
-        is_test_worker = False
-        if params['test_worker_interval'] > 0:
-            is_test_worker = comm.Get_rank() % params['test_worker_interval'] == (params['test_worker_interval'] - 1)
-
-        mpi_rank_weight = 0 if is_test_worker else 1
-        n_levels = 0 if is_test_worker else self.params['n_levels']
-
-        log_comm = comm.Split(1 if is_test_worker else 0, 0)
-        format_strs = ['csv', 'stdout'] if log_comm.Get_rank() == 0 else []
-
-        logger.configure(dir=self.model_path, format_strs=format_strs)
-        logger.info(f"Creating {self.params['n_envs']} {env_name} environments")
-
-        venv = ProcgenEnv(num_envs=self.params['n_envs'], env_name=env_name, num_levels=n_levels,
+        venv = ProcgenEnv(num_envs=self.params['n_envs'], env_name=env_name, num_levels=self.params['n_levels'],
                           start_level=start_level, distribution_mode=self.params['distribution_mode'],
                           paint_vel_info=True)
 
         venv = VecExtractDictObs(venv, "rgb")
-
-        venv = VecMonitor(venv=venv, filename=None, keep_buf=100, )
-
+        venv = VecMonitor(venv=venv, filename=None, keep_buf=100)
         venv = VecNormalize(venv=venv, ob=False)
 
         setup_mpi_gpus()
@@ -163,6 +145,7 @@ class MamlRL(Experiment):
         final_pixel_dim = int(64 / (np.power(2, len(network))))
         fc_neurons = network[-1] * final_pixel_dim * final_pixel_dim
 
+        # Initialize models
         policy = ActorCritic(observ_size, action_space, network)
         policy.to(device)
         meta_actor = l2l.algorithms.MAML(policy.actor, lr=self.params['inner_lr'])
@@ -174,9 +157,8 @@ class MamlRL(Experiment):
         critic_optimiser = torch.optim.Adam(policy.critic.parameters(), lr=self.params['outer_lr'])
 
         self.log_model(policy.actor, device, input_shape=observ_space)  # Input shape is specific to dataset
-        print("FC Neurons: ", fc_neurons)
 
-        # Sampler uses policy.eval() which turns off training to sample the actions
+        # Sampler uses policy.eval() which turns off training to sample the actions (same as torch.no_grad?)
         sampler = Sampler(env=env, model=policy, num_steps=self.params['n_steps_per_episode'],
                           gamma_coef=params['gamma'], lambda_coef=params['tau'],
                           device=device, num_envs=self.params['n_envs'])
@@ -188,7 +170,7 @@ class MamlRL(Experiment):
                 tr_iter_reward = 0.0
                 val_iter_reward = 0.0
 
-                # Pick a new level out of
+                # Pick a level out of "n_levels"
                 t_task = trange(self.params['n_tasks_per_iter'], leave=False, desc="Task", position=0)
                 for task in t_task:
                     a2c_learner = meta_learner.clone()
@@ -208,15 +190,11 @@ class MamlRL(Experiment):
                     policy_loss_v, value_loss_v = compute_a2c_loss(val_ep_samples, device)
 
                     # Average reward across tasks
-                    tr_task_reward = tr_ep_samples["rewards"].sum().item()
+                    tr_task_reward = tr_ep_samples["rewards"] / self.params['n_envs']
                     tr_iter_reward += tr_task_reward
 
-                    val_task_reward = val_ep_samples["rewards"].sum().item()  # TODO: Do i need to divide with smth
+                    val_task_reward = val_ep_samples["rewards"] / self.params['n_envs']
                     val_iter_reward += val_task_reward
-
-                    # Average loss across tasks
-                    policy_loss_tr = policy_loss_tr.sum().item() / self.params['n_adapt_steps']
-                    value_loss_tr = value_loss_tr.sum().item() / self.params['n_adapt_steps']
 
                     policy_loss_v += policy_loss_v
                     value_loss_v += value_loss_v
@@ -240,13 +218,17 @@ class MamlRL(Experiment):
 
                 print(f"\nAverage train reward: {tr_iter_reward}")
                 print(f"Average valid reward: {val_iter_reward}")
+
+                step = iteration * params['n_steps_per_episode']
                 metrics = {'tr_iter_reward': tr_iter_reward,
-                           'tr_iter_loss': policy_loss_tr,
+                           'tr_iter_policy_loss': policy_loss_tr,
+                           'tr_iter_value_loss': value_loss_tr,
                            'val_iter_reward': val_iter_reward,
-                           'val_iter_loss': policy_loss_v}
+                           'val_iter_value_loss': value_loss_v,
+                           'val_iter_policy_loss': policy_loss_v}
 
                 t_iter.set_postfix(metrics)
-                self.log_metrics(metrics)
+                self.log_metrics(metrics, step)
 
                 # Optimize actor by updating the PPO loss
                 actor_optimiser.zero_grad()
