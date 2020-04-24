@@ -1,5 +1,6 @@
+import numpy as np
 import torch
-import learn2learn as l2l
+from learn2learn.algorithms.maml import maml_update
 import cherry as ch
 from cherry.algorithms.a2c import policy_loss, state_value_loss
 
@@ -31,7 +32,7 @@ def compute_a2c_loss(episode_samples, device='cpu'):
     return policy_loss(log_prob, advantages), state_value_loss(values, returns)
 
 
-def adapt_a2c(train_episodes, a2c, actor, critic, adapt_steps, inner_lr, device='cpu'):
+def adapt_a2c(train_episodes, a2c, actor, critic, adapt_steps, inner_lr, device):
     states = torch.from_numpy(train_episodes["states"]).to(device)
     actions = torch.from_numpy(train_episodes["actions"]).to(device)
     log_prob = torch.from_numpy(train_episodes["log_prob"]).to(device)
@@ -64,23 +65,38 @@ def adapt_a2c(train_episodes, a2c, actor, critic, adapt_steps, inner_lr, device=
         # Fit value function by regression on mean-squared error
         critic_loss[step] = ch.algorithms.a2c.state_value_loss(new_values, returns)
 
-        second_order = True
         # Update actor
-        actor_grads = torch.autograd.grad(actor_loss[step],
-                                          actor.parameters(),
-                                          retain_graph=second_order,
-                                          create_graph=second_order,
-                                          allow_unused=True)
-
-        l2l.algorithms.maml.maml_update(actor, inner_lr, actor_grads)
+        # TODO: allow unused???
+        actor.adapt(actor_loss[step], allow_unused=True)
 
         # Update critic
-        critic_grads = torch.autograd.grad(critic_loss[step],
-                                           critic.parameters(),
-                                           retain_graph=second_order,
-                                           create_graph=second_order,
-                                           allow_unused=True)
+        critic.adapt(critic_loss[step], allow_unused=True)
 
-        l2l.algorithms.maml.maml_update(critic, inner_lr, critic_grads)
+        print(f"actor loss: {actor_loss[step]}\n"
+              f"critic_loss: {critic_loss[step]}\n")
+
+    # Average loss across adaptation steps
+    actor_loss = safemean(actor_loss)
+    critic_loss = safemean(critic_loss)
 
     return actor_loss, critic_loss
+
+
+"""
+second_order = True
+# "adapt(loss, unused=True)" is the same as "grad(unused=True) + maml_update"
+# Update actor
+# actor_grads = torch.autograd.grad(actor_loss[step],
+#                                   actor.parameters(),
+#                                   retain_graph=second_order,
+#                                   create_graph=second_order,
+#                                   allow_unused=True)
+#
+# actor = maml_update(actor, inner_lr, actor_grads)
+"""
+
+# Avoid division error when calculate the mean (in our case if epinfo is empty returns np.nan, not return an error)
+def safemean(xs):
+    if isinstance(xs, torch.Tensor):
+        xs = xs.cpu().detach().numpy()
+    return np.nan if len(xs) == 0 else np.mean(xs)
