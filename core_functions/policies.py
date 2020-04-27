@@ -5,6 +5,7 @@ Taken directly from https://github.com/learnables/learn2learn/tree/master/exampl
 """
 
 import math
+from collections import OrderedDict
 
 import cherry as ch
 import torch
@@ -61,125 +62,6 @@ class DiagNormalPolicy(nn.Module):
         return action
 
 
-class DiagNormalPolicyCNN(nn.Module):
-
-    def __init__(self, input_size, output_size, network=[32, 64, 64]):
-        super(DiagNormalPolicyCNN, self).__init__()
-
-        n_layers = len(network)
-        activation = nn.ReLU
-
-        # Building a network using a dictionary this way ONLY THIS ONLY WORKS FOR PYTHON 3.7
-        # Otherwise the dictionary won't remember the order!
-        # Define input layer
-        features = {"conv_0": nn.Conv2d(in_channels=input_size, out_channels=network[0], kernel_size=3, padding=1),
-                    "bn_0": nn.BatchNorm2d(network[0]),
-                    "activation_0": activation(),
-                    "max_pool_0": nn.MaxPool2d(kernel_size=2, stride=2)}
-
-        # Initialize weights of input layer
-        maml_init_(features["conv_0"])
-        nn.init.uniform_(features["bn_0"].weight)
-
-        # Define rest of hidden layers and initialize their weights
-        for i in range(1, n_layers):
-            layer_i = {f"conv_{i}": nn.Conv2d(in_channels=network[i - 1], out_channels=network[i],
-                                              kernel_size=3, stride=1, padding=1),
-                       f"bn_{i}": nn.BatchNorm2d(network[i]),
-                       f"activation_{i}": activation(),
-                       f"max_pool_{i}": nn.MaxPool2d(kernel_size=2, stride=2)}
-
-            maml_init_(layer_i[f"conv_{i}"])
-            nn.init.uniform_(layer_i[f"bn_{i}"].weight)
-            features.update(layer_i)
-
-        # Given a 64x64 pixel calculate the flatten size needed based on the depth of the network
-        # and how "fast" (=stride) it downscales the image
-        final_pixel_dim = int(64 / (math.pow(2, n_layers)))
-        self.flatten_size = network[-1] * final_pixel_dim * final_pixel_dim
-
-        head = nn.Linear(in_features=self.flatten_size, out_features=output_size, bias=True)  # No activation for output
-        maml_init_(head)
-
-        self.features = nn.Sequential(*list(features.values()))
-        self.mean = head
-        self.sigma = nn.Parameter(torch.Tensor(output_size))
-        self.sigma.data.fill_(math.log(1))
-        # This is just a trivial assignment to follow the implementation of the sampler
-        self.step = self.forward
-
-    def density(self, state):
-        # Pass images through CNN to get features
-        state = self.features(state)
-        # Flatten features to 1-dim for the FC layer
-        state = state.view(-1, self.flatten_size)
-        # Pass features to the FC output layer
-        loc = self.mean(state)
-        scale = torch.exp(torch.clamp(self.sigma, min=math.log(EPSILON)))
-        return Normal(loc=loc, scale=scale)
-
-    def log_prob(self, state, action):
-        density = self.density(state)
-        return density.log_prob(action).mean(dim=1, keepdim=True)
-
-    def forward(self, state):
-        density = self.density(state)
-        action = density.sample()
-        return action
-
-
-class BaselineCNN(nn.Module):
-    def __init__(self, input_size, network=[32, 64, 64]):
-        super(BaselineCNN, self).__init__()
-
-        n_layers = len(network)
-        activation = nn.ReLU
-
-        # Building a network using a dictionary this way ONLY THIS ONLY WORKS FOR PYTHON 3.7
-        # Otherwise the dictionary won't remember the order!
-        # Define input layer
-        features = {"conv_0": nn.Conv2d(in_channels=input_size, out_channels=network[0], kernel_size=3, padding=1),
-                    "bn_0": nn.BatchNorm2d(network[0]),
-                    "activation_0": activation(),
-                    "max_pool_0": nn.MaxPool2d(kernel_size=2, stride=2)}
-
-        # Initialize weights of input layer
-        maml_init_(features["conv_0"])
-        nn.init.uniform_(features["bn_0"].weight)
-
-        # Define rest of hidden layers and initialize their weights
-        for i in range(1, n_layers):
-            layer_i = {f"conv_{i}": nn.Conv2d(in_channels=network[i - 1], out_channels=network[i],
-                                              kernel_size=3, stride=1, padding=1),
-                       f"bn_{i}": nn.BatchNorm2d(network[i]),
-                       f"activation_{i}": activation(),
-                       f"max_pool_{i}": nn.MaxPool2d(kernel_size=2, stride=2)}
-
-            maml_init_(layer_i[f"conv_{i}"])
-            nn.init.uniform_(layer_i[f"bn_{i}"].weight)
-            features.update(layer_i)
-
-        # Given a 64x64 pixel calculate the flatten size needed based on the depth of the network
-        # and how "fast" (=stride) it downscales the image
-        final_pixel_dim = int(64 / (math.pow(2, n_layers)))
-        self.flatten_size = network[-1] * final_pixel_dim * final_pixel_dim
-
-        head = nn.Linear(in_features=self.flatten_size, out_features=1, bias=True)  # No activation for output
-        linear_init(head)
-
-        self.features = nn.Sequential(*list(features.values()))
-        self.head = head
-
-    def forward(self, state):
-        # Pass images through CNN to get features
-        features = self.features(state)
-        # Flatten features to 1-dim for the FC layer
-        features = features.view(-1, self.flatten_size)
-        # Pass features to the FC output layer
-        value = self.head(features)
-        return value
-
-
 class CategoricalPolicy(nn.Module):
 
     def __init__(self, input_size, output_size, hiddens=None):
@@ -210,10 +92,11 @@ def build_procgen_cnn(input_size, output_size, network):
     # Building a network using a dictionary this way ONLY THIS ONLY WORKS FOR PYTHON 3.7
     # Otherwise the dictionary won't remember the order!
     # Define input layer
-    features = {"conv_0": nn.Conv2d(in_channels=input_size, out_channels=network[0], kernel_size=3, padding=1),
-                "bn_0": nn.BatchNorm2d(network[0]),
-                "activation_0": activation(),
-                "max_pool_0": nn.MaxPool2d(kernel_size=2, stride=2)}
+    features = OrderedDict(
+        {"conv_0": nn.Conv2d(in_channels=input_size, out_channels=network[0], kernel_size=3, padding=1),
+         "bn_0": nn.BatchNorm2d(network[0]),
+         "activation_0": activation(),
+         "max_pool_0": nn.MaxPool2d(kernel_size=2, stride=2)})
 
     # Initialize weights of input layer
     maml_init_(features["conv_0"])
@@ -242,6 +125,54 @@ def build_procgen_cnn(input_size, output_size, network):
     maml_init_(head)
 
     return flatten_size, network_body, head
+
+
+class DiagNormalPolicyCNN(nn.Module):
+
+    def __init__(self, input_size, output_size, network=[32, 64, 64]):
+        super(DiagNormalPolicyCNN, self).__init__()
+
+        self.flatten_size, self.features, self.mean = build_procgen_cnn(input_size, output_size, network)
+
+        self.sigma = nn.Parameter(torch.Tensor(output_size))
+        self.sigma.data.fill_(math.log(1))
+        # This is just a trivial assignment to follow the implementation of the sampler
+        self.step = self.forward
+
+    def density(self, state):
+        # Pass images through CNN to get features
+        state = self.features(state)
+        # Flatten features to 1-dim for the FC layer
+        state = state.view(-1, self.flatten_size)
+        # Pass features to the FC output layer
+        loc = self.mean(state)
+        scale = torch.exp(torch.clamp(self.sigma, min=math.log(EPSILON)))
+        return Normal(loc=loc, scale=scale)
+
+    def log_prob(self, state, action):
+        density = self.density(state)
+        return density.log_prob(action).mean(dim=1, keepdim=True)
+
+    def forward(self, state):
+        density = self.density(state)
+        action = density.sample()
+        return action
+
+
+class BaselineCNN(nn.Module):
+    def __init__(self, input_size, network=[32, 64, 64]):
+        super(BaselineCNN, self).__init__()
+
+        self.flatten_size, self.features, self.mean = build_procgen_cnn(input_size, 1, network)
+
+    def forward(self, state):
+        # Pass images through CNN to get features
+        features = self.features(state)
+        # Flatten features to 1-dim for the FC layer
+        features = features.view(-1, self.flatten_size)
+        # Pass features to the FC output layer
+        value = self.head(features)
+        return value
 
 
 class Actor(nn.Module):
@@ -286,7 +217,7 @@ class Critic(nn.Module):
 
 
 class ActorCritic(nn.Module):
-    def __init__(self,  input_size, output_size, network=[32, 64, 64]):
+    def __init__(self, input_size, output_size, network=[32, 64, 64]):
         super().__init__()
         self.actor = Actor(input_size, output_size, network, stochastic=True)
         self.critic = Critic(input_size, 1, network)
@@ -301,7 +232,7 @@ class ActorCritic(nn.Module):
         action = policy.sample()
         log_prob = policy.log_prob(action)
         return action, {
-                'mass': policy,
-                'log_prob': log_prob,
-                'value': value,
+            'mass': policy,
+            'log_prob': log_prob,
+            'value': value,
         }
