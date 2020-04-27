@@ -174,20 +174,6 @@ class MamlRL(Experiment):
             run_cl_rl_exp(self.model_path, env, policy, baseline, cl_params=cl_params)
 
 
-"""
-Use this if you want a very basic LR scheduler
-
-"outer_lrs": [(0, 0.3), (100, 0.1), (300, 0.03)],
-lr_checkpoint = 0
-if iteration == self.params['outer_lrs'][lr_checkpoint][0]:
-    print(f"Dropping outer lr from {self.params['outer_lr']} to "
-          f"{self.params['outer_lrs'][lr_checkpoint][1]}")
-    self.params['outer_lr'] = self.params['outer_lrs'][lr_checkpoint][1]
-    # Stop at the last element
-    if lr_checkpoint < len(self.params['outer_lrs']) - 1:
-        lr_checkpoint += 1
-"""
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MAML on RL tasks')
 
