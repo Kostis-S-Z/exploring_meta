@@ -128,6 +128,58 @@ class DiagNormalPolicyCNN(nn.Module):
         return action
 
 
+class BaselineCNN(nn.Module):
+    def __init__(self, input_size, network=[32, 64, 64]):
+        super(BaselineCNN, self).__init__()
+
+        n_layers = len(network)
+        activation = nn.ReLU
+
+        # Building a network using a dictionary this way ONLY THIS ONLY WORKS FOR PYTHON 3.7
+        # Otherwise the dictionary won't remember the order!
+        # Define input layer
+        features = {"conv_0": nn.Conv2d(in_channels=input_size, out_channels=network[0], kernel_size=3, padding=1),
+                    "bn_0": nn.BatchNorm2d(network[0]),
+                    "activation_0": activation(),
+                    "max_pool_0": nn.MaxPool2d(kernel_size=2, stride=2)}
+
+        # Initialize weights of input layer
+        maml_init_(features["conv_0"])
+        nn.init.uniform_(features["bn_0"].weight)
+
+        # Define rest of hidden layers and initialize their weights
+        for i in range(1, n_layers):
+            layer_i = {f"conv_{i}": nn.Conv2d(in_channels=network[i - 1], out_channels=network[i],
+                                              kernel_size=3, stride=1, padding=1),
+                       f"bn_{i}": nn.BatchNorm2d(network[i]),
+                       f"activation_{i}": activation(),
+                       f"max_pool_{i}": nn.MaxPool2d(kernel_size=2, stride=2)}
+
+            maml_init_(layer_i[f"conv_{i}"])
+            nn.init.uniform_(layer_i[f"bn_{i}"].weight)
+            features.update(layer_i)
+
+        # Given a 64x64 pixel calculate the flatten size needed based on the depth of the network
+        # and how "fast" (=stride) it downscales the image
+        final_pixel_dim = int(64 / (math.pow(2, n_layers)))
+        self.flatten_size = network[-1] * final_pixel_dim * final_pixel_dim
+
+        head = nn.Linear(in_features=self.flatten_size, out_features=1, bias=True)  # No activation for output
+        linear_init(head)
+
+        self.features = nn.Sequential(*list(features.values()))
+        self.head = head
+
+    def forward(self, state):
+        # Pass images through CNN to get features
+        features = self.features(state)
+        # Flatten features to 1-dim for the FC layer
+        features = features.view(-1, self.flatten_size)
+        # Pass features to the FC output layer
+        value = self.head(features)
+        return value
+
+
 class CategoricalPolicy(nn.Module):
 
     def __init__(self, input_size, output_size, hiddens=None):

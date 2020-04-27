@@ -154,7 +154,7 @@ class MamlRL(Experiment):
         observ_space = env.observation_space.shape[::-1]
         observ_size = len(observ_space)
         observ_space_flat = observ_space[0] * observ_space[1] * observ_space[2]
-        action_space = env.action_space.n + 1
+        action_space = env.action_space.n
 
         final_pixel_dim = int(64 / (np.power(2, len(network))))
         fc_neurons = network[-1] * final_pixel_dim * final_pixel_dim
