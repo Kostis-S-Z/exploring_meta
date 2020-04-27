@@ -27,7 +27,7 @@ def to_np(t):
 
 class Sampler:
     def __init__(
-        self, env, model, num_steps, gamma_coef, lambda_coef, device, num_envs
+            self, env, model, num_steps, gamma_coef, lambda_coef, device, num_envs
     ):
         self.env = env
         self.model = model
@@ -55,60 +55,58 @@ class Sampler:
 
             for _ in range(self.num_steps):
                 obs = input_preprocessing(self.obs, device=self.device)
-                prediction = self.model.step(obs)
-                # Take the Argmax from every env
-                actions = np.argmax(to_np(prediction), axis=1)
-                storage["actions"] += [actions]
                 storage["states"] += [to_np(obs.clone())]
-                # storage["actions"] += [to_np(prediction["action"])]
-                # storage["values"] += [to_np(prediction["value"])]
-                # storage["neg_log_prob_a"] += [to_np(prediction["neg_log_prob_a"])]
+                # Forward pass
+                prediction, infos = self.model.step(obs)
+                actions = to_np(prediction)
+                # Take the Argmax from every env
+                # actions = np.argmax(actions, axis=1)
+                storage["actions"] += [actions]
+                storage["values"] += [to_np(infos["value"])]
+                storage["log_prob"] += [to_np(infos["log_prob"])]
+                storage["mass"] += [infos["mass"]]
 
                 self.obs[:], rewards, self.dones, _ = self.env.step(actions)
                 storage["rewards"] += [rewards]
                 # Convert booleans to integers
                 storage["dones"] += [int(d is True) for d in self.dones]
                 storage["next_states"] += [to_np(obs.clone())]
-                # for info in infos:
-                #     if "episode" in info:
-                #         epinfos.append(info["episode"])
+                for info in infos:
+                    if "episode" in info:
+                        epinfos.append(info["episode"])
 
             # batch of steps to batch of rollouts
             for key in storage:
                 storage[key] = np.asarray(storage[key])
 
-            """ NO NEED FOR THIS. THIS IS PPO DEPENDENT
-            lastvalues = to_np(
-                self.model.step(input_preprocessing(self.obs, device=self.device))[
-                    "value"
-                ]
-            )
+            obs = input_preprocessing(self.obs, device=self.device)
+            last_values = to_np(self.model.step(obs)[1]["value"])
 
             # discount/bootstrap
             storage["advantages"] = np.zeros_like(storage["rewards"])
             storage["returns"] = np.zeros_like(storage["rewards"])
 
-            lastgaelam = 0
+            last_gae_lam = 0
             for t in reversed(range(self.num_steps)):
                 if t == self.num_steps - 1:
-                    nextnonterminal = 1.0 - self.dones
-                    nextvalues = lastvalues
+                    next_non_terminal = 1.0 - self.dones
+                    next_values = last_values
                 else:
-                    nextnonterminal = 1.0 - storage["dones"][t + 1]
-                    nextvalues = storage["values"][t + 1]
+                    next_non_terminal = 1.0 - storage["dones"][t + 1]
+                    next_values = storage["values"][t + 1]
 
                 td_error = (
-                    storage["rewards"][t]
-                    + self.gamma * nextvalues * nextnonterminal
-                    - storage["values"][t]
+                        storage["rewards"][t]
+                        + self.gamma * next_values * next_non_terminal
+                        - storage["values"][t]
                 )
 
-                storage["advantages"][t] = lastgaelam = (
-                    td_error + self.gamma * self.lam * nextnonterminal * lastgaelam
+                storage["advantages"][t] = last_gae_lam = (
+                        td_error + self.gamma * self.lam * next_non_terminal * last_gae_lam
                 )
 
             storage["returns"] = storage["advantages"] + storage["values"]
-            """
+
         for key in storage:
             if len(storage[key].shape) < 3:
                 storage[key] = np.expand_dims(storage[key], -1)

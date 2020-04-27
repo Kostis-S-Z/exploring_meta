@@ -58,14 +58,17 @@ class Experiment:
         if self._use_wandb:
             wandb.watch(model)
 
-    def log_metrics(self, metrics):
+    def log_metrics(self, metrics, step=None):
         for key, value in metrics.items():
             if key not in self.metrics:
                 self.metrics[key] = []
             self.metrics[key].append(value)
 
         if self._use_wandb:
-            wandb.log(metrics)
+            if step is not None:
+                wandb.log(metrics, step=step)
+            else:
+                wandb.log(metrics)
 
     def save_logs_to_file(self):
         print('Saving metrics...')
