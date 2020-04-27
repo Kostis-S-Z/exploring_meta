@@ -17,7 +17,7 @@ from baselines.common.vec_env import (VecExtractDictObs, VecMonitor, VecNormaliz
 
 from utils import *
 from core_functions.policies import DiagNormalPolicyCNN
-from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize, evaluate
+from core_functions.rl import fast_adapt_trpo_a2c, trpo_meta_optimization, evaluate
 from misc_scripts import run_cl_rl_exp
 
 from sampler import Sampler
@@ -154,7 +154,7 @@ class MamlRL(Experiment):
         observ_space = env.observation_space.shape[::-1]
         observ_size = len(observ_space)
         observ_space_flat = observ_space[0] * observ_space[1] * observ_space[2]
-        action_space = env.action_space.n + 1
+        action_space = env.action_space.n
 
         final_pixel_dim = int(64 / (np.power(2, len(network))))
         fc_neurons = network[-1] * final_pixel_dim * final_pixel_dim

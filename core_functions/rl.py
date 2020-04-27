@@ -9,6 +9,23 @@ from cherry.algorithms import a2c, trpo
 from cherry.pg import generalized_advantage
 
 
+def get_episode_values(episodes, device):
+    if isinstance(episodes, dict):
+        states = torch.from_numpy(episodes["states"]).to(device)
+        actions = torch.from_numpy(episodes["actions"]).to(device)
+        rewards = torch.from_numpy(episodes["rewards"]).to(device)
+        # Due to older pytorch version there is bug where all parameters should be floats and not integers
+        dones = torch.from_numpy(episodes["dones"]).to(device).float()
+        next_states = torch.from_numpy(episodes["next_states"]).to(device)
+    else:
+        states = episodes.state().to(device)
+        actions = episodes.action().to(device)
+        rewards = episodes.reward().to(device)
+        dones = episodes.done().to(device)
+        next_states = episodes.next_state().to(device)
+    return states, actions, rewards, dones, next_states
+
+
 def weighted_cumsum(values, weights):
     for i in range(values.size(0)):
         values[i] += values[i - 1] * weights[i]
@@ -16,6 +33,14 @@ def weighted_cumsum(values, weights):
 
 
 def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states):
+    # Linear value function approximator vs CNN
+    if isinstance(baseline,  ch.models.robotics.LinearValue):
+        return compute_advantages_linear(baseline, tau, gamma, rewards, dones, states, next_states)
+    else:
+        return compute_advantages_cnn(baseline, tau, gamma, rewards, dones, states, next_states)
+
+
+def compute_advantages_linear(baseline, tau, gamma, rewards, dones, states, next_states):
     # Update baseline
     returns = ch.td.discount(gamma, rewards, dones)
     if baseline.linear.weight.dim() != states.dim():  # if dimensions are not equal, try to flatten
@@ -36,21 +61,45 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
                                  next_value=next_value)
 
 
+def compute_advantages_cnn(baseline, tau, gamma, rewards, dones, states, next_states):
+    baseline_model = baseline[0]
+    baseline_loss = baseline[1]
+    baseline_optimizer = baseline[2]
+
+    # Update baseline
+    returns = ch.td.discount(gamma, rewards, dones)
+    dones = dones.reshape(-1, 1)
+
+    # Optimize for values
+    baseline_optimizer.zero_grad()
+    values = baseline_model(states)
+    loss_1 = baseline_loss(values, returns)
+    loss_1.backward()
+    baseline_optimizer.step()
+
+    baseline_optimizer.zero_grad()
+    next_values = baseline_model(next_states)
+    loss_2 = baseline_loss(next_values, returns)
+    loss_2.backward()
+    baseline_optimizer.step()
+
+    with torch.no_grad():
+        values = baseline_model(states)
+        next_values = baseline_model(next_states)
+
+    bootstraps = values * (1.0 - dones) + next_values * dones
+    next_value = torch.zeros(1, device=values.device)
+    return generalized_advantage(tau=tau,
+                                 gamma=gamma,
+                                 rewards=rewards,
+                                 dones=dones,
+                                 values=bootstraps,
+                                 next_value=next_value)
+
+
 def maml_vpg_a2c_loss(train_episodes, learner, baseline, gamma, tau, device='cpu'):
     # Update policy and baseline
-    if isinstance(train_episodes, dict):
-        states = torch.from_numpy(train_episodes["states"]).to(device)
-        actions = torch.from_numpy(train_episodes["actions"]).to(device)
-        rewards = torch.from_numpy(train_episodes["rewards"]).to(device)
-        # Due to older pytorch version there is bug where all parameters should be floats and not integers
-        dones = torch.from_numpy(train_episodes["dones"]).to(device).float()
-        next_states = torch.from_numpy(train_episodes["next_states"]).to(device)
-    else:
-        states = train_episodes.state()
-        actions = train_episodes.action()
-        rewards = train_episodes.reward()
-        dones = train_episodes.done()
-        next_states = train_episodes.next_state()
+    states, actions, rewards, dones, next_states = get_episode_values(train_episodes, device)
 
     log_probs = learner.log_prob(states, actions)
 
@@ -60,26 +109,14 @@ def maml_vpg_a2c_loss(train_episodes, learner, baseline, gamma, tau, device='cpu
 
     cum_log_probs = weighted_cumsum(log_probs, weights)
 
-    advantages = compute_advantages(baseline, tau, gamma, rewards,
-                                    dones, states, next_states)
+    advantages = compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states)
 
     return a2c.policy_loss(l2l.magic_box(cum_log_probs), advantages)
 
 
 def maml_trpo_a2c_loss(train_episodes, learner, baseline, gamma, tau, device):
     # Update policy and baseline
-    if isinstance(train_episodes, dict):
-        states = torch.from_numpy(train_episodes["states"]).to(device)
-        actions = torch.from_numpy(train_episodes["actions"]).to(device)
-        rewards = torch.from_numpy(train_episodes["rewards"]).to(device)
-        dones = torch.from_numpy(train_episodes["dones"]).to(device)
-        next_states = torch.from_numpy(train_episodes["next_states"]).to(device)
-    else:
-        states = train_episodes.state()
-        actions = train_episodes.action()
-        rewards = train_episodes.reward()
-        dones = train_episodes.done()
-        next_states = train_episodes.next_state()
+    states, actions, rewards, dones, next_states = get_episode_values(train_episodes, device)
 
     log_probs = learner.log_prob(states, actions)
 
@@ -99,7 +136,7 @@ def fast_adapt_trpo_a2c(clone, train_episodes, baseline, fast_lr, gamma, tau, fi
     return l2l.algorithms.maml.maml_update(clone, fast_lr, gradients)
 
 
-def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, tau, gamma, fast_lr):
+def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, tau, gamma, fast_lr, device):
     mean_loss = 0.0
     mean_kl = 0.0
     for task_replays, old_policy in zip(iter_replays, iter_policies):
@@ -110,21 +147,10 @@ def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, tau, gamm
         # Fast Adapt
         for train_episodes in train_replays:
             new_policy = fast_adapt_trpo_a2c(new_policy, train_episodes, baseline,
-                                             fast_lr, gamma, tau, first_order=False)
+                                             fast_lr, gamma, tau, first_order=False, device=device)
 
         # Useful values
-        if isinstance(valid_episodes, dict):
-            states = torch.from_numpy(valid_episodes["states"])
-            actions = torch.from_numpy(valid_episodes["actions"])
-            rewards = torch.from_numpy(valid_episodes["rewards"])
-            dones = torch.from_numpy(valid_episodes["dones"])
-            next_states = torch.from_numpy(valid_episodes["next_states"])
-        else:
-            states = valid_episodes.state()
-            actions = valid_episodes.action()
-            rewards = valid_episodes.reward()
-            dones = valid_episodes.done()
-            next_states = valid_episodes.next_state()
+        states, actions, rewards, dones, next_states = get_episode_values(valid_episodes, device)
 
         # Compute KL
         old_densities = old_policy.density(states)
@@ -143,10 +169,10 @@ def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, tau, gamm
     return mean_loss, mean_kl
 
 
-def meta_optimize(params, policy, baseline, iter_replays, iter_policies, cuda):
+def trpo_meta_optimization(params, policy, baseline, iter_replays, iter_policies, device):
     # TRPO meta-optimization
 
-    if cuda:
+    if device == torch.device('cuda'):
         policy.to('cuda', non_blocking=True)
         baseline.to('cuda', non_blocking=True)
         iter_replays = [[r.to('cuda', non_blocking=True) for r in task_replays] for task_replays in
@@ -154,7 +180,8 @@ def meta_optimize(params, policy, baseline, iter_replays, iter_policies, cuda):
 
     # Compute CG step direction
     old_loss, old_kl = meta_surrogate_loss(iter_replays, iter_policies, policy, baseline,
-                                           params['tau'], params['gamma'], params['inner_lr'])  # TODO: maybe outer_lr
+                                           params['tau'], params['gamma'], params['inner_lr'],
+                                           device)  # TODO: maybe outer_lr
 
     grad = torch.autograd.grad(old_loss,
                                policy.parameters(),
@@ -178,7 +205,8 @@ def meta_optimize(params, policy, baseline, iter_replays, iter_policies, cuda):
         for p, u in zip(clone.parameters(), step):
             p.data.add_(-stepsize, u.data)
         new_loss, kl = meta_surrogate_loss(iter_replays, iter_policies, clone, baseline,
-                                           params['tau'], params['gamma'], params['inner_lr'])  # TODO: maybe outer_lr
+                                           params['tau'], params['gamma'], params['inner_lr'],
+                                           device)  # TODO: maybe outer_lr
         if new_loss < old_loss and kl < params['max_kl']:
             for p, u in zip(policy.parameters(), step):
                 p.data.add_(-stepsize, u.data)
