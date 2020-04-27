@@ -17,7 +17,7 @@ from baselines.common.vec_env import (VecExtractDictObs, VecMonitor, VecNormaliz
 
 from utils import *
 from core_functions.policies import DiagNormalPolicyCNN
-from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize, evaluate
+from core_functions.rl import fast_adapt_trpo_a2c, trpo_meta_optimization, evaluate
 from misc_scripts import run_cl_rl_exp
 
 from sampler import Sampler

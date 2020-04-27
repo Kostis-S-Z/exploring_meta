@@ -14,7 +14,7 @@ import learn2learn as l2l
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize, evaluate
+from core_functions.rl import fast_adapt_trpo_a2c, trpo_meta_optimization, evaluate
 from misc_scripts import run_cl_rl_exp
 
 # ANIL Defaults: meta_batch_size: 40, adapt_steps: 1, adapt_batch_size: 20, inner_lr: 0.1
@@ -150,7 +150,7 @@ class MamlRL(Experiment):
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
 
-                meta_optimize(self.params, policy, baseline, iter_replays, iter_policies, cuda)
+                trpo_meta_optimization(self.params, policy, baseline, iter_replays, iter_policies, cuda)
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy, str(iteration))

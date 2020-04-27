@@ -5,26 +5,17 @@ import random
 import numpy as np
 from tqdm import trange
 
-import learn2learn as l2l
 import torch
-import cherry as ch
+import learn2learn as l2l
 
-from mpi4py import MPI
 from procgen import ProcgenEnv
-from baselines.common.mpi_util import setup_mpi_gpus
 from baselines.common.vec_env import (VecExtractDictObs, VecMonitor, VecNormalize)
 
 from utils import *
-from core_functions.policies import DiagNormalPolicyCNN, BaselineCNN
-from core_functions.rl import maml_vpg_a2c_loss, evaluate
-from misc_scripts import run_cl_rl_exp
+from core_functions.policies import BaselineCNN, DiagNormalPolicyCNN
+from core_functions.rl import maml_vpg_a2c_loss
 
 from sampler import Sampler
-
-# updates = total timesteps / batch
-# 1.000.000 serial timesteps takes around 3hours
-# 25.000.000 timesteps for easy difficulty
-# 200.000.000 timesteps for hard difficulty
 
 params = {
     # Inner loop parameters
@@ -80,15 +71,6 @@ eval_params = {
     'tau': params['tau'],
     'gamma': params['gamma'],
 }
-cl_test = True
-cl_params = {
-    "adapt_steps": 10,
-    "adapt_batch_size": 10,  # shots
-    "inner_lr": 0.3,
-    "gamma": 0.99,
-    "tau": 1.0,
-    "n_tasks": 5
-}
 
 # Potential games:
 #   caveflyer
@@ -99,9 +81,9 @@ cl_params = {
 #   bigfish: fast rewards
 
 env_name = "starpilot"
-start_level = 0  # ???
+start_level = params['seed']
 
-cuda = False
+cuda = True
 
 wandb = False
 
@@ -128,8 +110,6 @@ class MamlRL(Experiment):
         venv = VecMonitor(venv=venv, filename=None, keep_buf=100)
         venv = VecNormalize(venv=venv, ob=False)
 
-        setup_mpi_gpus()
-
         self.run(venv, device)
 
     def run(self, env, device):
@@ -138,13 +118,16 @@ class MamlRL(Experiment):
         observ_size = len(observ_space)
         action_space = env.action_space.n
 
+        # Calculate number of neurons in the output FC layer
         final_pixel_dim = int(64 / (np.power(2, len(network))))
         fc_neurons = network[-1] * final_pixel_dim * final_pixel_dim
 
-        baseline = BaselineCNN(observ_size)
-        baseline.to(device)
+        # Setup a simple CNN-linear out for the baseline
+        baseline_model = BaselineCNN(observ_size)
+        baseline_model.to(device)
         criterion = torch.nn.MSELoss()
-        baseline_opt = torch.optim.SGD(baseline.parameters(), lr=self.params['inner_lr'])
+        baseline_opt = torch.optim.SGD(baseline_model.parameters(), lr=self.params['inner_lr'])
+        baseline = (baseline_model, criterion, baseline_opt)
 
         policy = DiagNormalPolicyCNN(observ_size, action_space, network=network)
         policy.to(device)
@@ -152,7 +135,6 @@ class MamlRL(Experiment):
         opt = torch.optim.Adam(meta_learner.parameters(), lr=self.params['outer_lr'])
 
         self.log_model(policy, device, input_shape=observ_space)  # Input shape is specific to dataset
-        print("FC Neurons: ", fc_neurons)
 
         # Sampler uses policy.eval() which turns off training to sample the actions
         sampler = Sampler(env=env, model=policy, num_steps=self.params['n_steps_per_episode'],
@@ -185,8 +167,8 @@ class MamlRL(Experiment):
 
                     # Adapt
                     for step in range(self.params['n_adapt_steps']):
-                        tr_loss = maml_vpg_a2c_loss(tr_ep_samples, learner, baseline, criterion, baseline_opt,
-                                                    self.params['gamma'], self.params['tau'], device)
+                        tr_loss = maml_vpg_a2c_loss(tr_ep_samples, learner, baseline, self.params['gamma'],
+                                                    self.params['tau'], device)
                         task_average_train_loss += tr_loss.item()
                         print(f"{step} iter : {tr_loss.item()} loss")
                         learner.adapt(tr_loss)
@@ -197,8 +179,7 @@ class MamlRL(Experiment):
                     val_ep_samples, val_ep_info = sampler.run()
                     task_average_valid_reward = val_ep_samples["rewards"].sum().item() / self.params['n_envs']
 
-                    task_average_valid_loss = maml_vpg_a2c_loss(val_ep_samples, learner, baseline, criterion,
-                                                                baseline_opt,
+                    task_average_valid_loss = maml_vpg_a2c_loss(val_ep_samples, learner, baseline,
                                                                 self.params['gamma'], self.params['tau'], device)
 
                     # Average train reward / loss across tasks
@@ -247,14 +228,7 @@ class MamlRL(Experiment):
         self.save_model(policy)
 
         self.logger['elapsed_time'] = str(round(t_iter.format_dict['elapsed'], 2)) + ' sec'
-        # Evaluate on new test tasks
-        # self.logger['test_reward'] = evaluate(env, policy, baseline, eval_params)
-        # self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
-
-        if cl_test:
-            print("Running Continual Learning experiment...")
-            run_cl_rl_exp(self.model_path, env, policy, baseline, cl_params=cl_params)
 
 
 if __name__ == '__main__':
