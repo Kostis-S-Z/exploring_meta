@@ -14,7 +14,7 @@ from baselines.common.vec_env import (VecExtractDictObs, VecMonitor, VecNormaliz
 
 from utils import *
 from core_functions.policies import ActorCritic
-from core_functions.a2c import adapt_a2c, compute_a2c_loss
+from core_functions.a2c_ppo2 import adapt_a2c, compute_a2c_loss
 from misc_scripts import run_cl_rl_exp
 
 from sampler_ppo2 import Sampler
