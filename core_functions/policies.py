@@ -85,6 +85,11 @@ class CategoricalPolicy(nn.Module):
         return action, {'density': density, 'log_prob': log_prob}
 
 
+"""
+Procgen related policies
+"""
+
+
 def build_procgen_cnn(input_size, output_size, network):
     n_layers = len(network)
     activation = nn.ReLU
