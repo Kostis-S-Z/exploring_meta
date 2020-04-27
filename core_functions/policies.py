@@ -168,7 +168,7 @@ class BaselineCNN(nn.Module):
     def __init__(self, input_size, network=[32, 64, 64]):
         super(BaselineCNN, self).__init__()
 
-        self.flatten_size, self.features, self.mean = build_procgen_cnn(input_size, 1, network)
+        self.flatten_size, self.features, self.head = build_procgen_cnn(input_size, 1, network)
 
     def forward(self, state):
         # Pass images through CNN to get features
