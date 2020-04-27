@@ -17,9 +17,6 @@ from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize, evaluate
 from misc_scripts import run_cl_rl_exp
 
-# ANIL Defaults: meta_batch_size: 40, adapt_steps: 1, adapt_batch_size: 20, inner_lr: 0.1
-# Train for 500 epochs then evaluate on a new set of tasks.
-
 params = {
     "outer_lr": 0.1,  #
     "inner_lr": 0.1,  # Default: 0.1
@@ -30,8 +27,8 @@ params = {
     "max_kl": 0.01,           # Meta-optimizer
     "adapt_batch_size": 20,  # "shots"  Default: 20
     "meta_batch_size": 10,  # "ways" Default: 20
-    "adapt_steps": 1,  # Default 1
-    "num_iterations": 500,  # Default 500
+    "adapt_steps": 3,  # Default 1
+    "num_iterations": 100000,  # Default 500
     "save_every": 25,
     "seed": 42}
 
@@ -78,7 +75,7 @@ class MamlRL(Experiment):
     def run(self, env, device):
 
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
-        baseline.to(device)
+        # baseline.to(device)
         policy = DiagNormalPolicy(env.state_size, env.action_size)
         policy.to(device)
 
@@ -106,7 +103,7 @@ class MamlRL(Experiment):
 
                     # Adapt
                     for step in range(self.params['adapt_steps']):
-                        train_episodes = task.run(clone, steps=100) # , episodes=self.params['adapt_batch_size'])
+                        train_episodes = task.run(clone, steps=150)  # , episodes=self.params['adapt_batch_size'])
                         task_replay.append(train_episodes)
                         clone = fast_adapt_trpo_a2c(clone, train_episodes, baseline,
                                                     self.params['inner_lr'], self.params['gamma'], self.params['tau'],
@@ -114,10 +111,10 @@ class MamlRL(Experiment):
 
                     # Compute validation Loss
                     task.reset()
-                    valid_episodes = task.run(clone, steps=100)
+                    valid_episodes = task.run(clone, steps=150)  # , episodes=self.params['adapt_batch_size'])
                     task_replay.append(valid_episodes)
 
-                    iter_reward += valid_episodes.reward().sum().item() / self.params['adapt_batch_size']
+                    iter_reward += valid_episodes.reward().sum().item()  # / self.params['adapt_batch_size']
                     iter_replays.append(task_replay)
                     iter_policies.append(clone)
 
@@ -143,20 +140,6 @@ class MamlRL(Experiment):
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         self.save_logs_to_file()
 
-
-"""
-Use this if you want a very basic LR scheduler
-
-"outer_lrs": [(0, 0.3), (100, 0.1), (300, 0.03)],
-lr_checkpoint = 0
-if iteration == self.params['outer_lrs'][lr_checkpoint][0]:
-    print(f"Dropping outer lr from {self.params['outer_lr']} to "
-          f"{self.params['outer_lrs'][lr_checkpoint][1]}")
-    self.params['outer_lr'] = self.params['outer_lrs'][lr_checkpoint][1]
-    # Stop at the last element
-    if lr_checkpoint < len(self.params['outer_lrs']) - 1:
-        lr_checkpoint += 1
-"""
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MAML on RL tasks')
