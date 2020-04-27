@@ -5,22 +5,19 @@ import random
 import numpy as np
 from tqdm import trange
 
-import learn2learn as l2l
 import torch
-import cherry as ch
+import learn2learn as l2l
 
-from mpi4py import MPI
 from procgen import ProcgenEnv
 from baselines.common.mpi_util import setup_mpi_gpus
 from baselines.common.vec_env import (VecExtractDictObs, VecMonitor, VecNormalize)
 
 from utils import *
 from core_functions.policies import ActorCritic
-from core_functions.rl import maml_vpg_a2c_loss, evaluate
 from core_functions.a2c import adapt_a2c, compute_a2c_loss
 from misc_scripts import run_cl_rl_exp
 
-from sampler import Sampler
+from sampler_ppo2 import Sampler
 
 # updates = total timesteps / batch
 # 1.000.000 serial timesteps takes around 3hours
