@@ -72,8 +72,8 @@ def adapt_a2c(train_episodes, a2c, actor, critic, adapt_steps, inner_lr, device)
         # Update critic
         critic.adapt(critic_loss[step], allow_unused=True)
 
-        print(f"actor loss: {actor_loss[step]}\n"
-              f"critic_loss: {critic_loss[step]}\n")
+        # print(f"actor loss: {actor_loss[step]}\n"
+        #       f"critic_loss: {critic_loss[step]}\n")
 
     # Average loss across adaptation steps
     actor_loss = safemean(actor_loss)

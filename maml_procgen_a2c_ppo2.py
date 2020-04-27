@@ -187,10 +187,10 @@ class MamlRL(Experiment):
                     policy_loss_v, value_loss_v = compute_a2c_loss(val_ep_samples, device)
 
                     # Average reward across tasks
-                    tr_task_reward = tr_ep_samples["rewards"] / self.params['n_envs']
+                    tr_task_reward = tr_ep_samples["rewards"].sum().item() / self.params['n_envs']
                     tr_iter_reward += tr_task_reward
 
-                    val_task_reward = val_ep_samples["rewards"] / self.params['n_envs']
+                    val_task_reward = val_ep_samples["rewards"].sum().item() / self.params['n_envs']
                     val_iter_reward += val_task_reward
 
                     policy_loss_v += policy_loss_v
@@ -213,8 +213,8 @@ class MamlRL(Experiment):
                 policy_loss_v = policy_loss_v / self.params['n_tasks_per_iter']
                 value_loss_v = value_loss_v / self.params['n_tasks_per_iter']
 
-                print(f"\nAverage train reward: {tr_iter_reward}")
-                print(f"Average valid reward: {val_iter_reward}")
+                # print(f"\nAverage train reward: {tr_iter_reward}")
+                # print(f"Average valid reward: {val_iter_reward}")
 
                 step = iteration * params['n_steps_per_episode']
                 metrics = {'tr_iter_reward': tr_iter_reward,
