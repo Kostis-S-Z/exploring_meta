@@ -42,7 +42,7 @@ class Sampler:
         self.obs[:] = env.reset()
         self.dones = np.array([False for _ in range(num_envs)])
 
-    def run(self):
+    def run(self, with_adv_ret=True):
         # Its a defaultdict and not a dict in order to initialize the default value with a list and append without
         # raising KeyError
         storage = defaultdict(list)  # should contain (state, action, reward, done, next state)
@@ -75,33 +75,35 @@ class Sampler:
             for key in storage:
                 storage[key] = np.asarray(storage[key])
 
-            obs = input_preprocessing(self.obs, device=self.device)
-            last_values = to_np(self.model.step(obs)[1]["value"])
+            # Calculate PPO's advantages & returns
+            if with_adv_ret:
+                obs = input_preprocessing(self.obs, device=self.device)
+                last_values = to_np(self.model.step(obs)[1]["value"])
 
-            # discount/bootstrap
-            storage["advantages"] = np.zeros_like(storage["rewards"])
-            storage["returns"] = np.zeros_like(storage["rewards"])
+                # discount/bootstrap
+                storage["advantages"] = np.zeros_like(storage["rewards"])
+                storage["returns"] = np.zeros_like(storage["rewards"])
 
-            last_gae_lam = 0
-            for t in reversed(range(self.num_steps)):
-                if t == self.num_steps - 1:
-                    next_non_terminal = 1.0 - self.dones
-                    next_values = last_values
-                else:
-                    next_non_terminal = 1.0 - storage["dones"][t + 1]
-                    next_values = storage["values"][t + 1]
+                last_gae_lam = 0
+                for t in reversed(range(self.num_steps)):
+                    if t == self.num_steps - 1:
+                        next_non_terminal = 1.0 - self.dones
+                        next_values = last_values
+                    else:
+                        next_non_terminal = 1.0 - storage["dones"][t + 1]
+                        next_values = storage["values"][t + 1]
 
-                td_error = (
-                        storage["rewards"][t]
-                        + self.gamma * next_values * next_non_terminal
-                        - storage["values"][t]
-                )
+                    td_error = (
+                            storage["rewards"][t]
+                            + self.gamma * next_values * next_non_terminal
+                            - storage["values"][t]
+                    )
 
-                storage["advantages"][t] = last_gae_lam = (
-                        td_error + self.gamma * self.lam * next_non_terminal * last_gae_lam
-                )
+                    storage["advantages"][t] = last_gae_lam = (
+                            td_error + self.gamma * self.lam * next_non_terminal * last_gae_lam
+                    )
 
-            storage["returns"] = storage["advantages"] + storage["values"]
+                storage["returns"] = storage["advantages"] + storage["values"]
 
         for key in storage:
             if len(storage[key].shape) < 3:
