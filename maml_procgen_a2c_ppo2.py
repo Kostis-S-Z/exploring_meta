@@ -9,7 +9,6 @@ import torch
 import learn2learn as l2l
 
 from procgen import ProcgenEnv
-from baselines.common.mpi_util import setup_mpi_gpus
 from baselines.common.vec_env import (VecExtractDictObs, VecMonitor, VecNormalize)
 
 from utils import *
@@ -26,10 +25,10 @@ from sampler_ppo2 import Sampler
 
 params = {
     # Inner loop parameters
-    "n_adapt_steps": 15,  # Number of inner loop iterations
+    "n_adapt_steps": 3,  # Number of inner loop iterations
     "inner_lr": 0.1,  # Default: 0.1
     # Outer loop parameters
-    "outer_lr": 0.1,
+    "outer_lr": 0.05,
     "backtrack_factor": 0.5,
     "ls_max_steps": 15,
     "max_kl": 0.01,
@@ -46,15 +45,16 @@ params = {
     # 0-unlimited, 1-debug. For generalization: 200-easy, 500-hard
     "n_levels": 1,
     # Number of different levels the agent should train on in an iteration (="ways") prev. meta_batch_size
-    "n_tasks_per_iter": 10,
+    # If n_levels = 1, then it a matter of how often to use inner loop adaptation
+    "n_tasks_per_iter": 20,
     # Number of total timesteps performed
     "n_timesteps": 25_000_000,
     # Number of runs on the same level for one inner iteration (="shots") prev. adapt_batch_size
     # "n_episodes_per_task": 100,  # Currently not in use. So just one episode per environment
     # Rollout length of each of the above runs
-    "n_steps_per_episode": 128,
+    "n_steps_per_episode": 256,
     # Split the batch in mini batches for faster adaptation
-    "n_steps_per_mini_batch": 256,
+    # "n_steps_per_mini_batch": 256,
     # Model params
     "save_every": 25,
     "seed": 42}
@@ -70,7 +70,7 @@ params['n_iters'] = int(params['n_timesteps'] // params['steps_per_task'])
 params['total_steps_per_task'] = int(params['steps_per_task'] * params['n_iters'])
 
 
-network = [32, 64, 64]
+network = [64, 128, 128]
 
 eval_params = {
     'n_eval_adapt_steps': 5,  # Number of steps to adapt to a new task
@@ -128,8 +128,6 @@ class MamlRL(Experiment):
         venv = VecExtractDictObs(venv, "rgb")
         venv = VecMonitor(venv=venv, filename=None, keep_buf=100)
         venv = VecNormalize(venv=venv, ob=False)
-
-        setup_mpi_gpus()
 
         self.run(venv, device)
 
