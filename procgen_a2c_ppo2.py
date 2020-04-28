@@ -24,7 +24,7 @@ from sampler_ppo2 import Sampler
 # 200.000.000 timesteps for hard difficulty
 
 params = {
-    "lr": 0.1,  # Default: 0.1
+    "lr": 0.005,  # Default: 0.1
     "backtrack_factor": 0.5,
     "ls_max_steps": 15,
     "max_kl": 0.01,
@@ -43,7 +43,7 @@ params = {
     # If n_levels = 1, then it a matter of how often to use inner loop adaptation
     # "n_tasks_per_iter": 20,
     # Number of total timesteps performed
-    "n_timesteps": 25_000_000,
+    "n_timesteps": 5_000_000,
     # Number of runs on the same level for one inner iteration (="shots") prev. adapt_batch_size
     # "n_episodes_per_task": 100,  # Currently not in use. So just one episode per environment
     # Rollout length of each of the above runs
@@ -63,7 +63,7 @@ params['n_iters'] = int(params['n_timesteps'] // params['steps_per_task'])
 # Total timesteps performed per task (if task==1, then total timesteps==total steps per task)
 params['total_steps_per_task'] = int(params['steps_per_task'] * params['n_iters'])
 
-network = [64, 128, 256, 256]
+network = [32, 64, 64]
 
 # Potential games:
 #   caveflyer
@@ -143,10 +143,15 @@ class PPO2Procgen(Experiment):
                                   device=device, num_envs=self.params['n_envs'])
 
                 # Sample training episodes (32envs, 256 length takes less than 1GB)
-                tr_ep_samples, tr_ep_infos = sampler.run()
-                n_envs = params['n_envs']
-                # tr_rewards_per_env = [tr_ep_samples['rewards'].reshape(-1, n_envs)[e] for e in range(n_envs)]
+                tr_ep_samples, tr_ep_infos = sampler.run(with_adv_ret=False)
                 tr_rewards = tr_ep_samples['rewards'].sum().item() / self.params['n_envs']
+
+                # n_envs = params['n_envs']
+                # tr_rewards_per_env = [tr_ep_samples['rewards'].reshape(-1, n_envs)[e] for e in range(n_envs)]
+
+                advantages, returns = compute_adv_ret(tr_ep_samples, self.params['gamma'], self.params['tau'], device)
+                tr_ep_samples["advantages"] = advantages.cpu().detach().numpy()
+                tr_ep_samples["returns"] = returns.cpu().detach().numpy()
 
                 policy_loss, value_loss = compute_a2c_loss(tr_ep_samples, device)
 
@@ -154,7 +159,7 @@ class PPO2Procgen(Experiment):
 
                 # Optimize
                 policy_optimiser.zero_grad()
-                loss.requires_grad = True
+                # loss.requires_grad = True
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)
                 policy_optimiser.step()
@@ -178,7 +183,7 @@ class PPO2Procgen(Experiment):
                            'val_actor_loss': val_actor_loss.item(),
                            'val_critic_loss': val_critic_loss.item()}
 
-                # t_iter.set_postfix(metrics)
+                t_iter.set_postfix({"Steps": step, "tr_iter_reward": tr_iter_reward})
                 self.log_metrics(metrics, step)
 
                 if iteration % self.params['save_every'] == 0:
