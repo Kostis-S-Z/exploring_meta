@@ -24,7 +24,7 @@ from sampler_ppo2 import Sampler
 # 200.000.000 timesteps for hard difficulty
 
 params = {
-    "lr": 0.005,  # Default: 0.1
+    "lr": 0.01,  # Default: 0.1
     "backtrack_factor": 0.5,
     "ls_max_steps": 15,
     "max_kl": 0.01,
@@ -36,7 +36,7 @@ params = {
     # easy or hard: only affects the visual variance between levels
     "distribution_mode": "easy",
     # Number of environments OF THE SAME LEVEL to run in parallel -> 32envs ~7gb RAM (Original was 64)
-    "n_envs": 32,
+    "n_envs": 1,
     # 0-unlimited, 1-debug. For generalization: 200-easy, 500-hard
     "n_levels": 1,
     # Number of different levels the agent should train on in an iteration (="ways") prev. meta_batch_size
@@ -159,7 +159,7 @@ class PPO2Procgen(Experiment):
 
                 # Optimize
                 policy_optimiser.zero_grad()
-                # loss.requires_grad = True
+                loss.requires_grad = True
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)
                 policy_optimiser.step()
