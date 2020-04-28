@@ -8,13 +8,13 @@ from copy import deepcopy
 
 from tqdm import trange, tqdm
 
-from metaworld.benchmarks import ML10
+import metaworld.benchmarks as mtwrld
 import cherry as ch
 import learn2learn as l2l
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize, evaluate
+from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize
 from misc_scripts import run_cl_rl_exp
 
 params = {
@@ -23,8 +23,8 @@ params = {
     "tau": 1.0,
     "gamma": 0.99,
     "backtrack_factor": 0.5,  # Meta-optimizer
-    "ls_max_steps": 15,       # Meta-optimizer
-    "max_kl": 0.01,           # Meta-optimizer
+    "ls_max_steps": 15,  # Meta-optimizer
+    "max_kl": 0.01,  # Meta-optimizer
     "adapt_batch_size": 20,  # "shots"  Default: 20
     "meta_batch_size": 10,  # "ways" Default: 20
     "adapt_steps": 3,  # Default 1
@@ -32,11 +32,20 @@ params = {
     "save_every": 25,
     "seed": 42}
 
+eval_params = {
+    'adapt_steps': 5,  # Number of steps to adapt to a new task
+    'n_eval_episodes': 10,  # Number of shots per task
+    'n_eval_tasks': 10,  # Number of different tasks to evaluate on
+    'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
+    'tau': params['tau'],
+    'gamma': params['gamma'],
+}
+
 # Adapt steps: how many times you will replay & learn a specific number of episodes (=adapt_batch_size)
 # Meta_batch_size (=ways): how many tasks an epoch has. (a task can have one or many episodes)
 # Adapt_batch_size (=shots): number of episodes (not steps!) during adaptation
 
-
+benchmark = "ML1"  # Choose between ML1, ML10, ML45
 workers = 1
 
 cuda = False
@@ -44,15 +53,29 @@ cuda = False
 wandb = False
 
 
+def make_env(test=False):
+    # Set a specific task or left empty to train on all available tasks
+    task = 'pick-place-v1' if benchmark == "ML1" else ""
+
+    # Fetch one of the ML benchmarks from metaworld
+    benchmark_env = getattr(mtwrld, benchmark)
+
+    if test:
+        env = benchmark_env.get_test_tasks(task)
+    else:
+        env = benchmark_env.get_train_tasks(task)
+
+    env = ch.envs.ActionSpaceScaler(env)
+    env.seed(params['seed'])
+    env.set_task(env.sample_tasks(1)[0])
+    env = ch.envs.Torch(env)
+    return env
+
+
 class MamlRL(Experiment):
 
     def __init__(self):
         super(MamlRL, self).__init__("maml", "metaworld", params, path="rl_results/", use_wandb=wandb)
-
-        def make_env():
-            env = ML10.get_train_tasks()
-            env = ch.envs.ActionSpaceScaler(env)
-            return env
 
         device = torch.device('cpu')
 
@@ -60,10 +83,7 @@ class MamlRL(Experiment):
         np.random.seed(self.params['seed'])
         torch.manual_seed(self.params['seed'])
 
-        env = l2l.gym.AsyncVectorEnv([make_env for _ in range(workers)])
-        env.seed(self.params['seed'])
-        env.set_task(env.sample_tasks(1)[0])
-        env = ch.envs.Torch(env)
+        env = make_env()
 
         if cuda and torch.cuda.device_count():
             print(f"Running on {torch.cuda.get_device_name(0)}")
@@ -138,7 +158,39 @@ class MamlRL(Experiment):
         self.save_model(policy)
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
+        # Evaluate on new test tasks
+        self.logger['test_reward'] = evaluate(policy, baseline, device)
+        self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
+
+
+def evaluate(policy, baseline, device):
+    env = make_env(test=True)
+    eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
+
+    tasks_reward = 0.0
+
+    for i, task in enumerate(eval_task_list):
+        clone = deepcopy(policy)
+        env.set_task(task)
+        env.reset()
+        task = ch.envs.Runner(env)
+
+        # Adapt
+        for step in range(eval_params['adapt_steps']):
+            adapt_episodes = task.run(clone, steps=150)
+            clone = fast_adapt_trpo_a2c(clone, adapt_episodes, baseline, eval_params['adapt_lr'],
+                                        eval_params['gamma'], eval_params['tau'], first_order=True, device=device)
+            task.env.reset()
+
+        eval_episodes = task.run(clone, steps=150)
+
+        task_reward = eval_episodes.reward().sum().item()
+        print(f"Reward for task {i} : {task_reward}")
+        tasks_reward += task_reward
+
+    final_eval_reward = tasks_reward / eval_params['n_eval_tasks']
+    return final_eval_reward
 
 
 if __name__ == '__main__':
