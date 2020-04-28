@@ -94,8 +94,6 @@ def build_procgen_cnn(input_size, output_size, network):
     n_layers = len(network)
     activation = nn.ReLU
 
-    # Building a network using a dictionary this way ONLY THIS ONLY WORKS FOR PYTHON 3.7
-    # Otherwise the dictionary won't remember the order!
     # Define input layer
     features = OrderedDict(
         {"conv_0": nn.Conv2d(in_channels=input_size, out_channels=network[0], kernel_size=3, padding=1),
@@ -126,7 +124,7 @@ def build_procgen_cnn(input_size, output_size, network):
 
     network_body = nn.Sequential(*list(features.values()))
 
-    head = nn.Linear(in_features=flatten_size, out_features=output_size, bias=True)  # No activation for output
+    head = nn.Linear(in_features=flatten_size, out_features=output_size)  # No activation for output
     maml_init_(head)
 
     return flatten_size, network_body, head
@@ -224,7 +222,7 @@ class Critic(nn.Module):
 class ActorCritic(nn.Module):
     def __init__(self, input_size, output_size, network=[32, 64, 64]):
         super().__init__()
-        self.actor = Actor(input_size, output_size, network, stochastic=True)
+        self.actor = Actor(input_size, output_size, network, stochastic=False)
         self.critic = Critic(input_size, 1, network)
 
         # This is just a trivial assignment to follow the implementation of the sampler
