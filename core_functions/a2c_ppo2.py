@@ -16,7 +16,7 @@ def compute_adv_ret(train_episodes, gamma, tau, device='cpu'):
                                                  rewards,
                                                  dones,
                                                  values,
-                                                 torch.zeros(1))
+                                                 torch.zeros(1, device=device))
         advantages = ch.normalize(advantages, epsilon=1e-8)
         returns = ch.td.discount(gamma, rewards, dones)
 
