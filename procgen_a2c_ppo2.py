@@ -24,7 +24,8 @@ from sampler_ppo2 import Sampler
 # 200.000.000 timesteps for hard difficulty
 
 params = {
-    "lr": 0.1,  # Default: 0.1
+    "ppo_epochs": 3,
+    "lr": 0.0005,  # Default: 0.1
     "backtrack_factor": 0.5,
     "ls_max_steps": 15,
     "max_kl": 0.01,
@@ -36,14 +37,14 @@ params = {
     # easy or hard: only affects the visual variance between levels
     "distribution_mode": "easy",
     # Number of environments OF THE SAME LEVEL to run in parallel -> 32envs ~7gb RAM (Original was 64)
-    "n_envs": 32,
+    "n_envs": 1,
     # 0-unlimited, 1-debug. For generalization: 200-easy, 500-hard
     "n_levels": 1,
     # Number of different levels the agent should train on in an iteration (="ways") prev. meta_batch_size
     # If n_levels = 1, then it a matter of how often to use inner loop adaptation
     # "n_tasks_per_iter": 20,
     # Number of total timesteps performed
-    "n_timesteps": 25_000_000,
+    "n_timesteps": 5_000_000,
     # Number of runs on the same level for one inner iteration (="shots") prev. adapt_batch_size
     # "n_episodes_per_task": 100,  # Currently not in use. So just one episode per environment
     # Rollout length of each of the above runs
@@ -51,7 +52,7 @@ params = {
     # Split the batch in mini batches for faster adaptation
     # "n_steps_per_mini_batch": 256,
     # Model params
-    "save_every": 25,
+    "save_every": 100,
     "seed": 42}
 
 # Timesteps performed per task in each iteration
@@ -77,6 +78,7 @@ env_name = "starpilot"
 start_level = 0  # ???
 
 cuda = True
+log_validation = False
 
 wandb = False
 
@@ -123,63 +125,82 @@ class PPO2Procgen(Experiment):
         policy = ActorCritic(observ_size, action_space, network)
         policy.to(device)
 
-        policy_optimiser = torch.optim.Adam(policy.parameters(), lr=self.params['lr'])
-        # actor_optimiser = torch.optim.Adam(policy.actor.parameters(), lr=self.params['lr'])
-        # critic_optimiser = torch.optim.Adam(policy.critic.parameters(), lr=self.params['lr'])
+        """Single optimiser"""
+        # policy_optimiser = torch.optim.Adam(policy.parameters(), lr=self.params['lr'])
+        """Separate optimisers"""
+        actor_optimiser = torch.optim.Adam(policy.actor.parameters(), lr=self.params['lr'])
+        critic_optimiser = torch.optim.Adam(policy.critic.parameters(), lr=self.params['lr'])
 
         self.log_model(policy.actor, device, input_shape=observ_space)  # Input shape is specific to dataset
 
         t_iter = trange(self.params['n_iters'], desc="Iteration", position=0)
         try:
-            value_l_weight = 0.5
-            entropy_weight = 0.01
 
             for iteration in t_iter:
 
                 env = self.make_procgen_env()
-                # Sampler uses policy.eval() which turns off training to sample the actions (same as torch.no_grad?)
                 sampler = Sampler(env=env, model=policy, num_steps=self.params['n_steps_per_episode'],
                                   gamma_coef=params['gamma'], lambda_coef=params['tau'],
                                   device=device, num_envs=self.params['n_envs'])
 
                 # Sample training episodes (32envs, 256 length takes less than 1GB)
-                tr_ep_samples, tr_ep_infos = sampler.run()
-                n_envs = params['n_envs']
-                # tr_rewards_per_env = [tr_ep_samples['rewards'].reshape(-1, n_envs)[e] for e in range(n_envs)]
+                tr_ep_samples, tr_ep_infos = sampler.run(no_grad=False, with_adv_ret=False)
                 tr_rewards = tr_ep_samples['rewards'].sum().item() / self.params['n_envs']
 
-                policy_loss, value_loss = compute_a2c_loss(tr_ep_samples, device)
+                for ppo_epochs in range(self.params['ppo_epochs']):
+                    advantages, returns = sampler.calc_adv_ret(tr_ep_samples['rewards'],
+                                                               tr_ep_samples['dones'],
+                                                               tr_ep_samples['values'])
+                    tr_ep_samples["advantages"], tr_ep_samples["returns"] = advantages, returns
 
-                loss = policy_loss + (value_l_weight * value_loss)
+                    policy_loss, value_loss = compute_a2c_loss(tr_ep_samples, device)
+                    """Single optimiser"""
+                    # loss = policy_loss + (value_l_weight * value_loss)
+                    # policy_optimiser.zero_grad()
+                    # loss.requires_grad = True
+                    # loss.backward()
+                    # torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)
+                    # policy_optimiser.step()
 
-                # Optimize
-                policy_optimiser.zero_grad()
-                loss.requires_grad = True
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)
-                policy_optimiser.step()
+                    """ Separate optimisers"""
+                    # Optimize Actor
+                    actor_optimiser.zero_grad()
+                    policy_loss.requires_grad = True
+                    policy_loss.backward()
+                    actor_optimiser.step()
+
+                    # Optimize Critic
+                    critic_optimiser.zero_grad()
+                    value_loss.requires_grad = True
+                    value_loss.backward()
+                    critic_optimiser.step()
 
                 # Average reward across tasks
                 tr_iter_reward = tr_rewards
                 tr_actor_loss = policy_loss.item()
                 tr_critic_loss = value_loss.item()
 
-                # Compute validation Loss
-                val_ep_samples, val_ep_info = sampler.run()
-                val_iter_reward = val_ep_samples["rewards"].sum().item() / self.params['n_envs']
-                val_actor_loss, val_critic_loss = compute_a2c_loss(val_ep_samples, device)
-
                 step = iteration * params['n_steps_per_episode'] * params['n_envs']
                 metrics = {'tr_iter_reward': tr_iter_reward,
                            'tr_actor_loss': tr_actor_loss,
-                           'tr_critic_loss': tr_critic_loss,
-                           'tr_av_loss': loss.item(),
-                           'val_iter_reward': val_iter_reward,
-                           'val_actor_loss': val_actor_loss.item(),
-                           'val_critic_loss': val_critic_loss.item()}
+                           'tr_critic_loss': tr_critic_loss}
 
-                # t_iter.set_postfix(metrics)
+                if log_validation:
+                    # Compute validation loss without storing gradients & calculate advantages needed for the loss
+                    val_ep_samples, val_ep_info = sampler.run(no_grad=True, with_adv_ret=True)
+                    val_actor_loss, val_critic_loss = compute_a2c_loss(val_ep_samples, device)
+
+                    # Update metrics with validation data
+                    val_iter_reward = val_ep_samples["rewards"].sum().item() / self.params['n_envs']
+                    metrics.update({'val_iter_reward': val_iter_reward,
+                                    'val_actor_loss': val_actor_loss.item(),
+                                    'val_critic_loss': val_critic_loss.item()})
+
                 self.log_metrics(metrics, step)
+                t_iter.set_postfix({"Steps": step,
+                                    "tr_iter_reward": tr_iter_reward,
+                                    'tr_actor_loss': tr_actor_loss,
+                                    'tr_critic_loss': tr_critic_loss})
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy, str(iteration))
