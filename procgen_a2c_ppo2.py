@@ -6,22 +6,15 @@ import numpy as np
 from tqdm import trange
 
 import torch
-import cherry as ch
-import learn2learn as l2l
 
 from procgen import ProcgenEnv
 from baselines.common.vec_env import (VecExtractDictObs, VecMonitor, VecNormalize)
 
 from utils import *
 from core_functions.policies import ActorCritic
-from core_functions.a2c_ppo2 import compute_a2c_loss, compute_adv_ret
+from core_functions.a2c_ppo2 import compute_a2c_loss
 
 from sampler_ppo2 import Sampler
-
-# updates = total timesteps / batch
-# 1.000.000 serial timesteps takes around 3hours
-# 25.000.000 timesteps for easy difficulty
-# 200.000.000 timesteps for hard difficulty
 
 params = {
     "ppo_epochs": 3,
@@ -64,7 +57,7 @@ params['n_iters'] = int(params['n_timesteps'] // params['steps_per_task'])
 # Total timesteps performed per task (if task==1, then total timesteps==total steps per task)
 params['total_steps_per_task'] = int(params['steps_per_task'] * params['n_iters'])
 
-network = [64, 128, 256, 256]
+network = [64, 128, 128]
 
 # Potential games:
 #   caveflyer
@@ -75,7 +68,7 @@ network = [64, 128, 256, 256]
 #   bigfish: fast rewards
 
 env_name = "starpilot"
-start_level = 0  # ???
+start_level = params['seed']
 
 cuda = True
 log_validation = False
@@ -125,9 +118,6 @@ class PPO2Procgen(Experiment):
         policy = ActorCritic(observ_size, action_space, network)
         policy.to(device)
 
-        """Single optimiser"""
-        # policy_optimiser = torch.optim.Adam(policy.parameters(), lr=self.params['lr'])
-        """Separate optimisers"""
         actor_optimiser = torch.optim.Adam(policy.actor.parameters(), lr=self.params['lr'])
         critic_optimiser = torch.optim.Adam(policy.critic.parameters(), lr=self.params['lr'])
 
@@ -154,15 +144,7 @@ class PPO2Procgen(Experiment):
                     tr_ep_samples["advantages"], tr_ep_samples["returns"] = advantages, returns
 
                     policy_loss, value_loss = compute_a2c_loss(tr_ep_samples, device)
-                    """Single optimiser"""
-                    # loss = policy_loss + (value_l_weight * value_loss)
-                    # policy_optimiser.zero_grad()
-                    # loss.requires_grad = True
-                    # loss.backward()
-                    # torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)
-                    # policy_optimiser.step()
 
-                    """ Separate optimisers"""
                     # Optimize Actor
                     actor_optimiser.zero_grad()
                     policy_loss.requires_grad = True
