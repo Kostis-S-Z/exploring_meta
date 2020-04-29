@@ -17,6 +17,7 @@ class Experiment:
 
     def __init__(self, algo, dataset, params, path="", use_wandb=False):
 
+        params['dataset'] = dataset
         self.params = params
         # Make sure all experiments have a seed
         if 'seed' in params.keys():
@@ -42,7 +43,7 @@ class Experiment:
         # Optionally, use Weights and Biases to monitor performance
         if use_wandb:
             self._use_wandb = True
-            self._wandb = wandb.init(project="l2l", id=self.logger['model_id'], config=params)
+            self._wandb = wandb.init(project="l2l", id=self.logger['model_id'], config=self.params)
         else:
             self._use_wandb = False
 
@@ -58,14 +59,17 @@ class Experiment:
         if self._use_wandb:
             wandb.watch(model)
 
-    def log_metrics(self, metrics):
+    def log_metrics(self, metrics, step=None):
         for key, value in metrics.items():
             if key not in self.metrics:
                 self.metrics[key] = []
             self.metrics[key].append(value)
 
         if self._use_wandb:
-            wandb.log(metrics)
+            if step is not None:
+                wandb.log(metrics, step=step)
+            else:
+                wandb.log(metrics)
 
     def save_logs_to_file(self):
         print('Saving metrics...')
