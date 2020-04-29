@@ -147,33 +147,38 @@ class PPO2Procgen(Experiment):
                 tr_ep_samples, tr_ep_infos = sampler.run(no_grad=False, with_adv_ret=False)
                 tr_rewards = tr_ep_samples['rewards'].sum().item() / self.params['n_envs']
 
-                # n_envs = params['n_envs']
-                # tr_rewards_per_env = [tr_ep_samples['rewards'].reshape(-1, n_envs)[e] for e in range(n_envs)]
+                for ppo_epochs in range(self.params['ppo_epochs']):
+                    advantages, returns = sampler.calc_adv_ret(tr_ep_samples['rewards'],
+                                                               tr_ep_samples['dones'],
+                                                               tr_ep_samples['values'])
+                    tr_ep_samples["advantages"], tr_ep_samples["returns"] = advantages, returns
 
-                advantages, returns = compute_adv_ret(tr_ep_samples, self.params['gamma'], self.params['tau'], device)
-                tr_ep_samples["advantages"] = advantages.cpu().detach().numpy()
-                tr_ep_samples["returns"] = returns.cpu().detach().numpy()
+                    policy_loss, value_loss = compute_a2c_loss(tr_ep_samples, device)
+                    """Single optimiser"""
+                    # loss = policy_loss + (value_l_weight * value_loss)
+                    # policy_optimiser.zero_grad()
+                    # loss.requires_grad = True
+                    # loss.backward()
+                    # torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)
+                    # policy_optimiser.step()
 
-                policy_loss, value_loss = compute_a2c_loss(tr_ep_samples, device)
+                    """ Separate optimisers"""
+                    # Optimize Actor
+                    actor_optimiser.zero_grad()
+                    policy_loss.requires_grad = True
+                    policy_loss.backward()
+                    actor_optimiser.step()
 
-                loss = policy_loss + (value_l_weight * value_loss)
-
-                # Optimize
-                policy_optimiser.zero_grad()
-                loss.requires_grad = True
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)
-                policy_optimiser.step()
+                    # Optimize Critic
+                    critic_optimiser.zero_grad()
+                    value_loss.requires_grad = True
+                    value_loss.backward()
+                    critic_optimiser.step()
 
                 # Average reward across tasks
                 tr_iter_reward = tr_rewards
                 tr_actor_loss = policy_loss.item()
                 tr_critic_loss = value_loss.item()
-
-                # Compute validation Loss
-                val_ep_samples, val_ep_info = sampler.run()
-                val_iter_reward = val_ep_samples["rewards"].sum().item() / self.params['n_envs']
-                val_actor_loss, val_critic_loss = compute_a2c_loss(val_ep_samples, device)
 
                 step = iteration * params['n_steps_per_episode'] * params['n_envs']
                 metrics = {'tr_iter_reward': tr_iter_reward,
