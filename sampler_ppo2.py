@@ -46,7 +46,7 @@ class Sampler:
 
         # In case you want to collect data without tracking gradients (e.g validation / testing)
         if no_grad:
-            with torch.no_grad:
+            with torch.no_grad():
                 storage, epinfos = self.collect_experience(with_adv_ret)
         else:
             storage, epinfos = self.collect_experience(with_adv_ret)
