@@ -42,7 +42,24 @@ class Sampler:
         self.obs[:] = env.reset()
         self.dones = np.array([False for _ in range(num_envs)])
 
-    def run(self, with_adv_ret=True):
+    def run(self, no_grad=False, with_adv_ret=True):
+
+        # In case you want to collect data without tracking gradients (e.g validation / testing)
+        if no_grad:
+            with torch.no_grad:
+                storage, epinfos = self.collect_experience(with_adv_ret)
+        else:
+            storage, epinfos = self.collect_experience(with_adv_ret)
+
+        for key in storage:
+            if len(storage[key].shape) < 3:
+                storage[key] = np.expand_dims(storage[key], -1)
+            s = storage[key].shape
+            storage[key] = storage[key].swapaxes(0, 1).reshape(s[0] * s[1], *s[2:])
+
+        return storage, epinfos
+
+    def collect_experience(self, with_adv_ret):
         # Its a defaultdict and not a dict in order to initialize the default value with a list and append without
         # raising KeyError
         storage = defaultdict(list)  # should contain (state, action, reward, done, next state)
@@ -74,38 +91,39 @@ class Sampler:
 
         # Calculate PPO's advantages & returns
         if with_adv_ret:
-            obs = input_preprocessing(self.obs, device=self.device)
-            last_values = to_np(self.model.step(obs)[1]["value"])
-
-            # discount/bootstrap
-            storage["advantages"] = np.zeros_like(storage["rewards"])
-            storage["returns"] = np.zeros_like(storage["rewards"])
-
-            last_gae_lam = 0
-            for t in reversed(range(self.num_steps)):
-                if t == self.num_steps - 1:
-                    next_non_terminal = 1.0 - self.dones
-                    next_values = last_values
-                else:
-                    next_non_terminal = 1.0 - storage["dones"][t + 1]
-                    next_values = storage["values"][t + 1]
-
-                td_error = (
-                        storage["rewards"][t]
-                        + self.gamma * next_values * next_non_terminal
-                        - storage["values"][t]
-                )
-
-                storage["advantages"][t] = last_gae_lam = (
-                        td_error + self.gamma * self.lam * next_non_terminal * last_gae_lam
-                )
-
-            storage["returns"] = storage["advantages"] + storage["values"]
-
-        for key in storage:
-            if len(storage[key].shape) < 3:
-                storage[key] = np.expand_dims(storage[key], -1)
-            s = storage[key].shape
-            storage[key] = storage[key].swapaxes(0, 1).reshape(s[0] * s[1], *s[2:])
+            storage["advantages"], storage["returns"] = self.calc_adv_ret(storage["rewards"],
+                                                                          storage["dones"],
+                                                                          storage["values"])
 
         return storage, epinfos
+
+    def calc_adv_ret(self, rewards, dones, values):
+        obs = input_preprocessing(self.obs, device=self.device)
+        last_values = to_np(self.model.step(obs)[1]["value"])
+
+        # discount/bootstrap
+        advantages = np.zeros_like(rewards)
+        returns = np.zeros_like(rewards)
+
+        last_gae_lam = 0
+        for t in reversed(range(self.num_steps)):
+            if t == self.num_steps - 1:
+                next_non_terminal = 1.0 - self.dones
+                next_values = last_values
+            else:
+                next_non_terminal = 1.0 - dones[t + 1]
+                next_values = values[t + 1]
+
+            td_error = (
+                    rewards[t]
+                    + self.gamma * next_values * next_non_terminal
+                    - values[t]
+            )
+
+            advantages[t] = last_gae_lam = (
+                    td_error + self.gamma * self.lam * next_non_terminal * last_gae_lam
+            )
+
+        returns = advantages + values
+
+        return advantages, returns
