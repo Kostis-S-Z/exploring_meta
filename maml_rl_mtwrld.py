@@ -186,13 +186,13 @@ class MamlRL(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
-        self.logger['test_reward'] = evaluate(policy, baseline, device)
+        self.logger['test_reward'] = evaluate(policy, baseline, self.params['seed'], device)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
 
 
-def evaluate(policy, baseline, device):
-    env = make_env(test=True)
+def evaluate(policy, baseline, seed, device):
+    env = make_env(seed, test=True)
     eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
 
     tasks_reward = 0.0
@@ -205,14 +205,15 @@ def evaluate(policy, baseline, device):
 
         # Adapt
         for step in range(eval_params['adapt_steps']):
-            adapt_episodes = task.run(clone, steps=150)
-            clone = fast_adapt_trpo_a2c(clone, adapt_episodes, baseline, eval_params['adapt_lr'],
-                                        eval_params['gamma'], eval_params['tau'], first_order=True, device=device)
-            task.env.reset()
+            adapt_episodes = collect_episodes(clone, task, params['adapt_batch_size'])
 
-        eval_episodes = task.run(clone, steps=150)
+            clone = fast_adapt_trpo_a2c(clone, adapt_episodes, baseline,
+                                        params['inner_lr'], params['gamma'], params['tau'],
+                                        first_order=True, device=device)
 
-        task_reward = eval_episodes.reward().sum().item()
+        eval_episodes = collect_episodes(clone, task, params['adapt_batch_size'])
+
+        task_reward = eval_episodes.reward().sum().item() / params['adapt_batch_size']
         print(f"Reward for task {i} : {task_reward}")
         tasks_reward += task_reward
 
