@@ -97,7 +97,7 @@ cl_params = {
 #   bigfish: fast rewards
 
 env_name = "starpilot"
-start_level = 0  # ???
+start_level = params['seed']
 
 cuda = True
 
@@ -227,13 +227,17 @@ class MamlRL(Experiment):
                 step = iteration * params['n_steps_per_episode'] * params['n_tasks_per_iter'] * params['n_envs']
                 metrics = {'step': step,
                            'tr_iter_reward': tr_iter_reward,
-                           'tr_iter_actor_loss': policy_loss_tr,
-                           'tr_iter_critic_loss': value_loss_tr,
-                           # 'val_iter_reward': val_iter_reward,
-                           'val_iter_critic_loss': value_loss_v.item()}
-                           # 'val_iter_actor_loss': policy_loss_v}
+                           'tr_actor_loss': policy_loss_tr,
+                           'tr_critic_loss': value_loss_tr,
+                           'val_iter_reward': val_iter_reward,
+                           'val_critic_loss': value_loss_v.item(),
+                           'val_actor_loss': policy_loss_v.item()}
+                # 'val_iter_actor_loss': policy_loss_v}
 
-                t_iter.set_postfix(metrics)
+                t_iter.set_postfix({'step': step,
+                                    'tr_iter_reward': tr_iter_reward,
+                                    'tr_actor_loss': policy_loss_tr,
+                                    'tr_critic_loss': value_loss_tr})
                 self.log_metrics(metrics, step)
 
                 if iteration % self.params['save_every'] == 0:
