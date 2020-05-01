@@ -21,7 +21,7 @@ params = {
     # Inner loop parameters
     "inner_lr": 0.1,
     "adapt_steps": 3,
-    "adapt_batch_size": 5,  # "shots"
+    "adapt_batch_size": 1,  # "shots"  PER WORKER
     # Outer loop parameters
     "meta_batch_size": 10,  # "ways"
     "outer_lr": 0.05,
@@ -46,47 +46,57 @@ eval_params = {
 }
 
 benchmark = "ML1"  # Choose between ML1, ML10, ML45
-workers = 1
+workers = 16
 
 cuda = False
 
 wandb = False
 
 
-def make_env(test=False):
+def make_env(seed, test=False):
     # Set a specific task or left empty to train on all available tasks
     task = 'pick-place-v1' if benchmark == "ML1" else ""
 
     # Fetch one of the ML benchmarks from metaworld
     benchmark_env = getattr(mtwrld, benchmark)
 
-    if test:
-        env = benchmark_env.get_test_tasks(task)
-    else:
-        env = benchmark_env.get_train_tasks(task)
+    def init_env():
+        if test:
+            env = benchmark_env.get_test_tasks(task)
+        else:
+            env = benchmark_env.get_train_tasks(task)
 
-    env = ch.envs.ActionSpaceScaler(env)
-    env.seed(params['seed'])
+        env = ch.envs.ActionSpaceScaler(env)
+        return env
+
+    env = l2l.gym.AsyncVectorEnv([init_env for _ in range(workers)])
+
+    env.seed(seed)
     env.set_task(env.sample_tasks(1)[0])
     env = ch.envs.Torch(env)
     return env
 
 
 def collect_episodes(model, task, n_episodes, n_steps=None):
-    # If user doesn't provide predefined horizon length, use maximum horizon set by meta-world
+    # If user doesn't provide predefined horizon length,
+    # use the maximum horizon set by meta-world environment
     if n_steps is None:
-        n_steps = task.active_env.max_path_length
+        n_steps = task._env.active_env.max_path_length
 
-    episodes = ch.ExperienceReplay()
     # Collect multiple episodes per task
+    episodes = ch.ExperienceReplay()
     for episode in range(n_episodes):
-        # We manually define the horizon for 150 steps following the metaworld paper
         episode = task.run(model, steps=n_steps)
-        episodes.__iadd__(episode)
+        # Manually make done True at the last step
+        episode[-1].done = torch.ones_like(episode[-1].done)
+        episodes += episode
         # Due to the current meta-world build, when an episode reaches the end of the horizon it doesn't
         # automatically reset the environment so we have to manually reset it
         # (see https://github.com/rlworkgroup/metaworld/issues/60)
         task.env.reset()
+
+    if workers > 1:
+        episodes = ch.envs.runner_wrapper.flatten_episodes(episodes, n_episodes, workers)
     return episodes
 
 
@@ -101,7 +111,7 @@ class MamlRL(Experiment):
         np.random.seed(self.params['seed'])
         torch.manual_seed(self.params['seed'])
 
-        env = make_env()
+        env = make_env(self.params['seed'])
 
         if cuda and torch.cuda.device_count():
             print(f"Running on {torch.cuda.get_device_name(0)}")
