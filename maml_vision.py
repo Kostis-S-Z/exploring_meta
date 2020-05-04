@@ -53,6 +53,7 @@ class MamlVision(Experiment):
         super(MamlVision, self).__init__(f"maml_{params['ways']}w{params['shots']}s",
                                          dataset, params, path="results/", use_wandb=wandb)
 
+        # Initialize seeds & devices
         random.seed(self.params['seed'])
         np.random.seed(self.params['seed'])
         torch.manual_seed(self.params['seed'])
@@ -62,6 +63,7 @@ class MamlVision(Experiment):
             torch.cuda.manual_seed(self.params['seed'])
             device = torch.device('cuda')
 
+        # Fetch data as tasks
         if dataset == "omni":
             train_tasks, valid_tasks, test_tasks = get_omniglot(self.params['ways'], self.params['shots'])
             if omni_cnn:
@@ -94,11 +96,14 @@ class MamlVision(Experiment):
         try:
 
             for iteration in t:
+                # Clear the gradients after successfully back-propagating through the whole network
                 opt.zero_grad()
+                # Initialize iteration's metrics
                 meta_train_loss = 0.0
                 meta_train_accuracy = 0.0
                 meta_valid_loss = 0.0
                 meta_valid_accuracy = 0.0
+                # Inner (Adaptation) loop
                 for task in range(self.params['meta_batch_size']):
                     # Compute meta-training loss
                     learner = maml.clone()
@@ -107,6 +112,8 @@ class MamlVision(Experiment):
                                                      self.params['adapt_steps'],
                                                      self.params['shots'], self.params['ways'],
                                                      device)
+
+                    # Calculate the gradients of the now updated parameters of the model using the evaluation loss!
                     eval_loss.backward()
                     meta_train_loss += eval_loss.item()
                     meta_train_accuracy += eval_acc.item()
@@ -134,6 +141,7 @@ class MamlVision(Experiment):
                 self.log_metrics(metrics)
 
                 # Average the accumulated gradients and optimize
+                # TODO: is it the evaluation gradients or training + evaluation gradients?
                 for p in maml.parameters():
                     p.grad.data.mul_(1.0 / self.params['meta_batch_size'])
                 opt.step()
