@@ -77,12 +77,7 @@ def make_env(seed, test=False):
     return env
 
 
-def collect_episodes(model, task, n_episodes, n_steps=None):
-    # If user doesn't provide predefined horizon length,
-    # use the maximum horizon set by meta-world environment
-    if n_steps is None:
-        n_steps = task._env.active_env.max_path_length
-
+def collect_episodes(model, task, n_episodes, n_steps):
     # Collect multiple episodes per task
     episodes = ch.ExperienceReplay()
     for episode in range(n_episodes):
@@ -121,6 +116,16 @@ class MamlRL(Experiment):
         self.run(env, device)
 
     def run(self, env, device):
+        # If user doesn't provide predefined horizon length,
+        # use the maximum horizon set by meta-world environment
+        # if n_steps is None:
+        n_steps = env._env.active_env.max_path_length
+
+        # Calculate how many samples the agent sees per iteration
+        n_val_seen = n_steps * workers * self.params['adapt_batch_size']  # Samples seen in validation
+        n_tr_seen = n_val_seen * self.params['adapt_steps']  # Samples seen in inner loop
+        n_task_seen = n_tr_seen + n_val_seen  # Samples seen in one task
+        n_iter_seen = n_task_seen * self.params['meta_batch_size']  # Samples in one iteration
 
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
         # baseline.to(device)
@@ -151,14 +156,14 @@ class MamlRL(Experiment):
 
                     # Adapt
                     for step in range(self.params['adapt_steps']):
-                        train_episodes = collect_episodes(clone, task, self.params['adapt_batch_size'])
+                        train_episodes = collect_episodes(clone, task, self.params['adapt_batch_size'], n_steps)
                         task_replay.append(train_episodes)
                         clone = fast_adapt_trpo_a2c(clone, train_episodes, baseline,
                                                     self.params['inner_lr'], self.params['gamma'], self.params['tau'],
                                                     first_order=True, device=device)
 
                     # Compute validation Loss
-                    valid_episodes = collect_episodes(clone, task, self.params['adapt_batch_size'])
+                    valid_episodes = collect_episodes(clone, task, self.params['adapt_batch_size'], n_steps)
                     task_replay.append(valid_episodes)
 
                     iter_reward += valid_episodes.reward().sum().item() / self.params['adapt_batch_size']
@@ -168,10 +173,11 @@ class MamlRL(Experiment):
                 validation_reward = iter_reward / self.params['meta_batch_size']
                 metrics = {'validation_reward': validation_reward}
 
-                t.set_postfix(metrics)
-                self.log_metrics(metrics)
-
                 meta_optimize(self.params, policy, baseline, iter_replays, iter_policies, device)
+
+                step = n_iter_seen * (iteration + 1)
+                self.log_metrics(metrics, step=step)
+                t.set_postfix(metrics)
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy, str(iteration))
@@ -186,12 +192,12 @@ class MamlRL(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
-        self.logger['test_reward'] = evaluate(policy, baseline, self.params['seed'], device)
+        self.logger['test_reward'] = evaluate(policy, baseline, n_steps, self.params['seed'], device)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
 
 
-def evaluate(policy, baseline, seed, device):
+def evaluate(policy, baseline, n_steps, seed, device):
     env = make_env(seed, test=True)
     eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
 
@@ -205,13 +211,13 @@ def evaluate(policy, baseline, seed, device):
 
         # Adapt
         for step in range(eval_params['adapt_steps']):
-            adapt_episodes = collect_episodes(clone, task, params['adapt_batch_size'])
+            adapt_episodes = collect_episodes(clone, task, params['adapt_batch_size'], n_steps)
 
             clone = fast_adapt_trpo_a2c(clone, adapt_episodes, baseline,
                                         params['inner_lr'], params['gamma'], params['tau'],
                                         first_order=True, device=device)
 
-        eval_episodes = collect_episodes(clone, task, params['adapt_batch_size'])
+        eval_episodes = collect_episodes(clone, task, params['adapt_batch_size'], n_steps)
 
         task_reward = eval_episodes.reward().sum().item() / params['adapt_batch_size']
         print(f"Reward for task {i} : {task_reward}")
