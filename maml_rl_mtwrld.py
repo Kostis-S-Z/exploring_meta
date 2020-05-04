@@ -8,39 +8,36 @@ from copy import deepcopy
 
 from tqdm import trange, tqdm
 
-import gym
+import metaworld.benchmarks as mtwrld
 import cherry as ch
 import learn2learn as l2l
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize, evaluate
+from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize
 from misc_scripts import run_cl_rl_exp
 
-# ANIL Defaults: meta_batch_size: 40, adapt_steps: 1, adapt_batch_size: 20, inner_lr: 0.1
-# Train for 500 epochs then evaluate on a new set of tasks.
-
 params = {
-    "outer_lr": 0.1,  #
-    "inner_lr": 0.1,  # Default: 0.1
+    # Inner loop parameters
+    "inner_lr": 0.1,
+    "adapt_steps": 3,
+    "adapt_batch_size": 1,  # "shots"  PER WORKER
+    # Outer loop parameters
+    "meta_batch_size": 10,  # "ways"
+    "outer_lr": 0.05,
+    "backtrack_factor": 0.5,
+    "ls_max_steps": 15,
+    "max_kl": 0.01,
+    # Common parameters
     "tau": 1.0,
     "gamma": 0.99,
-    "backtrack_factor": 0.5,  # Meta-optimizer
-    "ls_max_steps": 15,       # Meta-optimizer
-    "max_kl": 0.01,           # Meta-optimizer
-    "adapt_batch_size": 20,  # "shots"  Default: 20
-    "meta_batch_size": 40,  # "ways" Default: 20
-    "adapt_steps": 1,  # Default 1
-    "num_iterations": 500,  # Default 500
+    # Other parameters
+    "num_iterations": 50000,
     "save_every": 25,
     "seed": 42}
 
-# Adapt steps: how many times you will replay & learn a specific number of episodes (=adapt_batch_size)
-# Meta_batch_size (=ways): how many tasks an epoch has. (a task can have one or many episodes)
-# Adapt_batch_size (=shots): number of episodes (not steps!) during adaptation
-
 eval_params = {
-    'n_eval_adapt_steps': 5,  # Number of steps to adapt to a new task
+    'adapt_steps': 5,  # Number of steps to adapt to a new task
     'n_eval_episodes': 10,  # Number of shots per task
     'n_eval_tasks': 10,  # Number of different tasks to evaluate on
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
@@ -48,40 +45,65 @@ eval_params = {
     'gamma': params['gamma'],
 }
 
-cl_params = {
-    "adapt_steps": 10,
-    "adapt_batch_size": 10,  # shots
-    "inner_lr": 0.3,
-    "gamma": 0.99,
-    "tau": 1.0,
-    "n_tasks": 5
-}
-
-
-# Environments:
-#   - Particles2D-v1
-#   - AntDirection-v1
-#   - procgen:procgen-coinrun-v0
-env_name = "Particles2D-v1"
-workers = 4
-
-cl_test = False
-rep_test = False
+benchmark = "ML1"  # Choose between ML1, ML10, ML45
+workers = 16
 
 cuda = False
 
 wandb = False
 
 
+def make_env(seed, test=False):
+    # Set a specific task or left empty to train on all available tasks
+    task = 'pick-place-v1' if benchmark == "ML1" else ""
+
+    # Fetch one of the ML benchmarks from metaworld
+    benchmark_env = getattr(mtwrld, benchmark)
+
+    def init_env():
+        if test:
+            env = benchmark_env.get_test_tasks(task)
+        else:
+            env = benchmark_env.get_train_tasks(task)
+
+        env = ch.envs.ActionSpaceScaler(env)
+        return env
+
+    env = l2l.gym.AsyncVectorEnv([init_env for _ in range(workers)])
+
+    env.seed(seed)
+    env.set_task(env.sample_tasks(1)[0])
+    env = ch.envs.Torch(env)
+    return env
+
+
+def collect_episodes(model, task, n_episodes, n_steps=None):
+    # If user doesn't provide predefined horizon length,
+    # use the maximum horizon set by meta-world environment
+    if n_steps is None:
+        n_steps = task._env.active_env.max_path_length
+
+    # Collect multiple episodes per task
+    episodes = ch.ExperienceReplay()
+    for episode in range(n_episodes):
+        episode = task.run(model, steps=n_steps)
+        # Manually make done True at the last step
+        episode[-1].done = torch.ones_like(episode[-1].done)
+        episodes += episode
+        # Due to the current meta-world build, when an episode reaches the end of the horizon it doesn't
+        # automatically reset the environment so we have to manually reset it
+        # (see https://github.com/rlworkgroup/metaworld/issues/60)
+        task.env.reset()
+
+    if workers > 1:
+        episodes = ch.envs.runner_wrapper.flatten_episodes(episodes, n_episodes, workers)
+    return episodes
+
+
 class MamlRL(Experiment):
 
     def __init__(self):
-        super(MamlRL, self).__init__("maml", env_name, params, path="rl_results/", use_wandb=wandb)
-
-        def make_env():
-            env = gym.make(env_name)
-            env = ch.envs.ActionSpaceScaler(env)
-            return env
+        super(MamlRL, self).__init__("maml", "metaworld", params, path="rl_results/", use_wandb=wandb)
 
         device = torch.device('cpu')
 
@@ -89,12 +111,10 @@ class MamlRL(Experiment):
         np.random.seed(self.params['seed'])
         torch.manual_seed(self.params['seed'])
 
-        env = l2l.gym.AsyncVectorEnv([make_env for _ in range(workers)])
-        env.seed(self.params['seed'])
-        env.set_task(env.sample_tasks(1)[0])
-        env = ch.envs.Torch(env)
+        env = make_env(self.params['seed'])
 
         if cuda and torch.cuda.device_count():
+            print(f"Running on {torch.cuda.get_device_name(0)}")
             torch.cuda.manual_seed(self.params['seed'])
             device = torch.device('cuda')
 
@@ -103,6 +123,7 @@ class MamlRL(Experiment):
     def run(self, env, device):
 
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
+        # baseline.to(device)
         policy = DiagNormalPolicy(env.state_size, env.action_size)
         policy.to(device)
 
@@ -130,27 +151,27 @@ class MamlRL(Experiment):
 
                     # Adapt
                     for step in range(self.params['adapt_steps']):
-                        train_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
+                        train_episodes = collect_episodes(clone, task, self.params['adapt_batch_size'])
                         task_replay.append(train_episodes)
                         clone = fast_adapt_trpo_a2c(clone, train_episodes, baseline,
                                                     self.params['inner_lr'], self.params['gamma'], self.params['tau'],
-                                                    first_order=True)
+                                                    first_order=True, device=device)
 
                     # Compute validation Loss
-                    valid_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
+                    valid_episodes = collect_episodes(clone, task, self.params['adapt_batch_size'])
                     task_replay.append(valid_episodes)
 
                     iter_reward += valid_episodes.reward().sum().item() / self.params['adapt_batch_size']
                     iter_replays.append(task_replay)
                     iter_policies.append(clone)
 
-                adapt_reward = iter_reward / self.params['meta_batch_size']
-                metrics = {'adapt_reward': adapt_reward}
+                validation_reward = iter_reward / self.params['meta_batch_size']
+                metrics = {'validation_reward': validation_reward}
 
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
 
-                meta_optimize(self.params, policy, baseline, iter_replays, iter_policies, cuda)
+                meta_optimize(self.params, policy, baseline, iter_replays, iter_policies, device)
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy, str(iteration))
@@ -165,19 +186,43 @@ class MamlRL(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
-        self.logger['test_reward'] = evaluate(env, policy, baseline, eval_params)
+        self.logger['test_reward'] = evaluate(policy, baseline, self.params['seed'], device)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
 
-        if cl_test:
-            print("Running Continual Learning experiment...")
-            run_cl_rl_exp(self.model_path, env, policy, baseline, cl_params=cl_params)
+
+def evaluate(policy, baseline, seed, device):
+    env = make_env(seed, test=True)
+    eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
+
+    tasks_reward = 0.0
+
+    for i, task in enumerate(eval_task_list):
+        clone = deepcopy(policy)
+        env.set_task(task)
+        env.reset()
+        task = ch.envs.Runner(env)
+
+        # Adapt
+        for step in range(eval_params['adapt_steps']):
+            adapt_episodes = collect_episodes(clone, task, params['adapt_batch_size'])
+
+            clone = fast_adapt_trpo_a2c(clone, adapt_episodes, baseline,
+                                        params['inner_lr'], params['gamma'], params['tau'],
+                                        first_order=True, device=device)
+
+        eval_episodes = collect_episodes(clone, task, params['adapt_batch_size'])
+
+        task_reward = eval_episodes.reward().sum().item() / params['adapt_batch_size']
+        print(f"Reward for task {i} : {task_reward}")
+        tasks_reward += task_reward
+
+    final_eval_reward = tasks_reward / eval_params['n_eval_tasks']
+    return final_eval_reward
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MAML on RL tasks')
-
-    parser.add_argument('--env', type=str, default=env_name, help='Pick an environment')
 
     parser.add_argument('--outer_lr', type=float, default=params['outer_lr'], help='Outer lr')
     parser.add_argument('--inner_lr', type=float, default=params['inner_lr'], help='Inner lr')

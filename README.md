@@ -55,5 +55,3 @@ For scripts that can use MPI run:
 ```mpiexec -np 8 python3 maml_rl.py ```
 
 ## Acknowledgements
-
-
