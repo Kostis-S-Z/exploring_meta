@@ -19,11 +19,11 @@ from misc_scripts import run_cl_rl_exp
 
 params = {
     # Inner loop parameters
-    "inner_lr": 0.1,
+    "inner_lr": 0.05,
     "adapt_steps": 3,
     "adapt_batch_size": 1,  # "shots"  PER WORKER
     # Outer loop parameters
-    "meta_batch_size": 10,  # "ways"
+    "meta_batch_size": 20,  # "ways"
     "outer_lr": 0.05,
     "backtrack_factor": 0.5,
     "ls_max_steps": 15,
@@ -32,7 +32,7 @@ params = {
     "tau": 1.0,
     "gamma": 0.99,
     # Other parameters
-    "num_iterations": 50000,
+    "num_iterations": 1000,  # a_bs=10, m_bs=20, a_s=3 -> 90k per iter. 1k iter -> 90m samples
     "save_every": 25,
     "seed": 42}
 
@@ -58,7 +58,7 @@ def make_env(seed, test=False):
     task = 'pick-place-v1' if benchmark == "ML1" else ""
 
     # Fetch one of the ML benchmarks from metaworld
-    benchmark_env = getattr(mtwrld, benchmark)
+    benchmark_env = MetaWorldML1  # getattr(mtwrld, benchmark)
 
     def init_env():
         if test:
@@ -75,24 +75,6 @@ def make_env(seed, test=False):
     env.set_task(env.sample_tasks(1)[0])
     env = ch.envs.Torch(env)
     return env
-
-
-def collect_episodes(model, task, n_episodes, n_steps):
-    # Collect multiple episodes per task
-    episodes = ch.ExperienceReplay()
-    for episode in range(n_episodes):
-        episode = task.run(model, steps=n_steps)
-        # Manually make done True at the last step
-        episode[-1].done = torch.ones_like(episode[-1].done)
-        episodes += episode
-        # Due to the current meta-world build, when an episode reaches the end of the horizon it doesn't
-        # automatically reset the environment so we have to manually reset it
-        # (see https://github.com/rlworkgroup/metaworld/issues/60)
-        task.env.reset()
-
-    if workers > 1:
-        episodes = ch.envs.runner_wrapper.flatten_episodes(episodes, n_episodes, workers)
-    return episodes
 
 
 class MamlRL(Experiment):
@@ -156,14 +138,14 @@ class MamlRL(Experiment):
 
                     # Adapt
                     for step in range(self.params['adapt_steps']):
-                        train_episodes = collect_episodes(clone, task, self.params['adapt_batch_size'], n_steps)
+                        train_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
                         task_replay.append(train_episodes)
                         clone = fast_adapt_trpo_a2c(clone, train_episodes, baseline,
                                                     self.params['inner_lr'], self.params['gamma'], self.params['tau'],
                                                     first_order=True, device=device)
 
                     # Compute validation Loss
-                    valid_episodes = collect_episodes(clone, task, self.params['adapt_batch_size'], n_steps)
+                    valid_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
                     task_replay.append(valid_episodes)
 
                     iter_reward += valid_episodes.reward().sum().item() / self.params['adapt_batch_size']
@@ -197,7 +179,7 @@ class MamlRL(Experiment):
         self.save_logs_to_file()
 
 
-def evaluate(policy, baseline, n_steps, seed, device):
+def evaluate(policy, baseline, seed, device):
     env = make_env(seed, test=True)
     eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
 
@@ -211,13 +193,13 @@ def evaluate(policy, baseline, n_steps, seed, device):
 
         # Adapt
         for step in range(eval_params['adapt_steps']):
-            adapt_episodes = collect_episodes(clone, task, params['adapt_batch_size'], n_steps)
+            adapt_episodes = task.run(clone, episodes=params['n_eval_episodes'])
 
             clone = fast_adapt_trpo_a2c(clone, adapt_episodes, baseline,
                                         params['inner_lr'], params['gamma'], params['tau'],
                                         first_order=True, device=device)
 
-        eval_episodes = collect_episodes(clone, task, params['adapt_batch_size'], n_steps)
+        eval_episodes = task.run(clone, episodes=params['n_eval_episodes'])
 
         task_reward = eval_episodes.reward().sum().item() / params['adapt_batch_size']
         print(f"Reward for task {i} : {task_reward}")
