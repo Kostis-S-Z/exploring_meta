@@ -136,16 +136,19 @@ class MamlRL(Experiment):
                     task = ch.envs.Runner(env)
                     task_replay = []
 
+                    def get_action(state):
+                        return clone(state.to(device))
+
                     # Adapt
                     for step in range(self.params['adapt_steps']):
-                        train_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
+                        train_episodes = task.run(get_action, episodes=self.params['adapt_batch_size'])
                         task_replay.append(train_episodes)
                         clone = fast_adapt_trpo_a2c(clone, train_episodes, baseline,
                                                     self.params['inner_lr'], self.params['gamma'], self.params['tau'],
                                                     first_order=True, device=device)
 
                     # Compute validation Loss
-                    valid_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
+                    valid_episodes = task.run(get_action, episodes=self.params['adapt_batch_size'])
                     task_replay.append(valid_episodes)
 
                     iter_reward += valid_episodes.reward().sum().item() / self.params['adapt_batch_size']
