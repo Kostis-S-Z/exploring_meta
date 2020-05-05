@@ -24,12 +24,12 @@ from misc_scripts import run_cl_rl_exp
 
 params = {
     # Inner loop parameters
-    "inner_lr": 0.05,
+    "inner_lr": 0.3,
     "adapt_steps": 3,
     "adapt_batch_size": 10,  # "shots" (will be *evenly* distributed across workers)
     # Outer loop parameters
     "meta_batch_size": 20,  # "ways"
-    "outer_lr": 0.05,
+    "outer_lr": 0.1,
     "backtrack_factor": 0.5,
     "ls_max_steps": 15,
     "max_kl": 0.01,
@@ -51,9 +51,9 @@ eval_params = {
 }
 
 benchmark = ML1  # Choose between ML1, ML10, ML45
-workers = 2  # Num of workers should be divisible with adapt_batch_size!
+workers = 10  # Num of workers should be divisible with adapt_batch_size!
 
-cuda = True
+cuda = False
 
 wandb = False
 
@@ -118,7 +118,7 @@ class MamlRL(Experiment):
 
         self.log_model(policy, device, input_shape=(1, env.state_size))  # Input shape is specific to dataset
 
-        t = trange(self.params['num_iterations'], desc="Iteration", position=0)
+        t = trange(self.params['num_iterations'], desc="Iteration", position=1)
         try:
             for iteration in t:
 
