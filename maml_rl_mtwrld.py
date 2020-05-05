@@ -196,15 +196,18 @@ def evaluate(policy, baseline, seed, device):
         env.reset()
         task = ch.envs.Runner(env)
 
+        def get_action(state):
+            return clone(state.to(device))
+
         # Adapt
         for step in range(eval_params['adapt_steps']):
-            adapt_episodes = task.run(clone, episodes=eval_params['n_eval_episodes'])
+            adapt_episodes = task.run(get_action, episodes=eval_params['n_eval_episodes'])
 
             clone = fast_adapt_trpo_a2c(clone, adapt_episodes, baseline,
                                         params['inner_lr'], params['gamma'], params['tau'],
                                         first_order=True, device=device)
 
-        eval_episodes = task.run(clone, episodes=eval_params['n_eval_episodes'])
+        eval_episodes = task.run(get_action, episodes=eval_params['n_eval_episodes'])
 
         task_reward = eval_episodes.reward().sum().item() / params['adapt_batch_size']
         print(f"Reward for task {i} : {task_reward}")
