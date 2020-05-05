@@ -8,11 +8,16 @@ from copy import deepcopy
 
 from tqdm import trange, tqdm
 
-import metaworld.benchmarks as mtwrld
 import cherry as ch
 import learn2learn as l2l
 
 from utils import *
+
+# Use modded MetaWorld env
+from utils import MetaWorldML1 as ML1
+from utils import MetaWorldML10 as ML10
+from utils import MetaWorldML45 as ML45
+
 from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize
 from misc_scripts import run_cl_rl_exp
@@ -45,7 +50,7 @@ eval_params = {
     'gamma': params['gamma'],
 }
 
-benchmark = "ML1"  # Choose between ML1, ML10, ML45
+benchmark = ML1  # Choose between ML1, ML10, ML45
 workers = 2  # Num of workers should be divisible with adapt_batch_size!
 
 cuda = True
@@ -55,16 +60,13 @@ wandb = False
 
 def make_env(seed, test=False):
     # Set a specific task or left empty to train on all available tasks
-    task = 'pick-place-v1' if benchmark == "ML1" else ""
-
-    # Fetch one of the ML benchmarks from metaworld
-    benchmark_env = MetaWorldML1  # getattr(mtwrld, benchmark)
+    task = 'pick-place-v1' if benchmark == ML1 else False  # In this case, False corresponds to the sample_all argument
 
     def init_env():
         if test:
-            env = benchmark_env.get_test_tasks(task)
+            env = benchmark.get_test_tasks(task)
         else:
-            env = benchmark_env.get_train_tasks(task)
+            env = benchmark.get_train_tasks(task)
 
         env = ch.envs.ActionSpaceScaler(env)
         return env
@@ -177,7 +179,7 @@ class MamlRL(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
-        self.logger['test_reward'] = evaluate(policy, baseline, n_steps, self.params['seed'], device)
+        self.logger['test_reward'] = evaluate(policy, baseline, self.params['seed'], device)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
 
@@ -196,13 +198,13 @@ def evaluate(policy, baseline, seed, device):
 
         # Adapt
         for step in range(eval_params['adapt_steps']):
-            adapt_episodes = task.run(clone, episodes=params['n_eval_episodes'])
+            adapt_episodes = task.run(clone, episodes=eval_params['n_eval_episodes'])
 
             clone = fast_adapt_trpo_a2c(clone, adapt_episodes, baseline,
                                         params['inner_lr'], params['gamma'], params['tau'],
                                         first_order=True, device=device)
 
-        eval_episodes = task.run(clone, episodes=params['n_eval_episodes'])
+        eval_episodes = task.run(clone, episodes=eval_params['n_eval_episodes'])
 
         task_reward = eval_episodes.reward().sum().item() / params['adapt_batch_size']
         print(f"Reward for task {i} : {task_reward}")
