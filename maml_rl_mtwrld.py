@@ -21,7 +21,7 @@ params = {
     # Inner loop parameters
     "inner_lr": 0.05,
     "adapt_steps": 3,
-    "adapt_batch_size": 1,  # "shots"  PER WORKER
+    "adapt_batch_size": 10,  # "shots" (will be *evenly* distributed across workers)
     # Outer loop parameters
     "meta_batch_size": 20,  # "ways"
     "outer_lr": 0.05,
@@ -46,9 +46,9 @@ eval_params = {
 }
 
 benchmark = "ML1"  # Choose between ML1, ML10, ML45
-workers = 16
+workers = 2  # Num of workers should be divisible with adapt_batch_size!
 
-cuda = False
+cuda = True
 
 wandb = False
 
@@ -104,9 +104,9 @@ class MamlRL(Experiment):
         n_steps = env._env.active_env.max_path_length
 
         # Calculate how many samples the agent sees per iteration
-        n_val_seen = n_steps * workers * self.params['adapt_batch_size']  # Samples seen in validation
+        n_val_seen = n_steps * self.params['adapt_batch_size']  # Samples seen in validation
         n_tr_seen = n_val_seen * self.params['adapt_steps']  # Samples seen in inner loop
-        n_task_seen = n_tr_seen + n_val_seen  # Samples seen in one task
+        n_task_seen = n_tr_seen  # + n_val_seen  # Samples seen in one task
         n_iter_seen = n_task_seen * self.params['meta_batch_size']  # Samples in one iteration
 
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
