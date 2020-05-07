@@ -123,17 +123,8 @@ class AnilRL(Experiment):
         self.log_model(policy, device, input_shape=(1, network[-1]))
 
         t = trange(self.params['num_iterations'])
-        lr_checkpoint = 0
         try:
             for iteration in t:
-
-                if iteration == self.params['outer_lrs'][lr_checkpoint][0]:
-                    print(f"Dropping outer lr from {self.params['outer_lr']} to "
-                          f"{self.params['outer_lrs'][lr_checkpoint][1]}")
-                    self.params['outer_lr'] = self.params['outer_lrs'][lr_checkpoint][1]
-                    # Stop at the last element
-                    if lr_checkpoint < len(self.params['outer_lrs']) - 1:
-                        lr_checkpoint += 1
 
                 iter_reward = 0
                 iter_replays = []
@@ -153,10 +144,17 @@ class AnilRL(Experiment):
 
                     # Adapt
                     for step in range(self.params['adapt_steps']):
-                        # TODO:
-                        pass
+                        train_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
+                        task_replay.append(train_episodes)
+                        # clone = TODO: implement anil_fast_adapt_trpo_a2c so that only head is updated
 
                     # Compute validation Loss
+                    valid_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
+                    task_replay.append(valid_episodes)
+
+                    iter_reward += valid_episodes.reward().sum().item() / self.params['adapt_batch_size']
+                    iter_replays.append(task_replay)
+                    iter_policies.append(clone)
 
                 adapt_reward = iter_reward / self.params['meta_batch_size']
                 metrics = {'adapt_reward': adapt_reward}
