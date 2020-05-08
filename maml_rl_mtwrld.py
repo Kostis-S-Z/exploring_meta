@@ -19,7 +19,7 @@ from utils import MetaWorldML10 as ML10
 from utils import MetaWorldML45 as ML45
 
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize
+from core_functions.rl import adapt_trpo_a2c, meta_optimize
 from misc_scripts import run_cl_rl_exp
 
 """
@@ -47,6 +47,7 @@ params = {
     "ls_max_steps": 15,
     "max_kl": 0.01,
     # Common parameters
+    "activation": 'tanh',
     "tau": 1.0,
     "gamma": 0.99,
     # Other parameters
@@ -126,7 +127,7 @@ class MamlRL(Experiment):
 
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
         baseline.to(device)
-        policy = DiagNormalPolicy(env.state_size, env.action_size)
+        policy = DiagNormalPolicy(env.state_size, env.action_size, activation=self.params['activation'])
         policy.to(device)
 
         self.log_model(policy, device, input_shape=(1, env.state_size))  # Input shape is specific to dataset
@@ -158,9 +159,9 @@ class MamlRL(Experiment):
                     for step in range(self.params['adapt_steps']):
                         train_episodes = task.run(get_action, episodes=self.params['adapt_batch_size'])
                         task_replay.append(train_episodes)
-                        clone = fast_adapt_trpo_a2c(clone, train_episodes, baseline,
-                                                    self.params['inner_lr'], self.params['gamma'], self.params['tau'],
-                                                    first_order=True, device=device)
+                        clone = adapt_trpo_a2c(clone, train_episodes, baseline,
+                                               self.params['inner_lr'], self.params['gamma'], self.params['tau'],
+                                               first_order=True, device=device)
 
                     # Compute validation Loss
                     valid_episodes = task.run(get_action, episodes=self.params['adapt_batch_size'])
@@ -216,9 +217,9 @@ def evaluate(policy, baseline, seed, device):
         for step in range(eval_params['adapt_steps']):
             adapt_episodes = task.run(get_action, episodes=eval_params['n_eval_episodes'])
 
-            clone = fast_adapt_trpo_a2c(clone, adapt_episodes, baseline,
-                                        params['inner_lr'], params['gamma'], params['tau'],
-                                        first_order=True, device=device)
+            clone = adapt_trpo_a2c(clone, adapt_episodes, baseline,
+                                   params['inner_lr'], params['gamma'], params['tau'],
+                                   first_order=True, device=device)
 
         eval_episodes = task.run(get_action, episodes=eval_params['n_eval_episodes'])
 

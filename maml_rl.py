@@ -14,7 +14,7 @@ import learn2learn as l2l
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize, evaluate
+from core_functions.rl import adapt_trpo_a2c, meta_optimize, evaluate
 from misc_scripts import run_cl_rl_exp
 
 # ANIL Defaults: meta_batch_size: 40, adapt_steps: 1, adapt_batch_size: 20, inner_lr: 0.1
@@ -132,9 +132,9 @@ class MamlRL(Experiment):
                     for step in range(self.params['adapt_steps']):
                         train_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
                         task_replay.append(train_episodes)
-                        clone = fast_adapt_trpo_a2c(clone, train_episodes, baseline,
-                                                    self.params['inner_lr'], self.params['gamma'], self.params['tau'],
-                                                    first_order=True)
+                        clone = adapt_trpo_a2c(clone, train_episodes, baseline,
+                                               self.params['inner_lr'], self.params['gamma'], self.params['tau'],
+                                               first_order=True)
 
                     # Compute validation Loss
                     valid_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
