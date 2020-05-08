@@ -32,7 +32,7 @@ gamma / discount = 0.99
 adapt_batch_size = 10
 meta_batch_size = 20
 iterations = 300
- 
+
 """
 
 params = {
@@ -47,6 +47,7 @@ params = {
     "ls_max_steps": 15,
     "max_kl": 0.01,
     # Common parameters
+    "activation": 'tanh',
     "tau": 1.0,
     "gamma": 0.99,
     # Other parameters
@@ -126,7 +127,7 @@ class MamlRL(Experiment):
 
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
         baseline.to(device)
-        policy = DiagNormalPolicy(env.state_size, env.action_size)
+        policy = DiagNormalPolicy(env.state_size, env.action_size, activation=self.params['activation'])
         policy.to(device)
 
         self.log_model(policy, device, input_shape=(1, env.state_size))  # Input shape is specific to dataset
