@@ -22,6 +22,19 @@ from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize
 from misc_scripts import run_cl_rl_exp
 
+"""
+Default parameters of MAML-TRPO for ML1, ML10:
+
+inner_lr = 0.1
+adapt_steps = 1
+tau / gae_lambda = 1.0
+gamma / discount = 0.99
+adapt_batch_size = 10
+meta_batch_size = 20
+iterations = 300
+
+"""
+
 params = {
     # Inner loop parameters
     "inner_lr": 0.1,
@@ -34,6 +47,7 @@ params = {
     "ls_max_steps": 15,
     "max_kl": 0.01,
     # Common parameters
+    "activation": 'tanh',
     "tau": 1.0,
     "gamma": 0.99,
     # Other parameters
@@ -112,8 +126,8 @@ class MamlRL(Experiment):
         n_iter_seen = n_task_seen * self.params['meta_batch_size']  # Samples in one iteration
 
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
-        # baseline.to(device)
-        policy = DiagNormalPolicy(env.state_size, env.action_size)
+        baseline.to(device)
+        policy = DiagNormalPolicy(env.state_size, env.action_size, activation=self.params['activation'])
         policy.to(device)
 
         self.log_model(policy, device, input_shape=(1, env.state_size))  # Input shape is specific to dataset
