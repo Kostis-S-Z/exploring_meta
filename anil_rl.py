@@ -14,7 +14,7 @@ import learn2learn as l2l
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize, evaluate
+from core_functions.rl import adapt_trpo_a2c, meta_optimize, evaluate
 from misc_scripts import run_cl_rl_exp
 
 # ANIL Defaults: meta_batch_size: 40, adapt_steps: 1, adapt_batch_size: 20, inner_lr: 0.1
@@ -27,8 +27,8 @@ params = {
     "tau": 1.0,
     "gamma": 0.99,
     "backtrack_factor": 0.5,  # Meta-optimizer
-    "ls_max_steps": 15,       # Meta-optimizer
-    "max_kl": 0.01,           # Meta-optimizer
+    "ls_max_steps": 15,  # Meta-optimizer
+    "max_kl": 0.01,  # Meta-optimizer
     "adapt_batch_size": 32,  # "shots"
     "meta_batch_size": 16,  # "ways"
     "adapt_steps": 5,
@@ -114,13 +114,35 @@ class AnilRL(Experiment):
     def run(self, env, device):
 
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
-        features, policy = DiagNormalPolicy(env.state_size, env.action_size, hiddens=network)
 
+        # TODO: Make a new DiagNormalPolicy with two distinct parameter sets inspired by this
+        """
+        
+        activation = nn.Tanh
+        layers = [linear_init(nn.Linear(input_size, hiddens[0])), activation()]
+        for i, o in zip(hiddens[:-1], hiddens[1:]):
+            layers.append(linear_init(nn.Linear(i, o)))
+            layers.append(activation())
+        layers.append(linear_init(nn.Linear(hiddens[-1], output_size)))
+        features = torch.nn.Sequential(features, Lambda(lambda x: x.view(-1, fc_neurons)))
         features.to(device)
+
+        head = torch.nn.Linear(fc_neurons, self.params['ways'])
+        head = l2l.algorithms.MAML(head, lr=self.params['inner_lr'])
+        head.to(device)
+
+        # Setup optimization
+        all_parameters = list(features.parameters()) + list(head.parameters())
+        optimizer = torch.optim.Adam(all_parameters, lr=self.params['outer_lr'])
+        loss = torch.nn.CrossEntropyLoss(reduction='mean')
+        """
+
+        policy = DiagNormalPolicy(env.state_size, env.action_size, hiddens=network)
+
         policy.to(device)
 
-        self.log_model(features, device, input_shape=(1, env.state_size))
-        self.log_model(policy, device, input_shape=(1, network[-1]))
+        self.log_model(policy.features, device, input_shape=(1, env.state_size))
+        self.log_model(policy.head, device, input_shape=(1, network[-1]))
 
         t = trange(self.params['num_iterations'])
         try:
@@ -135,7 +157,7 @@ class AnilRL(Experiment):
                 for task in task_list:
 
                     # Copy only the policy / head
-                    clone = deepcopy(policy)
+                    head_clone = deepcopy(policy.head)
                     env.set_task(task)
                     env.reset()
 
@@ -144,17 +166,24 @@ class AnilRL(Experiment):
 
                     # Adapt
                     for step in range(self.params['adapt_steps']):
-                        train_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
+                        train_episodes = task.run(head_clone, episodes=self.params['adapt_batch_size'])
                         task_replay.append(train_episodes)
-                        # clone = TODO: implement anil_fast_adapt_trpo_a2c so that only head is updated
+                        # TODO: implement anil_fast_adapt_trpo_a2c so that only head is updated
+                        head_clone = adapt_trpo_a2c(head_clone, train_episodes, baseline,
+                                                    self.params['inner_lr'],
+                                                    self.params['gamma'],
+                                                    self.params['tau'],
+                                                    features=policy.features,
+                                                    first_order=False,
+                                                    device=device)
 
                     # Compute validation Loss
-                    valid_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
+                    valid_episodes = task.run(head_clone, episodes=self.params['adapt_batch_size'])
                     task_replay.append(valid_episodes)
 
                     iter_reward += valid_episodes.reward().sum().item() / self.params['adapt_batch_size']
                     iter_replays.append(task_replay)
-                    iter_policies.append(clone)
+                    iter_policies.append(head_clone)
 
                 adapt_reward = iter_reward / self.params['meta_batch_size']
                 metrics = {'adapt_reward': adapt_reward}
@@ -162,12 +191,12 @@ class AnilRL(Experiment):
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
 
-                # TODO: this needs major changes
+                # TODO: this needs changes
                 meta_optimize(self.params, policy, baseline, iter_replays, iter_policies, cuda)
 
                 if iteration % self.params['save_every'] == 0:
-                    self.save_model_checkpoint(features, str(iteration))
-                    self.save_model_checkpoint(policy, str(iteration))
+                    self.save_model_checkpoint(policy.features, str(iteration + 1))
+                    self.save_model_checkpoint(policy.head, str(iteration + 1))
 
         # Support safely manually interrupt training
         except KeyboardInterrupt:

@@ -13,7 +13,7 @@ from copy import deepcopy
 import cherry as ch
 
 from utils import calc_cl_metrics
-from core_functions import fast_adapt_trpo_a2c
+from core_functions import adapt_trpo_a2c
 from sklearn import preprocessing
 
 from matplotlib import pyplot as plt
@@ -61,9 +61,9 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params=default_params):
         for step in range(cl_params['adapt_steps']):
             # print(f"Step {step}")
             train_episodes = task_i.run(clone, episodes=cl_params['adapt_batch_size'])
-            clone = fast_adapt_trpo_a2c(clone, train_episodes, baseline,
-                                        cl_params['inner_lr'], cl_params['gamma'], cl_params['tau'],
-                                        first_order=False)
+            clone = adapt_trpo_a2c(clone, train_episodes, baseline,
+                                   cl_params['inner_lr'], cl_params['gamma'], cl_params['tau'],
+                                   first_order=False)
 
             train_reward = train_episodes.reward().sum().item()
             adapt_progress[f'task_{i}'][f'step_{step}'] = train_reward / cl_params['adapt_batch_size']
