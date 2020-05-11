@@ -32,19 +32,14 @@ default_params = {
 
 def run_cl_rl_exp(path, env, policy, baseline, cl_params=default_params):
     cl_path = path + '/cl_exp'
-    # os.mkdir(cl_path)
+    if not os.path.isdir(cl_path):
+        os.mkdir(cl_path)
 
     # Matrix R NxN of accuracies in tasks j after trained on a tasks i (x_axis = test tasks, y_axis = train tasks)
     rew_matrix = np.zeros((cl_params['n_tasks'], cl_params['n_tasks']))
 
     # Sample tasks
     tasks = env.sample_tasks(cl_params['n_tasks'])
-    # tasks = [
-    #     {'goal': np.array((0, 0))},
-    #     {'goal': np.array((0.5, 0.5))},
-    #     {'goal': np.array((-0.5, 0.5))},
-    #     {'goal': np.array((-0.5, -0.5))},
-    #     {'goal': np.array((0.5, -0.5))}]
 
     adapt_progress = {}
 
