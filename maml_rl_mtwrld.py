@@ -32,8 +32,8 @@ iterations = 300
 
 params = {
     # Inner loop parameters
-    "inner_lr": 0.3,
-    "adapt_steps": 3,
+    "inner_lr": 0.1,
+    "adapt_steps": 1,
     "adapt_batch_size": 10,  # "shots" (will be *evenly* distributed across workers)
     # Outer loop parameters
     "meta_batch_size": 20,  # "ways"
@@ -46,8 +46,8 @@ params = {
     "tau": 1.0,
     "gamma": 0.99,
     # Other parameters
-    "num_iterations": 1000,  # a_bs=10, m_bs=20, a_s=3 -> 90k per iter. 1k iter -> 90m samples
-    "save_every": 25,
+    "num_iterations": 5000,  # a_bs=10, m_bs=20, a_s=1 -> 30k per iter. 1k iter -> 90m samples
+    "save_every": 500,
     "seed": 42}
 
 eval_params = {
