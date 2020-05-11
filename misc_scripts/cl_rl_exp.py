@@ -78,26 +78,25 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params=default_params):
     # Plot adaptation progress
     plot_progress(adapt_progress)
 
-    #
-
     print(rew_matrix)
 
-    # norm_rew = preprocessing.normalize(rew_matrix)
-    # scaler = preprocessing.StandardScaler()
-    # stand_rew = scaler.fit_transform(rew_matrix)
-    # print(stand_rew)
-    # print(norm_rew)
+    if cl_params['normalize_rewards']:
+        norm_rew = preprocessing.normalize(rew_matrix)
+        scaler = preprocessing.StandardScaler()
+        stand_rew = scaler.fit_transform(rew_matrix)
+        print(stand_rew)
+        print(norm_rew)
 
     cl_res = calc_cl_metrics(rew_matrix)
     print(cl_res)
-    # save_acc_matrix(cl_path, rew_matrix)
-    # with open(cl_path + '/cl_params.json', 'w') as fp:
-    #     json.dump(cl_params, fp, sort_keys=True, indent=4)
-    #
-    # with open(cl_path + '/cl_res.json', 'w') as fp:
-    #     json.dump(cl_res, fp, sort_keys=True, indent=4)
-    #
-    # return rew_matrix, cl_res
+    save_acc_matrix(cl_path, rew_matrix)
+    with open(cl_path + '/cl_params.json', 'w') as fp:
+        json.dump(cl_params, fp, sort_keys=True, indent=4)
+
+    with open(cl_path + '/cl_res.json', 'w') as fp:
+        json.dump(cl_res, fp, sort_keys=True, indent=4)
+
+    return rew_matrix, cl_res
 
 
 def save_acc_matrix(path, acc_matrix):
