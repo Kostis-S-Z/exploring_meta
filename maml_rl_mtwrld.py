@@ -61,6 +61,7 @@ eval_params = {
 
 benchmark = "ML1"  # Choose between ML1, ML10, ML45
 bench_task = "pick-place-v1"  # In case of ML1, choose between different tasks e.g reach-v1, pick-place-v1, push-v1
+params['task'] = bench_task if benchmark == "ML1" else False  # Otherwise, False corresponds to the sample_all argument
 
 workers = 10  # Num of workers should be divisible with adapt_batch_size!
 
@@ -72,20 +73,16 @@ wandb = False
 def make_env(seed, test=False):
     benchmark_env = getattr(utils, f"MetaWorld{benchmark}")  # Use modded MetaWorld env
 
-    # Set a specific task or left empty to train on all available tasks
-    task = bench_task if benchmark == "ML1" else False  # In this case, False corresponds to the sample_all argument
-
     def init_env():
         if test:
-            env = benchmark_env.get_test_tasks(task)
+            env = benchmark_env.get_test_tasks(params['task'])
         else:
-            env = benchmark_env.get_train_tasks(task)
+            env = benchmark_env.get_train_tasks(params['task'])
 
         env = ch.envs.ActionSpaceScaler(env)
         return env
 
     env = l2l.gym.AsyncVectorEnv([init_env for _ in range(workers)])
-
     env.seed(seed)
     env.set_task(env.sample_tasks(1)[0])
     env = ch.envs.Torch(env)
