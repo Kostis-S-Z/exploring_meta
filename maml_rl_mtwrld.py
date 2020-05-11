@@ -190,6 +190,7 @@ class MamlRL(Experiment):
             self.params['num_iterations'] = iteration
 
         self.save_model(policy)
+        self.save_model(baseline, name="baseline")
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
