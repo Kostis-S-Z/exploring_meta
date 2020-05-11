@@ -11,12 +11,7 @@ from tqdm import trange, tqdm
 import cherry as ch
 import learn2learn as l2l
 
-from utils import *
-
-# Use modded MetaWorld env
-from utils import MetaWorldML1 as ML1
-from utils import MetaWorldML10 as ML10
-from utils import MetaWorldML45 as ML45
+import utils
 
 from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize
@@ -64,7 +59,9 @@ eval_params = {
     'gamma': params['gamma'],
 }
 
-benchmark = ML1  # Choose between ML1, ML10, ML45
+benchmark = "ML1"  # Choose between ML1, ML10, ML45
+bench_task = "pick-place-v1"  # In case of ML1, choose between different tasks e.g reach-v1, pick-place-v1, push-v1
+
 workers = 10  # Num of workers should be divisible with adapt_batch_size!
 
 cuda = False
@@ -73,14 +70,16 @@ wandb = False
 
 
 def make_env(seed, test=False):
+    benchmark_env = getattr(utils, f"MetaWorld{benchmark}")  # Use modded MetaWorld env
+
     # Set a specific task or left empty to train on all available tasks
-    task = 'pick-place-v1' if benchmark == ML1 else False  # In this case, False corresponds to the sample_all argument
+    task = bench_task if benchmark == "ML1" else False  # In this case, False corresponds to the sample_all argument
 
     def init_env():
         if test:
-            env = benchmark.get_test_tasks(task)
+            env = benchmark_env.get_test_tasks(task)
         else:
-            env = benchmark.get_train_tasks(task)
+            env = benchmark_env.get_train_tasks(task)
 
         env = ch.envs.ActionSpaceScaler(env)
         return env
@@ -93,10 +92,10 @@ def make_env(seed, test=False):
     return env
 
 
-class MamlRL(Experiment):
+class MamlRL(utils.Experiment):
 
     def __init__(self):
-        super(MamlRL, self).__init__("maml", "metaworld", params, path="rl_results/", use_wandb=wandb)
+        super(MamlRL, self).__init__("maml", benchmark, params, path="rl_results/", use_wandb=wandb)
 
         device = torch.device('cpu')
 
@@ -194,8 +193,10 @@ class MamlRL(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
-        self.logger['test_reward'] = evaluate(policy, baseline, self.params['seed'], device)
-        self.log_metrics({'test_reward': self.logger['test_reward']})
+        self.logger['test_rewards'] = evaluate(policy, baseline, self.params['seed'], device)
+        self.logger['av_test_rew'] = sum(self.logger['test_rewards']) / eval_params['n_eval_tasks']
+        self.log_metrics({'test_rewards': self.logger['test_rewards'],
+                          'av_test_rew': self.logger['av_test_rew']})
         self.save_logs_to_file()
 
 
@@ -203,7 +204,7 @@ def evaluate(policy, baseline, seed, device):
     env = make_env(seed, test=True)
     eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
 
-    tasks_reward = 0.0
+    tasks_reward = []
 
     for i, task in enumerate(eval_task_list):
         clone = deepcopy(policy)
@@ -226,10 +227,9 @@ def evaluate(policy, baseline, seed, device):
 
         task_reward = eval_episodes.reward().sum().item() / params['adapt_batch_size']
         print(f"Reward for task {i} : {task_reward}")
-        tasks_reward += task_reward
+        tasks_reward.append(task_reward)
 
-    final_eval_reward = tasks_reward / eval_params['n_eval_tasks']
-    return final_eval_reward
+    return tasks_reward
 
 
 if __name__ == '__main__':
