@@ -50,7 +50,7 @@ def trpo_a2c_loss(episodes, learner, baseline, gamma, tau, device):
     # Get values to device
     states, actions, rewards, dones, next_states = get_episode_values(episodes, device)
 
-    # Calculate loss between states and action in the network TODO: Is the head sufficient here?
+    # Calculate loss between states and action in the network
     log_probs = learner.log_prob(states, actions)
 
     # Compute advantages & normalize
@@ -61,17 +61,18 @@ def trpo_a2c_loss(episodes, learner, baseline, gamma, tau, device):
     return a2c.policy_loss(log_probs, advantages)
 
 
-def adapt_trpo_a2c(model, episodes, baseline, inner_lr, gamma, tau, features=None, first_order=False, device='cpu'):
-    # In case of ANIL (features =/= None) we need to pass the episodes through the network
-    # to get the features before the head
-    if features is not None:
-        episodes = features(episodes)
+def adapt_trpo_a2c(model, episodes, baseline, inner_lr, gamma, tau, anil=False, first_order=False, device='cpu'):
 
     # Calculate loss
     loss = trpo_a2c_loss(episodes, model, baseline, gamma, tau, device)
 
     # First or Second order derivatives
     second_order = not first_order
+
+    # TODO: 1st METHOD!
+    if anil:
+        model = model.head
+
     gradients = torch.autograd.grad(loss,
                                     model.parameters(),
                                     retain_graph=second_order,
@@ -90,9 +91,9 @@ def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, tau, gamm
         new_policy = l2l.clone_module(policy)
 
         # Fast Adapt
-        for train_episodes in train_replays:
-            new_policy = adapt_trpo_a2c(new_policy, train_episodes, baseline,
-                                        fast_lr, gamma, tau, first_order=False, device=device)
+        # for train_episodes in train_replays:
+        #     new_policy.head = adapt_trpo_a2c(new_policy, train_episodes, baseline,
+        #                                 fast_lr, gamma, tau, anil=True, first_order=False, device=device)
 
         states, actions, rewards, dones, next_states = get_episode_values(valid_episodes, device)
 

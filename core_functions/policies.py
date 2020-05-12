@@ -61,6 +61,57 @@ class DiagNormalPolicy(nn.Module):
         return action
 
 
+class Lambda(torch.nn.Module):
+
+    def __init__(self, fn):
+        super(Lambda, self).__init__()
+        self.fn = fn
+
+    def forward(self, x):
+        return self.fn(x)
+
+
+class ANILDiagNormalPolicy(nn.Module):
+
+    def __init__(self, input_size, output_size, fc_neurons, hiddens=None):
+        super(ANILDiagNormalPolicy, self).__init__()
+        if hiddens is None:
+            hiddens = [100, 100]
+        activation = nn.Tanh
+        self.fc_neurons = fc_neurons
+
+        layers = [linear_init(nn.Linear(input_size, hiddens[0])), activation()]
+        for i, o in zip(hiddens[:-1], hiddens[1:]):
+            layers.append(linear_init(nn.Linear(i, o)))
+            layers.append(activation())
+
+        # Initialize the body of the network
+        self.features = nn.Sequential(*layers)  # , Lambda(lambda x: x.view(-1, fc_neurons)))
+
+        # Initialize the head of the network
+        self.head = linear_init(nn.Linear(fc_neurons, output_size))
+        self.sigma = torch.nn.Parameter(torch.Tensor(output_size))
+        self.sigma.data.fill_(math.log(1))
+
+    def forward_pass(self, state):
+        state_features = self.features(state)
+        return self.head(state_features)
+
+    def density(self, state):
+        loc = self.forward_pass(state)
+        scale = torch.exp(torch.clamp(self.sigma, min=math.log(EPSILON)))
+        return Normal(loc=loc, scale=scale)
+
+    def log_prob(self, state, action):
+        density = self.density(state)
+        return density.log_prob(action).mean(dim=1, keepdim=True)
+
+    def forward(self, state):
+        density = self.density(state)
+        action = density.sample()
+        return action
+
+
 class DiagNormalPolicyCNN(nn.Module):
 
     def __init__(self, input_size, output_size, network=[32, 64, 64]):
