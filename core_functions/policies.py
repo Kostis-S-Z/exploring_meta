@@ -61,16 +61,6 @@ class DiagNormalPolicy(nn.Module):
         return action
 
 
-class Lambda(torch.nn.Module):
-
-    def __init__(self, fn):
-        super(Lambda, self).__init__()
-        self.fn = fn
-
-    def forward(self, x):
-        return self.fn(x)
-
-
 class ANILDiagNormalPolicy(nn.Module):
 
     def __init__(self, input_size, output_size, fc_neurons, hiddens=None):
@@ -86,7 +76,7 @@ class ANILDiagNormalPolicy(nn.Module):
             layers.append(activation())
 
         # Initialize the body of the network
-        self.features = nn.Sequential(*layers)  # , Lambda(lambda x: x.view(-1, fc_neurons)))
+        self.features = nn.Sequential(*layers)
 
         # Initialize the head of the network
         self.head = linear_init(nn.Linear(fc_neurons, output_size))
