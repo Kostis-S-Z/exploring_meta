@@ -8,9 +8,8 @@ from copy import deepcopy
 
 from tqdm import trange, tqdm
 
-import gym
 import cherry as ch
-import learn2learn as l2l
+from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
@@ -19,23 +18,25 @@ from misc_scripts import run_cl_rl_exp
 
 
 params = {
-    "outer_lr": 0.1,  #
-    "inner_lr": 0.1,  # Default: 0.1
-    "tau": 1.0,
-    "gamma": 0.99,
-    "backtrack_factor": 0.5,  # Meta-optimizer
-    "ls_max_steps": 15,       # Meta-optimizer
-    "max_kl": 0.01,           # Meta-optimizer
-    "adapt_batch_size": 20,  # "shots"  Default: 20
-    "meta_batch_size": 40,  # "ways" Default: 20
-    "adapt_steps": 1,  # Default 1
-    "num_iterations": 500,  # Default 500
-    "save_every": 25,
-    "seed": 42}
+    # Inner loop parameters
+    'inner_lr': 0.1,
+    'adapt_steps': 1,
+    'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
+    # Outer loop parameters
+    'meta_batch_size': 20,  # 'ways'
+    'outer_lr': 0.1,
+    'backtrack_factor': 0.5,
+    'ls_max_steps': 15,
+    'max_kl': 0.01,
+    # Common parameters
+    'activation': 'tanh',  # for MetaWorld use tanh, others relu
+    'tau': 1.0,
+    'gamma': 0.99,
+    # Other parameters
+    'num_iterations': 1000,
+    'save_every': 25,
+    'seed': 42}
 
-# Adapt steps: how many times you will replay & learn a specific number of episodes (=adapt_batch_size)
-# Meta_batch_size (=ways): how many tasks an epoch has. (a task can have one or many episodes)
-# Adapt_batch_size (=shots): number of episodes (not steps!) during adaptation
 
 eval_params = {
     'adapt_steps': 5,  # Number of steps to adapt to a new task
@@ -47,66 +48,54 @@ eval_params = {
 }
 
 cl_params = {
-    "adapt_steps": 10,
-    "adapt_batch_size": 10,  # shots
-    "inner_lr": 0.3,
-    "gamma": 0.99,
-    "tau": 1.0,
-    "n_tasks": 5
+    'adapt_steps': 10,
+    'adapt_batch_size': 10,  # shots
+    'inner_lr': 0.3,
+    'gamma': 0.99,
+    'tau': 1.0,
+    'n_tasks': 5
 }
 
 
 # Environments:
 #   - Particles2D-v1
 #   - AntDirection-v1
-#   - procgen:procgen-coinrun-v0
-env_name = "Particles2D-v1"
-workers = 4
+#   - ML1_reach-v1, ML1_pick-place-v1, ML1_push-v1
+#   - ML10, ML45
+
+env_name = 'ML1_pick-place-v1'
+
+workers = 2
+
+wandb = False
 
 cl_test = False
 rep_test = False
 
-cuda = False
 
-wandb = False
-
-
-class MamlRL(Experiment):
+class MamlTRPO(Experiment):
 
     def __init__(self):
-        super(MamlRL, self).__init__("maml", env_name, params, path="rl/results/", use_wandb=wandb)
+        super(MamlTRPO, self).__init__('maml_trpo', env_name, params, path='rl/results/', use_wandb=wandb)
 
-        def make_env():
-            env = gym.make(env_name)
-            env = ch.envs.ActionSpaceScaler(env)
-            return env
-
+        # Set seed
         device = torch.device('cpu')
-
         random.seed(self.params['seed'])
         np.random.seed(self.params['seed'])
         torch.manual_seed(self.params['seed'])
 
-        env = l2l.gym.AsyncVectorEnv([make_env for _ in range(workers)])
-        env.seed(self.params['seed'])
-        env.set_task(env.sample_tasks(1)[0])
-        env = ch.envs.Torch(env)
-
-        if cuda and torch.cuda.device_count():
-            torch.cuda.manual_seed(self.params['seed'])
-            device = torch.device('cuda')
-
+        env = make_env(env_name, workers, params['seed'])
         self.run(env, device)
 
     def run(self, env, device):
 
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
         policy = DiagNormalPolicy(env.state_size, env.action_size)
-        policy.to(device)
+        policy = MAML(policy, lr=self.params['inner_lr'])
 
-        self.log_model(policy, device, input_shape=(1, env.state_size))  # Input shape is specific to dataset
+        self.log_model(policy, device, input_shape=(1, env.state_size))
 
-        t = trange(self.params['num_iterations'], desc="Iteration", position=0)
+        t = trange(self.params['num_iterations'], desc='Iteration', position=0)
         try:
             for iteration in t:
 
@@ -116,32 +105,34 @@ class MamlRL(Experiment):
 
                 task_list = env.sample_tasks(self.params['meta_batch_size'])
 
-                for task_i in trange(len(task_list), leave=False, desc="Task", position=0):
+                for task_i in trange(len(task_list), leave=False, desc='Task', position=0):
                     task = task_list[task_i]
 
-                    clone = deepcopy(policy)
+                    learner = deepcopy(policy)
                     env.set_task(task)
                     env.reset()
                     task = ch.envs.Runner(env)
 
                     # Adapt
-                    learner, task_replay, task_rew = fast_adapt_trpo(task, clone, baseline, self.params,
+                    learner, task_replay, task_rew = fast_adapt_trpo(task, learner, baseline, self.params,
                                                                      first_order=True, device=device)
 
                     iter_reward += task_rew
                     iter_replays.append(task_replay)
                     iter_policies.append(learner)
 
-                adapt_reward = iter_reward / self.params['meta_batch_size']
-                metrics = {'adapt_reward': adapt_reward}
-
+                # Log
+                average_return = iter_reward / self.params['meta_batch_size']
+                metrics = {'average_return': average_return}
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
 
+                # Meta-optimize
                 meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies, device)
 
                 if iteration % self.params['save_every'] == 0:
-                    self.save_model_checkpoint(policy, str(iteration))
+                    self.save_model_checkpoint(policy, str(iteration + 1))
+                    self.save_model_checkpoint(baseline, 'baseline_' + str(iteration + 1))
 
         # Support safely manually interrupt training
         except KeyboardInterrupt:
@@ -150,20 +141,22 @@ class MamlRL(Experiment):
             self.params['num_iterations'] = iteration
 
         self.save_model(policy)
+        self.save_model(baseline, name='baseline')
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
+        env = make_env(env_name, workers, params['seed'], test=True)
         self.logger['test_reward'] = evaluate_trpo(env, policy, baseline, eval_params)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
 
         if cl_test:
-            print("Running Continual Learning experiment...")
+            print('Running Continual Learning experiment...')
             run_cl_rl_exp(self.model_path, env, policy, baseline, cl_params=cl_params)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='MAML on RL tasks')
+    parser = argparse.ArgumentParser(description='MAML-TRPO on RL tasks')
 
     parser.add_argument('--env', type=str, default=env_name, help='Pick an environment')
 
@@ -191,4 +184,4 @@ if __name__ == '__main__':
 
     params['seed'] = args.seed
 
-    MamlRL()
+    MamlTRPO()
