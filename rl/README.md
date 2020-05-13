@@ -23,6 +23,14 @@ A point in a 2D bounded continuous space receives directional force and moves ac
  
 **Reward**:  Negative distance from the goal.
 
+#### Default parameters for ANIL
+```
+meta_batch_size: 40
+adapt_steps: 1
+adapt_batch_size: 20
+inner_lr: 0.1
+```
+Train for 500 epochs then evaluate on a new set of tasks.
 
 ### MetaWorld
 
@@ -37,6 +45,7 @@ adapt_batch_size = 10
 meta_batch_size = 20
 iterations = 300
 ``` 
+
 
 ### [Procgen](https://openai.com/blog/procgen-benchmark/)
 
