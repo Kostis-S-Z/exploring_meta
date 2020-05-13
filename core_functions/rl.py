@@ -42,6 +42,28 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
                                  next_value=next_value)
 
 
+def evaluate(algo, env, policy, baseline, eval_params, anil):
+    tasks_rewards = []
+    eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
+
+    for i, task in enumerate(eval_task_list):
+        learner = deepcopy(policy)
+        env.set_task(task)
+        env.reset()
+        task = ch.envs.Runner(env)
+
+        if algo is 'vpg':
+            _, task_reward = fast_adapt_vpg(task, learner, baseline, eval_params, anil=anil, first_order=False)
+        else:
+            _, _, task_reward = fast_adapt_trpo(task, learner, baseline, eval_params, anil=anil, first_order=True)
+
+        tasks_rewards.append(task_reward)
+        print(f"Reward for task {i} : {task_reward}")
+
+    final_eval_reward = sum(tasks_rewards) / eval_params['n_eval_tasks']
+    return tasks_rewards, final_eval_reward
+
+
 """ VPG RELATED """
 
 
@@ -96,6 +118,10 @@ def fast_adapt_vpg(task, learner, baseline, params, anil=False, first_order=Fals
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
 
     return outer_loss, query_rew
+
+
+def evaluate_vpg(env, policy, baseline, eval_params, anil=False):
+    return evaluate('vpg', env, policy, baseline, eval_params, anil)
 
 
 """ TRPO RELATED"""
@@ -228,20 +254,5 @@ def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, params, d
     return mean_loss, mean_kl
 
 
-def evaluate_trpo(env, policy, baseline, eval_params):
-    tasks_rewards = []
-    eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
-
-    for i, task in enumerate(eval_task_list):
-        clone = deepcopy(policy)  # TODO: check if you dont need this
-        env.set_task(task)
-        env.reset()
-        task = ch.envs.Runner(env)
-
-        _, _, task_reward = fast_adapt_trpo(task, clone, baseline, eval_params, first_order=True)
-
-        tasks_rewards.append(task_reward)
-        print(f"Reward for task {i} : {task_reward}")
-
-    final_eval_reward = sum(tasks_rewards) / eval_params['n_eval_tasks']
-    return tasks_rewards, final_eval_reward
+def evaluate_trpo(env, policy, baseline, eval_params, anil=False):
+    return evaluate('trpo', env, policy, baseline, eval_params, anil)
