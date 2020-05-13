@@ -116,7 +116,7 @@ def maml_trpo_a2c_loss(train_episodes, learner, baseline, gamma, tau, device):
         dones = train_episodes.done().to(device)
         next_states = train_episodes.next_state().to(device)
 
-    log_probs = learner.log_prob(states, actions)
+    log_probs = learner.module.log_prob(states, actions)
 
     advantages = compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states)
 
@@ -124,14 +124,34 @@ def maml_trpo_a2c_loss(train_episodes, learner, baseline, gamma, tau, device):
     return a2c.policy_loss(log_probs, advantages)
 
 
-def fast_adapt_trpo_a2c(clone, train_episodes, baseline, fast_lr, gamma, tau, first_order=False, device='cpu'):
-    second_order = not first_order
-    loss = maml_trpo_a2c_loss(train_episodes, clone, baseline, gamma, tau, device)
-    gradients = torch.autograd.grad(loss,
-                                    clone.parameters(),
-                                    retain_graph=second_order,
-                                    create_graph=second_order)
-    return l2l.algorithms.maml.maml_update(clone, fast_lr, gradients)
+def fast_adapt_trpo_a2c(task, learner, baseline, params, first_order=False, device='cpu'):
+
+    task_replay = []
+
+    learner.module.turn_off_body_grads()
+
+    for step in range(params['adapt_steps']):
+
+        train_episodes = task.run(learner, episodes=params['adapt_batch_size'])
+        task_replay.append(train_episodes)
+
+        # TODO: Make sure the learner.log_prob doesnt get gradients for features as well
+        loss = maml_trpo_a2c_loss(train_episodes, learner, baseline,
+                                  params['gamma'], params['tau'], device)
+
+        learner.adapt(loss, first_order=first_order, allow_unused=True, allow_nograd=None)
+
+    learner.module.turn_on_body_grads()
+
+    # Compute validation Loss
+    valid_episodes = task.run(learner, episodes=params['adapt_batch_size'])
+    task_replay.append(valid_episodes)
+    val_rew = valid_episodes.reward().sum().item() / params['adapt_batch_size']
+
+    loss = maml_trpo_a2c_loss(valid_episodes, learner, baseline,
+                              params['gamma'], params['tau'], device)
+
+    return loss, task_replay, val_rew
 
 
 def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, tau, gamma, fast_lr, device):
