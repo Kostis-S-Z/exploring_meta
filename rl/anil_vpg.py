@@ -121,8 +121,7 @@ class AnilVPG(Experiment):
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
 
-                # Meta-optimize
-                # Average the accumulated gradients and optimize
+                # Meta-optimize: Back-propagate through the accumulated gradients and optimize
                 optimizer.zero_grad()
                 iter_loss.backward()
                 optimizer.step()
