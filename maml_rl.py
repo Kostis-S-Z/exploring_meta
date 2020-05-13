@@ -15,7 +15,7 @@ import learn2learn as l2l
 from utils import *
 from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo
-# from misc_scripts import run_cl_rl_exp
+from misc_scripts import run_cl_rl_exp
 
 
 params = {
@@ -38,8 +38,8 @@ params = {
 # Adapt_batch_size (=shots): number of episodes (not steps!) during adaptation
 
 eval_params = {
-    'n_eval_adapt_steps': 5,  # Number of steps to adapt to a new task
-    'n_eval_episodes': 10,  # Number of shots per task
+    'adapt_steps': 5,  # Number of steps to adapt to a new task
+    'adapt_batch_size': 10,  # Number of shots per task
     'n_eval_tasks': 10,  # Number of different tasks to evaluate on
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
     'tau': params['tau'],
