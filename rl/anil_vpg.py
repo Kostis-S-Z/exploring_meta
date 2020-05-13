@@ -99,7 +99,7 @@ class AnilVPG(Experiment):
                 for task_i in trange(len(task_list), leave=False, desc='Task', position=0):
                     task = task_list[task_i]
 
-                    learner = policy.clone(0)
+                    learner = policy.clone()
                     env.set_task(task)
                     env.reset()
                     task = ch.envs.Runner(env)
