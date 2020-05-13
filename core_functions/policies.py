@@ -92,9 +92,21 @@ class ANILDiagNormalPolicy(nn.Module):
         self.head = linear_init(nn.Linear(fc_neurons, output_size))
         self.sigma = torch.nn.Parameter(torch.Tensor(output_size))
         self.sigma.data.fill_(math.log(1))
+        # Do not store gradients for the network body when doing a forward pass
+        self.features_no_grad = False
+
+    def turn_on_body_grads(self):
+        self.features_no_grad = False
+
+    def turn_off_body_grads(self):
+        self.features_no_grad = True
 
     def forward_pass(self, state):
-        state_features = self.features(state)
+        if self.features_no_grad:
+            with torch.no_grad():
+                state_features = self.features(state)
+        else:
+            state_features = self.features(state)
         return self.head(state_features)
 
     def density(self, state):
