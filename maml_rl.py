@@ -14,11 +14,9 @@ import learn2learn as l2l
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import adapt_trpo_a2c, meta_optimize, evaluate
-from misc_scripts import run_cl_rl_exp
+from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo
+# from misc_scripts import run_cl_rl_exp
 
-# ANIL Defaults: meta_batch_size: 40, adapt_steps: 1, adapt_batch_size: 20, inner_lr: 0.1
-# Train for 500 epochs then evaluate on a new set of tasks.
 
 params = {
     "outer_lr": 0.1,  #
@@ -76,7 +74,7 @@ wandb = False
 class MamlRL(Experiment):
 
     def __init__(self):
-        super(MamlRL, self).__init__("maml", env_name, params, path="rl_results/", use_wandb=wandb)
+        super(MamlRL, self).__init__("maml", env_name, params, path="rl/results/", use_wandb=wandb)
 
         def make_env():
             env = gym.make(env_name)
@@ -112,7 +110,7 @@ class MamlRL(Experiment):
         try:
             for iteration in t:
 
-                iter_reward = 0
+                iter_reward = 0.0
                 iter_replays = []
                 iter_policies = []
 
@@ -124,25 +122,15 @@ class MamlRL(Experiment):
                     clone = deepcopy(policy)
                     env.set_task(task)
                     env.reset()
-
                     task = ch.envs.Runner(env)
-                    task_replay = []
 
                     # Adapt
-                    for step in range(self.params['adapt_steps']):
-                        train_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
-                        task_replay.append(train_episodes)
-                        clone = adapt_trpo_a2c(clone, train_episodes, baseline,
-                                               self.params['inner_lr'], self.params['gamma'], self.params['tau'],
-                                               first_order=True)
+                    learner, task_replay, task_rew = fast_adapt_trpo(task, clone, baseline, self.params,
+                                                                     first_order=True, device=device)
 
-                    # Compute validation Loss
-                    valid_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
-                    task_replay.append(valid_episodes)
-
-                    iter_reward += valid_episodes.reward().sum().item() / self.params['adapt_batch_size']
+                    iter_reward += task_rew
                     iter_replays.append(task_replay)
-                    iter_policies.append(clone)
+                    iter_policies.append(learner)
 
                 adapt_reward = iter_reward / self.params['meta_batch_size']
                 metrics = {'adapt_reward': adapt_reward}
@@ -150,7 +138,7 @@ class MamlRL(Experiment):
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
 
-                meta_optimize(self.params, policy, baseline, iter_replays, iter_policies, cuda)
+                meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies, device)
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy, str(iteration))
@@ -165,7 +153,7 @@ class MamlRL(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
-        self.logger['test_reward'] = evaluate(env, policy, baseline, eval_params)
+        self.logger['test_reward'] = evaluate_trpo(env, policy, baseline, eval_params)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
 
