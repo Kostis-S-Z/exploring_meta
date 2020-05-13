@@ -135,7 +135,8 @@ def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=Tru
         # First or Second order derivatives
         gradients = torch.autograd.grad(loss, learner.parameters(),
                                         retain_graph=second_order,
-                                        create_graph=second_order)
+                                        create_graph=second_order,
+                                        allow_unused=anil)
 
         # Perform a MAML update of all the parameters in the model variable using the gradients above
         learner = l2l.algorithms.maml.maml_update(learner, params['inner_lr'], gradients)
