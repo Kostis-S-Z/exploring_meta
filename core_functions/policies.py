@@ -61,10 +61,10 @@ class DiagNormalPolicy(nn.Module):
         return action
 
 
-class ANILDiagNormalPolicy(nn.Module):
+class DiagNormalPolicyANIL(nn.Module):
 
     def __init__(self, input_size, output_size, fc_neurons, hiddens=None):
-        super(ANILDiagNormalPolicy, self).__init__()
+        super(DiagNormalPolicyANIL, self).__init__()
         if hiddens is None:
             hiddens = [100, 100]
         activation = nn.Tanh
@@ -76,7 +76,7 @@ class ANILDiagNormalPolicy(nn.Module):
             layers.append(activation())
 
         # Initialize the body of the network
-        self.features = nn.Sequential(*layers)
+        self.body = nn.Sequential(*layers)
 
         # Initialize the head of the network
         self.head = linear_init(nn.Linear(fc_neurons, output_size))
@@ -94,9 +94,9 @@ class ANILDiagNormalPolicy(nn.Module):
     def forward_pass(self, state):
         if self.features_no_grad:
             with torch.no_grad():
-                state_features = self.features(state)
+                state_features = self.body(state)
         else:
-            state_features = self.features(state)
+            state_features = self.body(state)
         return self.head(state_features)
 
     def density(self, state):
