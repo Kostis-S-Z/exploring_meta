@@ -14,7 +14,7 @@ import learn2learn as l2l
 
 from utils import *
 from core_functions.policies import ANILDiagNormalPolicy
-from core_functions.rl import adapt_trpo_a2c, meta_optimize, evaluate
+from core_functions.rl import fast_adapt_trpo_a2c, meta_optimize, evaluate
 from misc_scripts import run_cl_rl_exp
 
 # ANIL Defaults: meta_batch_size: 40, adapt_steps: 1, adapt_batch_size: 20, inner_lr: 0.1
@@ -71,7 +71,7 @@ rep_test = False
 
 cuda = False
 
-wandb = True
+wandb = False
 
 
 class AnilRL(Experiment):
@@ -107,8 +107,15 @@ class AnilRL(Experiment):
         baseline.to(device)
 
         policy = ANILDiagNormalPolicy(env.state_size, env.action_size, fc_neurons, network)
-        policy.head = l2l.algorithms.MAML(policy.head, lr=self.params['inner_lr'])
-        policy.to(device)
+        features = policy.features
+        features.to(device)
+        head = policy.head
+        head.to(device)
+
+        policy = l2l.algorithms.MAML(policy, lr=self.params['inner_lr'])
+
+        all_parameters = list(features.parameters()) + list(head.parameters())
+        optimizer = torch.optim.Adam(all_parameters, lr=self.params['outer_lr'])
 
         self.log_model(policy.features, device, input_shape=(1, env.state_size), name='features')
         self.log_model(policy.head, device, input_shape=(env.action_size, fc_neurons), name='head')
@@ -117,53 +124,49 @@ class AnilRL(Experiment):
         try:
             for iteration in t:
 
-                iter_reward = 0
+                optimizer.zero_grad()
+
+                iter_loss = 0.0
+                iter_reward = 0.0
                 iter_replays = []
                 iter_policies = []
 
                 task_list = env.sample_tasks(self.params['meta_batch_size'])
-
+                task_i = 0
                 for task in task_list:
-
                     # Copy only the policy / head
-                    clone = deepcopy(policy)  # TODO maybe do policy.clone() instead?    if anil:
+                    learner = policy.clone()
 
                     env.set_task(task)
                     env.reset()
-
                     task = ch.envs.Runner(env)
-                    task_replay = []
 
                     # Adapt
-                    for step in range(self.params['adapt_steps']):
-                        train_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
-                        task_replay.append(train_episodes)
+                    loss, task_replay, val_rew = fast_adapt_trpo_a2c(task, learner, baseline, self.params,
+                                                                     first_order=False, device=device)
 
-                        # TODO: implement anil_fast_adapt_trpo_a2c so that only head is updated
-                        # clone.head = adapt_trpo_a2c(clone, train_episodes, baseline,
-                        #                             self.params['inner_lr'],
-                        #                             self.params['gamma'],
-                        #                             self.params['tau'],
-                        #                             anil=True,
-                        #                             first_order=False,
-                        #                             device=device)
+                    loss.backward()
 
-                    # Compute validation Loss
-                    valid_episodes = task.run(clone, episodes=self.params['adapt_batch_size'])
-                    task_replay.append(valid_episodes)
-
-                    iter_reward += valid_episodes.reward().sum().item() / self.params['adapt_batch_size']
+                    iter_loss = loss.item()
+                    iter_reward += val_rew
                     iter_replays.append(task_replay)
-                    iter_policies.append(clone)
+                    iter_policies.append(learner)
+
+                    print(f"Task {task_i}: Loss: {round(iter_loss, 4)} | Rew: {round(val_rew, 2)}")
+                    task_i += 1
 
                 adapt_reward = iter_reward / self.params['meta_batch_size']
-                metrics = {'adapt_reward': adapt_reward}
+                iter_loss = iter_loss / self.params['meta_batch_size']
+                metrics = {'adapt_reward': adapt_reward,
+                           'loss': iter_loss}
 
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
 
-                # TODO REMOVE THIS AND USE A DIRECT OPTIMIZER
-                meta_optimize(self.params, policy, baseline, iter_replays, iter_policies, device)
+                # Average the accumulated gradients and optimize
+                for p in all_parameters:
+                    p.grad.data.mul_(1.0 / self.params['meta_batch_size'])
+                optimizer.step()
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy.features, 'features_' + str(iteration + 1))
