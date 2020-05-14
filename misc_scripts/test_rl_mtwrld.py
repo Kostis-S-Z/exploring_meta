@@ -14,7 +14,9 @@ from misc_scripts import run_cl_rl_exp
 from core_functions.rl import evaluate
 from core_functions.policies import DiagNormalPolicy
 
-base_path = f"/home/kosz/Projects/KTH/Thesis/exploring_meta/rl_results/metaworld/maml_metaworld_08_05_12h47_42_7908"
+base_path = f"/home/kosz/Projects/KTH/Thesis/exploring_meta/rl/results/maml_trpo_ML1_pick-place-v1_14_05_13h00_42_1709"
+ANIL = False
+ALGO = 'trpo'
 
 render = True
 
@@ -34,19 +36,19 @@ eval_params = {
 }
 
 cl_params = {
-    "normalize_rewards": False,
-    "adapt_steps": 3,
-    "adapt_batch_size": 10,  # shots
-    "inner_lr": 0.05,
-    "gamma": 0.99,
-    "tau": 1.0,
-    "n_tasks": 5
+    'normalize_rewards': False,
+    'adapt_steps': 3,
+    'adapt_batch_size': 10,  # shots
+    'inner_lr': 0.05,
+    'gamma': 0.99,
+    'tau': 1.0,
+    'n_tasks': 5
 }
 
 
 def run(path):
     # Initialize
-    with open(path + "/logger.json", "r") as f:
+    with open(path + '/logger.json', 'r') as f:
         params = json.load(f)['config']
 
     device = torch.device('cpu')
@@ -58,7 +60,7 @@ def run(path):
     env = make_env('ML1', 'pick-place-v1', params['seed'])
 
     if cuda and torch.cuda.device_count():
-        print(f"Running on {torch.cuda.get_device_name(0)}")
+        print(f'Running on {torch.cuda.get_device_name(0)}')
         torch.cuda.manual_seed(params['seed'])
         device = torch.device('cuda')
 
@@ -70,7 +72,7 @@ def run(path):
     baseline_path = base_path + '/baseline.pt'
 
     baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
-    # baseline.load_state_dict(torch.load(baseline_path))
+    baseline.load_state_dict(torch.load(baseline_path))
     baseline.to(device)
 
     policy = DiagNormalPolicy(env.state_size, env.action_size)
@@ -78,17 +80,17 @@ def run(path):
     policy.to(device)
 
     if evaluate_model:
-        eval_reward = evaluate(env, policy, baseline, eval_params, render=render)
+        eval_reward = evaluate(ALGO, env, policy, baseline, eval_params, anil=ANIL, render=render)
         print(eval_reward)
 
     # Run a Continual Learning experiment
     if cl_exp:
-        print("Running Continual Learning experiment...")
+        print('Running Continual Learning experiment...')
         run_cl_rl_exp(base_path, env, policy, baseline, cl_params=cl_params)
 
 
 def make_env(benchmark, task, seed, test=False):
-    benchmark_env = getattr(utils, f"MetaWorld{benchmark}")  # Use modded MetaWorld env
+    benchmark_env = getattr(utils, f'MetaWorld{benchmark}')  # Use modded MetaWorld env
 
     def init_env():
         if test:
