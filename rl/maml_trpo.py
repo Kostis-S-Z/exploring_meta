@@ -63,9 +63,9 @@ cl_params = {
 #   - ML1_reach-v1, ML1_pick-place-v1, ML1_push-v1
 #   - ML10, ML45
 
-env_name = 'ML1_pick-place-v1'
+env_name = 'Particles2D-v1'
 
-workers = 2
+workers = 5
 
 wandb = False
 
