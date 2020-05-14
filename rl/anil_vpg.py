@@ -21,10 +21,7 @@ params = {
     'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
     'meta_batch_size': 20,  # 'ways'
-    'outer_lr': 0.1,
-    'backtrack_factor': 0.5,
-    'ls_max_steps': 15,
-    'max_kl': 0.01,
+    'outer_lr': 0.05,
     # Common parameters
     'activation': 'tanh',  # for MetaWorld use tanh, others relu
     'tau': 1.0,
@@ -36,8 +33,8 @@ params = {
     'seed': 42}
 
 eval_params = {
-    'n_eval_adapt_steps': 5,  # Number of steps to adapt to a new task
-    'n_eval_episodes': 10,  # Number of shots per task
+    'adapt_steps': 5,  # Number of steps to adapt to a new task
+    'adapt_batch_size': 10,  # Number of shots per task
     'n_eval_tasks': 10,  # Number of different tasks to evaluate on
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
     'tau': params['tau'],
@@ -51,12 +48,13 @@ eval_params = {
 #   - ML10, ML45
 
 env_name = 'Particles2D-v1'
-workers = 4
+
+workers = 5
+
+wandb = False
 
 cl_test = False
 rep_test = False
-
-wandb = False
 
 
 class AnilVPG(Experiment):
