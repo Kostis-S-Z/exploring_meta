@@ -82,7 +82,7 @@ def vpg_a2c_loss(episodes, learner, baseline, gamma, tau, device='cpu'):
 
     # Calculate DiCE objective
     weights = torch.ones_like(dones)
-    weights[1:].add_(-1.0, dones[:-1])
+    weights[1:] = dones[:-1] - 1.0
     weights /= dones.sum()
     cum_log_probs = weighted_cumsum(log_probs, weights)
 
@@ -204,11 +204,11 @@ def meta_optimize_trpo(params, policy, baseline, iter_replays, iter_policies, de
         stepsize = params['backtrack_factor'] ** ls_step * params['outer_lr']
         clone = deepcopy(policy)
         for p, u in zip(clone.parameters(), step):
-            p.data.add_(-stepsize, u.data)
+            p.data = u.data + (-stepsize)
         new_loss, kl = meta_surrogate_loss(iter_replays, iter_policies, clone, baseline, params, device)
         if new_loss < old_loss and kl < params['max_kl']:
             for p, u in zip(policy.parameters(), step):
-                p.data.add_(-stepsize, u.data)
+                p.data = u.data + (-stepsize)
             break
 
 
