@@ -128,7 +128,7 @@ def evaluate_vpg(env, policy, baseline, eval_params, anil=False, render=False):
 """ PPO RELATED """
 
 
-def ppo_update(episodes, learner, baseline, params, device='cpu'):
+def ppo_update(episodes, learner, baseline, params, anil=False, device='cpu'):
     """
     Inspired by cherry-rl/examples/spinning-up/cherry_ppo.py
     """
@@ -163,7 +163,7 @@ def ppo_update(episodes, learner, baseline, params, device='cpu'):
         loss = ppo.policy_loss(new_log_probs, old_log_probs, advantages, clip=params['ppo_clip_ratio'])
 
         # Adapt model based on the loss
-        learner.adapt(loss, first_order=False, allow_unused=False)
+        learner.adapt(loss, allow_unused=anil)
 
         # TODO: do we need to update the value function in every epoch? only once outside?
         # baseline.fit(states, returns)
@@ -173,19 +173,27 @@ def ppo_update(episodes, learner, baseline, params, device='cpu'):
     return av_loss / params['ppo_epochs']
 
 
-def fast_adapt_ppo(task, learner, baseline, params, render=False, device='cpu'):
+def fast_adapt_ppo(task, learner, baseline, params, anil=False, render=False, device='cpu'):
+    # During inner loop adaptation we do not store gradients for the network body
+    if anil:
+        learner.module.turn_off_body_grads()
+
     for step in range(params['adapt_steps']):
         # Collect adaptation / support episodes
         support_episodes = task.run(learner, episodes=params['adapt_batch_size'], render=render)
 
         # Calculate loss & fit the value function & update the policy
-        inner_loss = ppo_update(support_episodes, learner, baseline, params, device)
+        inner_loss = ppo_update(support_episodes, learner, baseline, params, anil=anil, device=device)
         # print(f'Inner loss {step}: {round(inner_loss.item(), 3)}')
+
+    # We need to include the body network parameters for the query set
+    if anil:
+        learner.module.turn_on_body_grads()
 
     # Collect evaluation / query episodes
     query_episodes = task.run(learner, episodes=params['adapt_batch_size'])
     # Calculate loss for the outer loop optimization
-    outer_loss = ppo_update(query_episodes, learner, baseline, params, device)
+    outer_loss = ppo_update(query_episodes, learner, baseline, params, anil=anil, device=device)
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
 
