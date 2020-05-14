@@ -60,7 +60,7 @@ cl_params = {
 #   - ML1_reach-v1, ML1_pick-place-v1, ML1_push-v1
 #   - ML10, ML45
 
-env_name = 'ML1_pick-place-v1'
+env_name = 'ML1_reach-v1'
 
 workers = 4
 
@@ -73,7 +73,7 @@ rep_test = False
 class MamlVPG(Experiment):
 
     def __init__(self):
-        super(MamlVPG, self).__init__('maml_vpg', env_name, params, path='rl/results/', use_wandb=wandb)
+        super(MamlVPG, self).__init__('maml_vpg', env_name, params, path='results/', use_wandb=wandb)
 
         # Set seed
         device = torch.device('cpu')

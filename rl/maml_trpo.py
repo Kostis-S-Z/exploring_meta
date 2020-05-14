@@ -76,7 +76,7 @@ rep_test = False
 class MamlTRPO(Experiment):
 
     def __init__(self):
-        super(MamlTRPO, self).__init__('maml_trpo', env_name, params, path='rl/results/', use_wandb=wandb)
+        super(MamlTRPO, self).__init__('maml_trpo', env_name, params, path='results/', use_wandb=wandb)
 
         # Set seed
         device = torch.device('cpu')

@@ -64,7 +64,7 @@ wandb = False
 class AnilTRPO(Experiment):
 
     def __init__(self):
-        super(AnilTRPO, self).__init__("anil_trpo", env_name, params, path="rl/results/", use_wandb=wandb)
+        super(AnilTRPO, self).__init__("anil_trpo", env_name, params, path="results/", use_wandb=wandb)
 
         device = torch.device('cpu')
         random.seed(self.params['seed'])
