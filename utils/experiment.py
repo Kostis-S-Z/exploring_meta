@@ -24,12 +24,12 @@ class Experiment:
             seed = params['seed']
         else:
             seed = 42
-            self.params.update({"seed": seed})
+            self.params.update({'seed': seed})
 
         self.logger = {
-            "config": self.params,
-            "date": datetime.datetime.now().strftime("%d_%m_%Hh%M"),
-            "model_id": str(seed) + '_' + str(np.random.randint(1, 9999))}  # Generate a unique ID with seed + randint
+            'config': self.params,
+            'date': datetime.datetime.now().strftime('%d_%m_%Hh%M'),
+            'model_id': str(seed) + '_' + str(np.random.randint(1, 9999))}  # Generate a unique ID with seed + randint
 
         self.metrics = {}
 
@@ -43,11 +43,12 @@ class Experiment:
         # Optionally, use Weights and Biases to monitor performance
         if use_wandb:
             self._use_wandb = True
-            self._wandb = wandb.init(project="l2l", id=self.logger['model_id'], config=self.params)
+            self._wandb = wandb.init(project='l2l', id=f'{algo}_{dataset}_{self.logger["model_id"]}',
+                                     config=self.params)
         else:
             self._use_wandb = False
 
-    def log_model(self, model, device, input_shape=None, name="model"):
+    def log_model(self, model, device, input_shape=None, name='model'):
         """
         Save information (such as architecture) of the network.
         """
