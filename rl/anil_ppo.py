@@ -41,6 +41,8 @@ eval_params = {
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
     'tau': params['tau'],
     'gamma': params['gamma'],
+    'ppo_epochs': params['ppo_epochs'],
+    'ppo_clip_ratio': params['ppo_clip_ratio'],
 }
 
 # Environments:
@@ -108,7 +110,7 @@ class AnilPPO(Experiment):
                     loss, task_rew = fast_adapt_ppo(task, learner, baseline, self.params,
                                                     anil=True, device=device)
 
-                    print(f'Task {task_i}: Loss: {loss.item()} | Rew: {task_rew}')
+                    # print(f'Task {task_i}: Loss: {loss.item()} | Rew: {task_rew}')
                     iter_reward += task_rew
                     iter_loss += loss
 

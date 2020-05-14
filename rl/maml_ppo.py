@@ -44,6 +44,8 @@ eval_params = {
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
     'tau': params['tau'],
     'gamma': params['gamma'],
+    'ppo_epochs': params['ppo_epochs'],
+    'ppo_clip_ratio': params['ppo_clip_ratio'],
 }
 
 cl_params = {
