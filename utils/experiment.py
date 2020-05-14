@@ -15,8 +15,9 @@ class Experiment:
     A class to be inherited from different experiments for easy logging and saving models.
     """
 
-    def __init__(self, algo, dataset, params, path="", use_wandb=False):
+    def __init__(self, algo, dataset, params, path='', use_wandb=False):
 
+        params['algo'] = algo
         params['dataset'] = dataset
         self.params = params
         # Make sure all experiments have a seed
