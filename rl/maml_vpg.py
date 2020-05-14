@@ -24,9 +24,6 @@ params = {
     # Outer loop parameters
     'meta_batch_size': 20,  # 'ways'
     'outer_lr': 0.1,
-    'backtrack_factor': 0.5,
-    'ls_max_steps': 15,
-    'max_kl': 0.01,
     # Common parameters
     'activation': 'tanh',  # for MetaWorld use tanh, others relu
     'tau': 1.0,
