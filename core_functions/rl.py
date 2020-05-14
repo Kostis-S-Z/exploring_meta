@@ -42,7 +42,7 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
                                  next_value=next_value)
 
 
-def evaluate(algo, env, policy, baseline, eval_params, anil):
+def evaluate(algo, env, policy, baseline, eval_params, anil, render=False):
     tasks_rewards = []
     eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
 
@@ -53,9 +53,9 @@ def evaluate(algo, env, policy, baseline, eval_params, anil):
         task = ch.envs.Runner(env)
 
         if algo is 'vpg':
-            _, task_reward = fast_adapt_vpg(task, learner, baseline, eval_params, anil=anil, first_order=False)
+            _, task_reward = fast_adapt_vpg(task, learner, baseline, eval_params, anil=anil, render=render)
         else:
-            _, _, task_reward = fast_adapt_trpo(task, learner, baseline, eval_params, anil=anil, first_order=True)
+            _, _, task_reward = fast_adapt_trpo(task, learner, baseline, eval_params, anil=anil, render=render)
 
         tasks_rewards.append(task_reward)
         print(f"Reward for task {i} : {task_reward}")
@@ -93,14 +93,14 @@ def vpg_a2c_loss(episodes, learner, baseline, gamma, tau, device='cpu'):
     return a2c.policy_loss(l2l.magic_box(cum_log_probs), advantages)
 
 
-def fast_adapt_vpg(task, learner, baseline, params, anil=False, first_order=False, device='cpu'):
+def fast_adapt_vpg(task, learner, baseline, params, anil=False, first_order=False, render=False, device='cpu'):
     # During inner loop adaptation we do not store gradients for the network body
     if anil:
         learner.module.turn_off_body_grads()
 
     for step in range(params['adapt_steps']):
         # Collect adaptation / support episodes
-        support_episodes = task.run(learner, episodes=params['adapt_batch_size'])
+        support_episodes = task.run(learner, episodes=params['adapt_batch_size'], render=render)
         # Calculate loss & fit the value function
         inner_loss = vpg_a2c_loss(support_episodes, learner, baseline, params['gamma'], params['tau'], device)
         # Adapt model based on the loss
@@ -120,8 +120,8 @@ def fast_adapt_vpg(task, learner, baseline, params, anil=False, first_order=Fals
     return outer_loss, query_rew
 
 
-def evaluate_vpg(env, policy, baseline, eval_params, anil=False):
-    return evaluate('vpg', env, policy, baseline, eval_params, anil)
+def evaluate_vpg(env, policy, baseline, eval_params, anil=False, render=False):
+    return evaluate('vpg', env, policy, baseline, eval_params, anil, render=render)
 
 
 """ TRPO RELATED"""
@@ -142,7 +142,7 @@ def trpo_a2c_loss(episodes, learner, baseline, gamma, tau, device):
     return a2c.policy_loss(log_probs, advantages)
 
 
-def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=True, device='cpu'):
+def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=True, render=False, device='cpu'):
     task_replay = []
     second_order = not first_order
 
@@ -152,7 +152,7 @@ def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=Tru
 
     for step in range(params['adapt_steps']):
         # Collect adaptation / support episodes
-        support_episodes = task.run(learner, episodes=params['adapt_batch_size'])
+        support_episodes = task.run(learner, episodes=params['adapt_batch_size'], render=render)
         task_replay.append(support_episodes)
 
         # Calculate loss & fit the value function
@@ -254,5 +254,5 @@ def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, params, d
     return mean_loss, mean_kl
 
 
-def evaluate_trpo(env, policy, baseline, eval_params, anil=False):
-    return evaluate('trpo', env, policy, baseline, eval_params, anil)
+def evaluate_trpo(env, policy, baseline, eval_params, anil=False, render=False):
+    return evaluate('trpo', env, policy, baseline, eval_params, anil, render=render)
