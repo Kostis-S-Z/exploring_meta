@@ -87,7 +87,7 @@ class MamlVPG(Experiment):
         policy = DiagNormalPolicy(env.state_size, env.action_size)
         policy = MAML(policy, lr=self.params['inner_lr'])
 
-        optimizer = torch.optim.Adam(policy.parameters(), lr=self.params['outer_lr'])
+        meta_optimizer = torch.optim.Adam(policy.parameters(), lr=self.params['outer_lr'])
 
         self.log_model(policy, device, input_shape=(1, env.state_size))
 
@@ -124,9 +124,9 @@ class MamlVPG(Experiment):
                 self.log_metrics(metrics)
 
                 # Meta-optimize: Back-propagate through the accumulated gradients and optimize
-                optimizer.zero_grad()
+                meta_optimizer.zero_grad()
                 iter_loss.backward()
-                optimizer.step()
+                meta_optimizer.step()
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy, str(iteration + 1))
