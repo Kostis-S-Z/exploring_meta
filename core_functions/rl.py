@@ -5,9 +5,8 @@ from copy import deepcopy
 
 from torch.distributions.kl import kl_divergence
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
-from cherry.algorithms import a2c, trpo
+from cherry.algorithms import a2c, trpo, ppo
 from cherry.pg import generalized_advantage
-
 
 """ COMMON """
 
@@ -54,6 +53,8 @@ def evaluate(algo, env, policy, baseline, eval_params, anil, render=False):
 
         if algo is 'vpg':
             _, task_reward = fast_adapt_vpg(task, learner, baseline, eval_params, anil=anil, render=render)
+        elif algo is 'ppo':
+            _, task_reward = fast_adapt_ppo(task, learner, baseline, eval_params, render=render)
         else:
             _, _, task_reward = fast_adapt_trpo(task, learner, baseline, eval_params, anil=anil, render=render)
 
@@ -124,7 +125,78 @@ def evaluate_vpg(env, policy, baseline, eval_params, anil=False, render=False):
     return evaluate('vpg', env, policy, baseline, eval_params, anil, render=render)
 
 
-""" TRPO RELATED"""
+""" PPO RELATED """
+
+
+def ppo_update(episodes, learner, baseline, params, device='cpu'):
+    """
+    Inspired by cherry-rl/examples/spinning-up/cherry_ppo.py
+    """
+
+    # Get values to device
+    states, actions, rewards, dones, next_states = get_episode_values(episodes, device)
+
+    returns = ch.td.discount(params['gamma'], rewards, dones)
+
+    # Update value function and get new values
+    baseline.fit(states, returns)
+    values = baseline(states)
+    new_values = baseline(next_states)
+    bootstraps = values * (1.0 - dones) + new_values * dones
+
+    # Compute advantages
+    with torch.no_grad():
+        advantages = ch.pg.generalized_advantage(gamma=params['gamma'], tau=params['tau'],
+                                                 rewards=rewards, dones=dones, values=bootstraps,
+                                                 next_value=torch.zeros(1, device=values.device))
+        advantages = ch.normalize(advantages, epsilon=1e-8).detach()
+        # Calculate loss between states and action in the network
+        old_log_probs = learner.log_prob(states, actions)
+
+    # Initialize inner loop PPO optimizer
+    av_loss = 0.0
+
+    for ppo_epoch in range(params['ppo_epochs']):
+        new_log_probs = learner.log_prob(states, actions)
+
+        # Compute the policy loss
+        loss = ppo.policy_loss(new_log_probs, old_log_probs, advantages, clip=params['ppo_clip_ratio'])
+
+        # Adapt model based on the loss
+        learner.adapt(loss, first_order=False, allow_unused=False)
+
+        # TODO: do we need to update the value function in every epoch? only once outside?
+        # baseline.fit(states, returns)
+        # print(f'\tPPO EPOCH {ppo_epoch}: {round(loss.item(), 3)}')
+        av_loss += loss
+
+    return av_loss / params['ppo_epochs']
+
+
+def fast_adapt_ppo(task, learner, baseline, params, render=False, device='cpu'):
+    for step in range(params['adapt_steps']):
+        # Collect adaptation / support episodes
+        support_episodes = task.run(learner, episodes=params['adapt_batch_size'], render=render)
+
+        # Calculate loss & fit the value function & update the policy
+        inner_loss = ppo_update(support_episodes, learner, baseline, params, device)
+        # print(f'Inner loss {step}: {round(inner_loss.item(), 3)}')
+
+    # Collect evaluation / query episodes
+    query_episodes = task.run(learner, episodes=params['adapt_batch_size'])
+    # Calculate loss for the outer loop optimization
+    outer_loss = ppo_update(query_episodes, learner, baseline, params, device)
+    # Calculate the average reward of the evaluation episodes
+    query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
+
+    return outer_loss, query_rew
+
+
+def evaluate_ppo(env, policy, baseline, eval_params, anil=False, render=False):
+    return evaluate('ppo', env, policy, baseline, eval_params, anil, render=render)
+
+
+""" TRPO RELATED """
 
 
 def trpo_a2c_loss(episodes, learner, baseline, gamma, tau, device):
