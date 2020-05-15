@@ -56,7 +56,7 @@ def make_env(env_name, n_workers, seed, test=False):
 def calculate_samples_seen(n_steps, n_episodes, n_inner_steps, n_tasks, n_iters):
     n_samples = dict()
     n_samples['rollout'] = n_steps  # Samples in one episode
-    n_samples['task_batch'] = n_samples['rollout'] * n_episodes,  # Samples per task (steps * episodes)
+    n_samples['task_batch'] = n_samples['rollout'] * n_episodes  # Samples per task (steps * episodes)
     n_samples['task_support'] = n_samples['task_batch'] * n_inner_steps  # Samples adapted to per task
     # Samples in inner loop per task (support + query set)
     n_samples['task_total'] = n_samples['task_support'] + n_samples['task_batch']
