@@ -51,9 +51,9 @@ def evaluate(algo, env, policy, baseline, eval_params, anil, render=False):
         env.reset()
         task = ch.envs.Runner(env)
 
-        if algo is 'vpg':
+        if algo == 'vpg':
             _, task_reward = fast_adapt_vpg(task, learner, baseline, eval_params, anil=anil, render=render)
-        elif algo is 'ppo':
+        elif algo == 'ppo':
             _, task_reward = fast_adapt_ppo(task, learner, baseline, eval_params, render=render)
         else:
             _, _, task_reward = fast_adapt_trpo(task, learner, baseline, eval_params, anil=anil, render=render)
