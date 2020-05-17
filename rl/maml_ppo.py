@@ -139,7 +139,7 @@ class MamlPPO(Experiment):
                 meta_optimizer.step()
 
                 if iteration % self.params['save_every'] == 0:
-                    self.save_model_checkpoint(policy, str(iteration + 1))
+                    self.save_model_checkpoint(policy.module, str(iteration + 1))
                     self.save_model_checkpoint(baseline, 'baseline_' + str(iteration + 1))
 
         # Support safely manually interrupt training
@@ -148,7 +148,7 @@ class MamlPPO(Experiment):
             self.logger['manually_stopped'] = True
             self.params['num_iterations'] = iteration
 
-        self.save_model(policy)
+        self.save_model(policy.module)
         self.save_model(baseline, name='baseline')
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
