@@ -91,7 +91,6 @@ class MamlTRPO(Experiment):
 
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
         policy = DiagNormalPolicy(env.state_size, env.action_size)
-        policy = MAML(policy, lr=self.params['inner_lr'])
 
         self.log_model(policy, device, input_shape=(1, env.state_size))
 
@@ -131,7 +130,7 @@ class MamlTRPO(Experiment):
                 meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies, device)
 
                 if iteration % self.params['save_every'] == 0:
-                    self.save_model_checkpoint(policy.module, str(iteration + 1))
+                    self.save_model_checkpoint(policy, str(iteration + 1))
                     self.save_model_checkpoint(baseline, 'baseline_' + str(iteration + 1))
 
         # Support safely manually interrupt training
@@ -140,7 +139,7 @@ class MamlTRPO(Experiment):
             self.logger['manually_stopped'] = True
             self.params['num_iterations'] = iteration
 
-        self.save_model(policy.module)
+        self.save_model(policy)
         self.save_model(baseline, name='baseline')
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
