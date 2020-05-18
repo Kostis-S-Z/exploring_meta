@@ -79,6 +79,7 @@ class AnilTRPO(Experiment):
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
 
         policy = DiagNormalPolicyANIL(env.state_size, env.action_size, params['fc_neurons'])
+        policy = MAML(policy, lr=self.params['inner_lr'])
 
         self.log_model(policy.body, device, input_shape=(1, env.state_size), name='body')
         self.log_model(policy.head, device, input_shape=(env.action_size, params['fc_neurons']), name='head')
