@@ -1,8 +1,9 @@
+from learn2learn.gym.envs.meta_env import MetaEnv
 from metaworld.envs.mujoco.multitask_env import MultiClassMultiTaskEnv
 from metaworld.benchmarks import ML1, ML10, ML45
 
 
-class MetaWorldMod(MultiClassMultiTaskEnv):
+class MetaWorldMod(MultiClassMultiTaskEnv, MetaEnv):
     """
     Modification to return Done signal when reaching the end of the horizon
     """
@@ -14,6 +15,17 @@ class MetaWorldMod(MultiClassMultiTaskEnv):
                                            sample_all=sample_all)
         self.collected_steps = 0
 
+    # -------- MetaEnv Methods --------
+    def sample_tasks(self, meta_batch_size):
+        return MultiClassMultiTaskEnv.sample_tasks(self, meta_batch_size)
+
+    def set_task(self, task):
+        return MultiClassMultiTaskEnv.set_task(self, task)
+
+    def get_task(self):
+        return MultiClassMultiTaskEnv.get_task(self)
+
+    # -------- Gym Methods --------
     def step(self, action):
         obs, reward, done, info = super().step(action)
         self.collected_steps += 1
