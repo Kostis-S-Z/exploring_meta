@@ -95,6 +95,7 @@ class MamlVPG(Experiment):
         t = trange(self.params['num_iterations'], desc='Iteration', position=0)
         try:
             for iteration in t:
+                meta_optimizer.zero_grad()
 
                 iter_reward = 0.0
                 iter_loss = 0.0
@@ -117,16 +118,15 @@ class MamlVPG(Experiment):
 
                 # Log
                 average_return = iter_reward / self.params['meta_batch_size']
-                av_loss = iter_loss.item() / self.params['meta_batch_size']
+                av_loss = iter_loss / self.params['meta_batch_size']
                 metrics = {'average_return': average_return,
-                           'loss': av_loss}
+                           'loss': av_loss.item()}
 
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
 
                 # Meta-optimize: Back-propagate through the accumulated gradients and optimize
-                meta_optimizer.zero_grad()
-                iter_loss.backward()
+                av_loss.backward()
                 meta_optimizer.step()
 
                 if iteration % self.params['save_every'] == 0:

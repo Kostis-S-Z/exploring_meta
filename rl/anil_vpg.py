@@ -81,7 +81,7 @@ class AnilVPG(Experiment):
         head = policy.head
 
         all_parameters = list(body.parameters()) + list(head.parameters())
-        optimizer = torch.optim.Adam(all_parameters, lr=self.params['outer_lr'])
+        meta_optimizer = torch.optim.Adam(all_parameters, lr=self.params['outer_lr'])
 
         self.log_model(policy.body, device, input_shape=(1, env.state_size), name='body')
         self.log_model(policy.head, device, input_shape=(env.action_size, params['fc_neurons']), name='head')
@@ -89,6 +89,7 @@ class AnilVPG(Experiment):
         t = trange(self.params['num_iterations'])
         try:
             for iteration in t:
+                meta_optimizer.zero_grad()
 
                 iter_reward = 0.0
                 iter_loss = 0.0
@@ -113,17 +114,16 @@ class AnilVPG(Experiment):
 
                 # Log
                 average_return = iter_reward / self.params['meta_batch_size']
-                av_loss = iter_loss.item() / self.params['meta_batch_size']
+                av_loss = iter_loss / self.params['meta_batch_size']
                 metrics = {'average_return': average_return,
-                           'loss': av_loss}
+                           'loss': av_loss.item()}
 
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
 
                 # Meta-optimize: Back-propagate through the accumulated gradients and optimize
-                optimizer.zero_grad()
-                iter_loss.backward()
-                optimizer.step()
+                av_loss.backward()
+                meta_optimizer.step()
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy.body, 'body_' + str(iteration + 1))
