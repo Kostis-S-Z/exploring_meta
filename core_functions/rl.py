@@ -292,11 +292,11 @@ def meta_optimize_trpo(params, policy, baseline, iter_replays, iter_policies, de
         stepsize = params['backtrack_factor'] ** ls_step * params['outer_lr']
         clone = deepcopy(policy)
         for p, u in zip(clone.parameters(), step):
-            p.data += u.data + (-stepsize)
+            p.data.add_(u.data, alpha=-stepsize)  # same as p.data += u.data * (-stepsize)
         new_loss, kl = meta_surrogate_loss(iter_replays, iter_policies, clone, baseline, params, device)
         if new_loss < old_loss and kl < params['max_kl']:
             for p, u in zip(policy.parameters(), step):
-                p.data += u.data + (-stepsize)
+                p.data.add_(u.data, alpha=-stepsize)  # same as p.data += u.data * (-stepsize)
             break
 
 
