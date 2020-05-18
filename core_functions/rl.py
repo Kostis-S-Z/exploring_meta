@@ -74,24 +74,25 @@ def weighted_cumsum(values, weights):
     return values
 
 
-def vpg_a2c_loss(episodes, learner, baseline, gamma, tau, device='cpu'):
+def vpg_a2c_loss(episodes, learner, baseline, gamma, tau, dice=False, device='cpu'):
     # Get values to device
     states, actions, rewards, dones, next_states = get_episode_values(episodes, device)
 
     # Calculate loss between states and action in the network
     log_probs = learner.log_prob(states, actions)
 
-    # Calculate DiCE objective
-    weights = torch.ones_like(dones)
-    weights[1:] = dones[:-1] - 1.0
-    weights /= dones.sum()
-    cum_log_probs = weighted_cumsum(log_probs, weights)
-
     # Fit value function, compute advantages & normalize
     advantages = compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states)
 
-    # Compute the policy loss
-    return a2c.policy_loss(l2l.magic_box(cum_log_probs), advantages)
+    # Calculate DiCE objective
+    if dice:
+        weights = torch.ones_like(dones)
+        weights[1:] = dones[:-1] - 1.0
+        weights /= dones.sum()
+        cum_log_probs = weighted_cumsum(log_probs, weights)
+        log_probs = l2l.magic_box(cum_log_probs)
+
+    return a2c.policy_loss(log_probs, advantages)
 
 
 def fast_adapt_vpg(task, learner, baseline, params, anil=False, first_order=False, render=False, device='cpu'):
