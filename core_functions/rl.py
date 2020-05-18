@@ -223,9 +223,24 @@ def trpo_a2c_loss(episodes, learner, baseline, gamma, tau, device):
     return a2c.policy_loss(log_probs, advantages)
 
 
+def trpo_update(episodes, learner, baseline, inner_lr, gamma, tau, anil=False, first_order=False, device='cpu'):
+    second_order = not first_order
+
+    # Calculate loss & fit the value function
+    loss = trpo_a2c_loss(episodes, learner, baseline, gamma, tau, device)
+
+    # First or Second order derivatives
+    gradients = torch.autograd.grad(loss, learner.parameters(),
+                                    retain_graph=second_order,
+                                    create_graph=second_order,
+                                    allow_unused=anil)
+
+    # Perform a MAML update of all the parameters in the model variable using the gradients above
+    return l2l.algorithms.maml.maml_update(learner, inner_lr, gradients)
+
+
 def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=False, render=False, device='cpu'):
     task_replay = []
-    second_order = not first_order
 
     # During inner loop adaptation we do not store gradients for the network body
     if anil:
@@ -236,17 +251,9 @@ def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=Fal
         support_episodes = task.run(learner, episodes=params['adapt_batch_size'], render=render)
         task_replay.append(support_episodes)
 
-        # Calculate loss & fit the value function
-        loss = trpo_a2c_loss(support_episodes, learner, baseline, params['gamma'], params['tau'], device)
-
-        # First or Second order derivatives
-        gradients = torch.autograd.grad(loss, learner.parameters(),
-                                        retain_graph=second_order,
-                                        create_graph=second_order,
-                                        allow_unused=anil)
-
-        # Perform a MAML update of all the parameters in the model variable using the gradients above
-        learner = l2l.algorithms.maml.maml_update(learner, params['inner_lr'], gradients)
+        learner = trpo_update(support_episodes, learner, baseline,
+                              params['inner_lr'], params['gamma'], params['tau'],
+                              anil=anil, first_order=first_order, device=device)
 
     # We need to include the body network parameters for the query set
     if anil:
@@ -303,16 +310,9 @@ def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, params, d
 
         # Fast Adapt to the training episodes
         for train_episodes in train_replays:
-            # Calculate loss & fit the value function
-            loss = trpo_a2c_loss(train_episodes, new_policy, baseline, params['gamma'], params['tau'], device)
-
-            # First or Second order derivatives
-            gradients = torch.autograd.grad(loss, new_policy.parameters(),
-                                            retain_graph=True,  # First order = False
-                                            create_graph=True)
-
-            # Perform a MAML update of all the parameters in the model variable using the gradients above
-            new_policy = l2l.algorithms.maml.maml_update(new_policy, params['inner_lr'], gradients)
+            new_policy = trpo_update(train_episodes, new_policy, baseline,
+                                     params['inner_lr'], params['gamma'], params['tau'],
+                                     first_order=False, device=device)
 
         # Calculate KL from the validation episodes
         states, actions, rewards, dones, next_states = get_episode_values(valid_episodes, device)
