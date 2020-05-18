@@ -20,7 +20,7 @@ from misc_scripts import run_cl_rl_exp
 params = {
     # Inner loop parameters
     'ppo_epochs': 1,
-    'ppo_clip_ratio': 0.1,
+    'ppo_clip_ratio': 0.2,
     'inner_lr': 0.05,
     'adapt_steps': 1,
     'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
@@ -101,6 +101,7 @@ class MamlPPO(Experiment):
         t = trange(self.params['num_iterations'], desc='Iteration', position=0)
         try:
             for iteration in t:
+                meta_optimizer.zero_grad()
 
                 iter_reward = 0.0
                 iter_loss = 0.0
@@ -116,26 +117,25 @@ class MamlPPO(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Adapt
-                    loss, task_rew = fast_adapt_ppo(task, learner, baseline, self.params, device=device)
+                    eval_loss, task_rew = fast_adapt_ppo(task, learner, baseline, self.params, device=device)
 
                     iter_reward += task_rew
-                    iter_loss += loss
+                    iter_loss += eval_loss
                     # print(f'\tTask {task_i} reward: {task_rew} | Loss : {loss.item()}')
 
                 # Log
                 average_return = iter_reward / self.params['meta_batch_size']
-                av_loss = iter_loss.item() / self.params['meta_batch_size']
+                av_loss = iter_loss / self.params['meta_batch_size']
 
                 # print(f'Iter {iteration} average reward: {average_return} | Loss : {av_loss}')
                 metrics = {'average_return': average_return,
-                           'loss': av_loss}
+                           'loss': av_loss.item()}
 
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
 
                 # Meta-optimize: Back-propagate through the accumulated gradients and optimize
-                meta_optimizer.zero_grad()
-                iter_loss.backward()
+                av_loss.backward()
                 meta_optimizer.step()
 
                 if iteration % self.params['save_every'] == 0:
