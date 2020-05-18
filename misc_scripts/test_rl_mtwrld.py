@@ -22,7 +22,7 @@ ML_ALGO = model_path.split('_')[0]
 RL_ALGO = model_path.split('_')[1]
 DATASET = model_path.split('_')[2] + '_' + model_path.split('_')[3]
 
-render = True
+render = True  # if you want to render you need to select just 1 worker
 
 evaluate_model = True
 cl_exp = False
