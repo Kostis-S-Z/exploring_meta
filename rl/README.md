@@ -34,10 +34,12 @@ Train for 500 epochs then evaluate on a new set of tasks.
 
 ### MetaWorld
 
-#### Default parameters of MAML-TRPO for ML1, ML10:
+#### Default parameters of MAML for ML1, ML10:
 
 ```
+max_path = 100
 inner_lr = 0.1
+outer_lr = 0.001
 adapt_steps = 1
 tau / gae_lambda = 1.0
 gamma / discount = 0.99
@@ -46,6 +48,18 @@ meta_batch_size = 20
 iterations = 300
 ``` 
 
+for MAML-TRPO:
+``` 
+max_kl_step = 0.01
+``` 
+
+for MAML-PPO:
+``` 
+ppo epoch = 1
+lr_clip_range = [0.2, 0.5]
+``` 
+
+value function can be a gaussian MLP 32,32 with tanh and linear output
 
 ### [Procgen](https://openai.com/blog/procgen-benchmark/)
 
