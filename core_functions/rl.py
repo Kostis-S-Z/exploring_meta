@@ -87,7 +87,7 @@ def vpg_a2c_loss(episodes, learner, baseline, gamma, tau, dice=False, device='cp
     # Calculate DiCE objective
     if dice:
         weights = torch.ones_like(dones)
-        weights[1:] = dones[:-1] - 1.0
+        weights[1:].add_(dones[:-1], alpha=-1.0)
         weights /= dones.sum()
         cum_log_probs = weighted_cumsum(log_probs, weights)
         log_probs = l2l.magic_box(cum_log_probs)
