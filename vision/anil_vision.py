@@ -152,8 +152,8 @@ class AnilVision(Experiment):
                 optimizer.step()
 
                 if iteration % self.params['save_every'] == 0:
-                    self.save_model(features, name='/model_checkpoints/features_' + str(iteration))
-                    self.save_model(head, name='/model_checkpoints/head_' + str(iteration))
+                    self.save_model_checkpoint(features, 'features_' + str(iteration + 1))
+                    self.save_model_checkpoint(head, 'head_' + str(iteration + 1))
 
         # Support safely manually interrupt training
         except KeyboardInterrupt:
