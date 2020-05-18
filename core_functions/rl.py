@@ -21,14 +21,15 @@ def get_episode_values(episodes, device):
     return states, actions, rewards, dones, next_states
 
 
-def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states):
+def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states, update_vf=True):
     returns = ch.td.discount(gamma, rewards, dones)
     # if baseline.linear.weight.dim() != states.dim():  # if dimensions are not equal, try to flatten
     #     states = states.flatten(1, -1)
     #     next_states = next_states.flatten(1, -1)
     #     dones = dones.reshape(-1, 1)
 
-    baseline.fit(states, returns)
+    if update_vf:
+        baseline.fit(states, returns)
     values = baseline(states)
     next_values = baseline(next_states)
     bootstraps = values * (1.0 - dones) + next_values * dones
@@ -56,7 +57,7 @@ def evaluate(algo, env, policy, baseline, eval_params, anil, render=False):
         elif algo == 'ppo':
             _, task_reward = fast_adapt_ppo(task, learner, baseline, eval_params, render=render)
         else:
-            _, _, task_reward = fast_adapt_trpo(task, learner, baseline, eval_params, anil=anil, render=render)
+            _, _, _, task_reward = fast_adapt_trpo(task, learner, baseline, eval_params, anil=anil, render=render)
 
         tasks_rewards.append(task_reward)
         print(f"Reward for task {i} : {task_reward}")
@@ -208,7 +209,7 @@ def evaluate_ppo(env, policy, baseline, eval_params, anil=False, render=False):
 """ TRPO RELATED """
 
 
-def trpo_a2c_loss(episodes, learner, baseline, gamma, tau, device):
+def trpo_a2c_loss(episodes, learner, baseline, gamma, tau, device, update_vf=True):
     # Get values to device
     states, actions, rewards, dones, next_states = get_episode_values(episodes, device)
 
@@ -216,7 +217,7 @@ def trpo_a2c_loss(episodes, learner, baseline, gamma, tau, device):
     log_probs = learner.log_prob(states, actions)
 
     # Compute advantages & normalize
-    advantages = compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states)
+    advantages = compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states, update_vf=update_vf)
     advantages = ch.normalize(advantages).detach()
 
     # Compute the policy loss
@@ -264,8 +265,9 @@ def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=Fal
     task_replay.append(query_episodes)
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
+    outer_loss = trpo_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'], device, update_vf=False)
 
-    return learner, task_replay, query_rew
+    return learner, outer_loss, task_replay, query_rew
 
 
 def meta_optimize_trpo(params, policy, baseline, iter_replays, iter_policies, device):

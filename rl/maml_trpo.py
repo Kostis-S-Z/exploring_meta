@@ -16,7 +16,6 @@ from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo
 from misc_scripts import run_cl_rl_exp
 
-
 params = {
     # Inner loop parameters
     'inner_lr': 0.1,
@@ -37,7 +36,6 @@ params = {
     'save_every': 25,
     'seed': 42}
 
-
 eval_params = {
     'adapt_steps': 5,  # Number of steps to adapt to a new task
     'adapt_batch_size': 10,  # Number of shots per task
@@ -55,7 +53,6 @@ cl_params = {
     'tau': 1.0,
     'n_tasks': 5
 }
-
 
 # Environments:
 #   - Particles2D-v1
@@ -98,6 +95,7 @@ class MamlTRPO(Experiment):
         try:
             for iteration in t:
 
+                iter_loss = 0.0
                 iter_reward = 0.0
                 iter_replays = []
                 iter_policies = []
@@ -113,16 +111,19 @@ class MamlTRPO(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Adapt
-                    learner, task_replay, task_rew = fast_adapt_trpo(task, learner, baseline, self.params,
-                                                                     first_order=True, device=device)
+                    learner, eval_loss, task_replay, task_rew = fast_adapt_trpo(task, learner, baseline, self.params,
+                                                                                first_order=True, device=device)
 
                     iter_reward += task_rew
+                    iter_loss += eval_loss.item()
                     iter_replays.append(task_replay)
                     iter_policies.append(learner)
 
                 # Log
                 average_return = iter_reward / self.params['meta_batch_size']
-                metrics = {'average_return': average_return}
+                average_loss = iter_loss / self.params['meta_batch_size']
+                metrics = {'average_return': average_return,
+                           'loss': average_loss}
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
 
