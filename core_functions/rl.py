@@ -223,7 +223,7 @@ def trpo_a2c_loss(episodes, learner, baseline, gamma, tau, device):
     return a2c.policy_loss(log_probs, advantages)
 
 
-def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=True, render=False, device='cpu'):
+def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=False, render=False, device='cpu'):
     task_replay = []
     second_order = not first_order
 
@@ -285,11 +285,11 @@ def meta_optimize_trpo(params, policy, baseline, iter_replays, iter_policies, de
         stepsize = params['backtrack_factor'] ** ls_step * params['outer_lr']
         clone = deepcopy(policy)
         for p, u in zip(clone.parameters(), step):
-            p.data = u.data + (-stepsize)
+            p.data += u.data + (-stepsize)
         new_loss, kl = meta_surrogate_loss(iter_replays, iter_policies, clone, baseline, params, device)
         if new_loss < old_loss and kl < params['max_kl']:
             for p, u in zip(policy.parameters(), step):
-                p.data = u.data + (-stepsize)
+                p.data += u.data + (-stepsize)
             break
 
 
