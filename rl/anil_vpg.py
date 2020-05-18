@@ -23,6 +23,7 @@ params = {
     'meta_batch_size': 20,  # 'ways'
     'outer_lr': 0.05,
     # Common parameters
+    'dice': False,
     'activation': 'tanh',  # for MetaWorld use tanh, others relu
     'tau': 1.0,
     'gamma': 0.99,
