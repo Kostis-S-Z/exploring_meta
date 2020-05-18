@@ -45,7 +45,7 @@ class Experiment:
         if use_wandb:
             self._use_wandb = True
             self._wandb = wandb.init(project='l2l', id=f'{algo}_{dataset}_{self.logger["model_id"]}',
-                                     config=self.params)
+                                     config=self.params, tags=[algo, dataset])
         else:
             self._use_wandb = False
 
