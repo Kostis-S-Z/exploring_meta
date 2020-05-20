@@ -17,20 +17,10 @@ from core_functions import fast_adapt_trpo
 from sklearn import preprocessing
 
 from matplotlib import pyplot as plt
-
-setting = 1
-
-default_params = {
-    "adapt_steps": 1,
-    "adapt_batch_size": 1,
-    "inner_lr": 0.1,
-    "gamma": 0.99,
-    "tau": 1.0,
-    "n_tasks": 5
-}
+from matplotlib.ticker import MaxNLocator
 
 
-def run_cl_rl_exp(path, env, policy, baseline, cl_params=default_params):
+def run_cl_rl_exp(path, env, policy, baseline, cl_params):
     cl_path = path + '/cl_exp'
     if not os.path.isdir(cl_path):
         os.mkdir(cl_path)
@@ -51,7 +41,7 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params=default_params):
 
         task_i = ch.envs.Runner(env)
 
-        adapt_progress[f'task_{i}'] = {}
+        adapt_progress[f'task_{i+1}'] = {}
         # Adapt to specific task
         for step in range(cl_params['adapt_steps']):
             # print(f"Step {step}")
@@ -62,7 +52,7 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params=default_params):
             #                        first_order=False)
 
             train_reward = train_episodes.reward().sum().item()
-            adapt_progress[f'task_{i}'][f'step_{step}'] = train_reward / cl_params['adapt_batch_size']
+            adapt_progress[f'task_{i+1}'][f'step_{step}'] = train_reward / cl_params['adapt_batch_size']
 
         print(f"Last adapt reward {train_reward / cl_params['adapt_batch_size']}")
 
@@ -108,6 +98,7 @@ def save_acc_matrix(path, acc_matrix):
 
 def plot_progress(progress_dict):
 
+    plt.figure().gca().xaxis.set_major_locator(MaxNLocator(integer=True))  # Set integers only in x ticks
     plt.title("Adaptation progress")
     plt.xlabel("Adaptation steps")
     plt.ylabel("Reward")
@@ -115,4 +106,5 @@ def plot_progress(progress_dict):
         y_axis = list(steps.values())
         x_axis = range(1, len(y_axis) + 1)
         plt.plot(x_axis, y_axis, label=task, marker="o")
+    plt.legend()
     plt.show()

@@ -1,7 +1,7 @@
 from utils import make_metaworld
 import cherry as ch
 
-env_name = 'ML1_push-v1'
+env_name = 'ML10'
 
 env = make_metaworld(env_name, n_workers=1, test=False)
 

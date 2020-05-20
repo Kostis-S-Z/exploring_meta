@@ -15,39 +15,39 @@ from core_functions.rl import evaluate
 from core_functions.policies import DiagNormalPolicy
 
 base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/rl/results/'
-model_path = 'maml_ppo_ML1_push-v1_15_05_11h29_42_7678'
+model_path = 'maml_trpo_ML1_push-v1_18_05_16h39_42_3002'
 checkpoint = None  # or choose a number
 path = base + model_path
 ML_ALGO = model_path.split('_')[0]
 RL_ALGO = model_path.split('_')[1]
 DATASET = model_path.split('_')[2] + '_' + model_path.split('_')[3]
 
-render = True  # if you want to render you need to select just 1 worker
-
-evaluate_model = True
-cl_exp = False
-rep_exp = False
-
 workers = 1
 cuda = False
 
+render = False  # if you want to render you need to select just 1 worker
+
+evaluate_model = False
+cl_exp = True
+rep_exp = False
+
 # An episode can have either a finite number of steps, e.g 100 for Particles 2D or until done
-anil = False if ML_ALGO == 'maml' else True
 eval_params = {
     'adapt_steps': 2,  # Number of steps to adapt to a new task
-    'adapt_batch_size': 5,  # Number of shots per task
+    'adapt_batch_size': 1,  # Number of shots per task
     'n_eval_tasks': 10,  # Number of different tasks to evaluate on
 }
 
 cl_params = {
     'normalize_rewards': False,
     'adapt_steps': 3,
-    'adapt_batch_size': 10,  # shots
-    'inner_lr': 0.05,
+    'adapt_batch_size': 1,  # shots
+    'inner_lr': 0.1,
     'gamma': 0.99,
     'tau': 1.0,
     'n_tasks': 5
 }
+anil = False if ML_ALGO == 'maml' else True
 
 
 def run():
@@ -92,8 +92,8 @@ def run():
     policy.to(device)
 
     if evaluate_model:
-        eval_reward = evaluate(RL_ALGO, env, policy, baseline, eval_params, anil=anil, render=render)
-        print(eval_reward)
+        test_rewards, av_test_rew = evaluate(RL_ALGO, env, policy, baseline, eval_params, anil=anil, render=render)
+        print('Average meta-testing reward:', av_test_rew)
 
     # Run a Continual Learning experiment
     if cl_exp:
