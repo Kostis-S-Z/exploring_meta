@@ -19,14 +19,14 @@ from misc_scripts import run_cl_rl_exp
 
 params = {
     # Inner loop parameters
-    'ppo_epochs': 1,
+    'ppo_epochs': 3,
     'ppo_clip_ratio': 0.2,
-    'inner_lr': 0.05,
+    'inner_lr': 0.1,
     'adapt_steps': 1,
     'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
     'meta_batch_size': 20,  # 'ways'
-    'outer_lr': 0.01,
+    'outer_lr': 0.1,
     # Common parameters
     'activation': 'tanh',  # for MetaWorld use tanh, others relu
     'tau': 1.0,
@@ -64,7 +64,7 @@ cl_params = {
 #   - ML1_reach-v1, ML1_pick-place-v1, ML1_push-v1
 #   - ML10, ML45
 
-env_name = 'Particles2D-v1'
+env_name = 'ML1_push-v1'
 
 workers = 5
 

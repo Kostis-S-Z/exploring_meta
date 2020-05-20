@@ -202,7 +202,9 @@ def fast_adapt_ppo(task, learner, baseline, params, anil=False, render=False):
     # Collect evaluation / query episodes
     query_episodes = task.run(learner, episodes=params['adapt_batch_size'])
     # Calculate loss for the outer loop optimization
-    outer_loss = vpg_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'])
+    eval_learner = learner.clone()
+    eval_baseline = deepcopy(baseline)
+    outer_loss = ppo_update(query_episodes, eval_learner, eval_baseline, params, anil=anil)
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
 
