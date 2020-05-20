@@ -61,6 +61,59 @@ class DiagNormalPolicy(nn.Module):
         return action
 
 
+class DiagNormalPolicyANIL(nn.Module):
+
+    def __init__(self, input_size, output_size, fc_neurons, hiddens=None):
+        super(DiagNormalPolicyANIL, self).__init__()
+        if hiddens is None:
+            hiddens = [100, 100]
+        activation = nn.Tanh
+        self.fc_neurons = fc_neurons
+
+        layers = [linear_init(nn.Linear(input_size, hiddens[0])), activation()]
+        for i, o in zip(hiddens[:-1], hiddens[1:]):
+            layers.append(linear_init(nn.Linear(i, o)))
+            layers.append(activation())
+
+        # Initialize the body of the network
+        self.body = nn.Sequential(*layers)
+
+        # Initialize the head of the network
+        self.head = linear_init(nn.Linear(fc_neurons, output_size))
+        self.sigma = torch.nn.Parameter(torch.Tensor(output_size))
+        self.sigma.data.fill_(math.log(1))
+        # Do not store gradients for the network body when doing a forward pass
+        self.features_no_grad = False
+
+    def turn_on_body_grads(self):
+        self.features_no_grad = False
+
+    def turn_off_body_grads(self):
+        self.features_no_grad = True
+
+    def forward_pass(self, state):
+        if self.features_no_grad:
+            with torch.no_grad():
+                state_features = self.body(state)
+        else:
+            state_features = self.body(state)
+        return self.head(state_features)
+
+    def density(self, state):
+        loc = self.forward_pass(state)
+        scale = torch.exp(torch.clamp(self.sigma, min=math.log(EPSILON)))
+        return Normal(loc=loc, scale=scale)
+
+    def log_prob(self, state, action):
+        density = self.density(state)
+        return density.log_prob(action).mean(dim=1, keepdim=True)
+
+    def forward(self, state):
+        density = self.density(state)
+        action = density.sample()
+        return action
+
+
 class DiagNormalPolicyCNN(nn.Module):
 
     def __init__(self, input_size, output_size, network=[32, 64, 64]):
