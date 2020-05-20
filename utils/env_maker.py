@@ -15,7 +15,10 @@ def make_mujoco(env_name, n_workers):
         env = ch.envs.ActionSpaceScaler(env)
         return env
 
-    return l2l.gym.AsyncVectorEnv([init_env for _ in range(n_workers)])
+    if n_workers == 1:
+        return init_env()
+    else:
+        return l2l.gym.AsyncVectorEnv([init_env for _ in range(n_workers)])
 
 
 def make_metaworld(env_name, n_workers, test):
