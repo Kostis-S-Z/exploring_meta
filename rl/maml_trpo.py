@@ -13,7 +13,7 @@ from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo
+from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo, set_device
 from misc_scripts import run_cl_rl_exp
 
 params = {
@@ -86,6 +86,7 @@ class MamlTRPO(Experiment):
 
     def run(self, env, device):
 
+        set_device(device)
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
         policy = DiagNormalPolicy(env.state_size, env.action_size)
 
@@ -112,7 +113,7 @@ class MamlTRPO(Experiment):
 
                     # Adapt
                     learner, eval_loss, task_replay, task_rew = fast_adapt_trpo(task, learner, baseline, self.params,
-                                                                                first_order=True, device=device)
+                                                                                first_order=True)
 
                     iter_reward += task_rew
                     iter_loss += eval_loss.item()
@@ -128,7 +129,7 @@ class MamlTRPO(Experiment):
                 self.log_metrics(metrics)
 
                 # Meta-optimize
-                meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies, device)
+                meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies)
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy, str(iteration + 1))

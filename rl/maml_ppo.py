@@ -13,7 +13,7 @@ from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import fast_adapt_ppo, evaluate_ppo
+from core_functions.rl import fast_adapt_ppo, evaluate_ppo, set_device
 from misc_scripts import run_cl_rl_exp
 
 
@@ -90,6 +90,7 @@ class MamlPPO(Experiment):
 
     def run(self, env, device):
 
+        set_device(device)
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
         policy = DiagNormalPolicy(env.state_size, env.action_size)
         policy = MAML(policy, lr=self.params['inner_lr'])
@@ -117,7 +118,7 @@ class MamlPPO(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Adapt
-                    eval_loss, task_rew = fast_adapt_ppo(task, learner, baseline, self.params, device=device)
+                    eval_loss, task_rew = fast_adapt_ppo(task, learner, baseline, self.params)
 
                     iter_reward += task_rew
                     iter_loss += eval_loss

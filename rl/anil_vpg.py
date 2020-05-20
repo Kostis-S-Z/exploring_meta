@@ -12,7 +12,7 @@ from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.policies import DiagNormalPolicyANIL
-from core_functions.rl import fast_adapt_vpg, evaluate_vpg
+from core_functions.rl import fast_adapt_vpg, evaluate_vpg, set_device
 
 params = {
     # Inner loop parameters
@@ -73,6 +73,7 @@ class AnilVPG(Experiment):
 
     def run(self, env, device):
 
+        set_device(device)
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
 
         policy = DiagNormalPolicyANIL(env.state_size, env.action_size, params['fc_neurons'])
@@ -106,7 +107,7 @@ class AnilVPG(Experiment):
 
                     # Fast adapt
                     loss, task_rew = fast_adapt_vpg(task, learner, baseline, self.params,
-                                                    anil=True, first_order=False, device=device)
+                                                    anil=True, first_order=False)
 
                     print(f'Task {task_i}: Loss: {loss.item()} | Rew: {task_rew}')
                     iter_reward += task_rew

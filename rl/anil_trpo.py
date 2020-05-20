@@ -13,7 +13,7 @@ from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.policies import DiagNormalPolicyANIL
-from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo
+from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo, set_device
 
 params = {
     # Inner loop parameters
@@ -75,6 +75,7 @@ class AnilTRPO(Experiment):
 
     def run(self, env, device):
 
+        set_device(device)
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
 
         policy = DiagNormalPolicyANIL(env.state_size, env.action_size, params['fc_neurons'])
@@ -104,8 +105,7 @@ class AnilTRPO(Experiment):
 
                     # Fast adapt
                     learner, eval_loss, task_replay, task_rew = fast_adapt_trpo(task, clone, baseline, self.params,
-                                                                                anil=True,
-                                                                                first_order=True, device=device)
+                                                                                anil=True, first_order=True)
 
                     iter_reward += task_rew
                     iter_loss += eval_loss.item()
@@ -122,7 +122,7 @@ class AnilTRPO(Experiment):
                 self.log_metrics(metrics)
 
                 # Meta-optimize
-                meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies, device)
+                meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies)
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy.body, 'body_' + str(iteration + 1))

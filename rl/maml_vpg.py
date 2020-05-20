@@ -13,7 +13,7 @@ from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import fast_adapt_vpg, evaluate_vpg
+from core_functions.rl import fast_adapt_vpg, evaluate_vpg, set_device
 from misc_scripts import run_cl_rl_exp
 
 params = {
@@ -84,6 +84,7 @@ class MamlVPG(Experiment):
 
     def run(self, env, device):
 
+        set_device(device)
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
         policy = DiagNormalPolicy(env.state_size, env.action_size)
         policy = MAML(policy, lr=self.params['inner_lr'])
