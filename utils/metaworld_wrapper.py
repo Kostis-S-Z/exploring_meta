@@ -35,6 +35,8 @@ class MetaWorldMod(MultiClassMultiTaskEnv, MetaEnv):
         if self.collected_steps >= self.max_path_length:
             done = True
 
+        # Ignore all other info fields to be memory-friendly since we don't need them
+        info = {'success': info['success']}
         return obs, reward, done, info
 
     def reset(self, **kwargs):
