@@ -272,6 +272,15 @@ def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=Fal
     task_replay.append(query_episodes)
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
+    try:
+        successes = 0
+        query_suc = query_episodes.success().reshape(params['max_path_length'], -1).T
+        for q_episode_suc in query_suc:
+            # if there was a success in the episode
+            if 1. in q_episode_suc:  # Same as if True in [bool(s) for s in q_episode_suc]
+                successes += 1
+    except AttributeError:
+        pass
     outer_loss = trpo_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'], update_vf=False)
 
     return learner, outer_loss, task_replay, query_rew
