@@ -14,6 +14,7 @@ class MetaWorldMod(MultiClassMultiTaskEnv, MetaEnv):
                                            obs_type=obs_type,
                                            sample_all=sample_all)
         self.collected_steps = 0
+        self.max_path_length = self.active_env.max_path_length
 
     # -------- MetaEnv Methods --------
     def sample_tasks(self, meta_batch_size):
@@ -31,7 +32,7 @@ class MetaWorldMod(MultiClassMultiTaskEnv, MetaEnv):
         self.collected_steps += 1
 
         # Manually set done at the end of the horizon
-        if self.collected_steps >= self.active_env.max_path_length:
+        if self.collected_steps >= self.max_path_length:
             done = True
 
         return obs, reward, done, info
@@ -40,6 +41,14 @@ class MetaWorldMod(MultiClassMultiTaskEnv, MetaEnv):
         self.collected_steps = 0
         obs = super().reset(**kwargs)
         return obs
+
+    # -------- Custom Methods --------
+
+    def set_max_path_length(self, max_path_length):
+        self.max_path_length = max_path_length
+
+    def get_max_path_length(self):
+        return self.max_path_length
 
 
 class MetaWorldML1(ML1, MetaWorldMod):

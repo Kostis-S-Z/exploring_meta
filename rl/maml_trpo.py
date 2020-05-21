@@ -19,6 +19,7 @@ from misc_scripts import run_cl_rl_exp
 params = {
     # Inner loop parameters
     'inner_lr': 0.1,
+    'max_path_length': 100,
     'adapt_steps': 1,
     'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
@@ -60,7 +61,7 @@ cl_params = {
 #   - ML1_reach-v1, ML1_pick-place-v1, ML1_push-v1
 #   - ML10, ML45
 
-env_name = 'Particles2D-v1'
+env_name = 'ML1_push-v1'
 
 workers = 5
 
@@ -81,7 +82,7 @@ class MamlTRPO(Experiment):
         np.random.seed(self.params['seed'])
         torch.manual_seed(self.params['seed'])
 
-        env = make_env(env_name, workers, params['seed'])
+        env = make_env(env_name, workers, params['seed'], max_path_length=params['max_path_length'])
         self.run(env, device)
 
     def run(self, env, device):

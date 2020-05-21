@@ -21,7 +21,7 @@ def make_mujoco(env_name, n_workers):
         return l2l.gym.AsyncVectorEnv([init_env for _ in range(n_workers)])
 
 
-def make_metaworld(env_name, n_workers, test):
+def _make_metaworld(env_name, n_workers, test, max_path_length):
     if 'ML1_' in env_name:
         env_name, task = env_name.split('_')
     else:
@@ -34,7 +34,8 @@ def make_metaworld(env_name, n_workers, test):
             env = benchmark_env.get_test_tasks(task)
         else:
             env = benchmark_env.get_train_tasks(task)
-
+        if max_path_length is not None:
+            env.set_max_path_length(max_path_length)
         env = ch.envs.ActionSpaceScaler(env)
         return env
 
@@ -44,12 +45,12 @@ def make_metaworld(env_name, n_workers, test):
         return l2l.gym.AsyncVectorEnv([init_env for _ in range(n_workers)])
 
 
-def make_env(env_name, n_workers, seed, test=False):
+def make_env(env_name, n_workers, seed, test=False, max_path_length=None):
 
     if env_name in mujoco_envs:
         env = make_mujoco(env_name, n_workers)
     elif env_name in metaworld_envs:
-        env = make_metaworld(env_name, n_workers, test)
+        env = _make_metaworld(env_name, n_workers, test, max_path_length)
     else:
         raise NotImplementedError
 
