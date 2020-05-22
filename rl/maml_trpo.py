@@ -18,8 +18,8 @@ from misc_scripts import run_cl_rl_exp
 
 params = {
     # Inner loop parameters
-    'inner_lr': 0.1,
-    'max_path_length': 100,
+    'inner_lr': 0.01,
+    'max_path_length': None,  # [100, 150] or None=use the maximum length
     'adapt_steps': 1,
     'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
@@ -99,6 +99,7 @@ class MamlTRPO(Experiment):
 
                 iter_loss = 0.0
                 iter_reward = 0.0
+                iter_success_per_task = {}
                 iter_replays = []
                 iter_policies = []
 
@@ -106,6 +107,8 @@ class MamlTRPO(Experiment):
 
                 for task_i in trange(len(task_list), leave=False, desc='Task', position=0):
                     task = task_list[task_i]
+                    task_id = f'task_{task["task"]}'
+                    # task['goal'] = 0  # Set only one goal to optimize (debug purposes)
 
                     learner = deepcopy(policy)
                     env.set_task(task)
@@ -116,6 +119,9 @@ class MamlTRPO(Experiment):
                     learner, eval_loss, task_replay, task_rew = fast_adapt_trpo(task, learner, baseline, self.params,
                                                                                 first_order=True)
 
+                    # Calculate average success rate of support episodes
+                    task_suc = get_ep_successes(task_replay[1]) / self.params['adapt_batch_size']
+                    iter_success_per_task[task_id] = task_suc
                     iter_reward += task_rew
                     iter_loss += eval_loss.item()
                     iter_replays.append(task_replay)
@@ -127,6 +133,7 @@ class MamlTRPO(Experiment):
                 metrics = {'average_return': average_return,
                            'loss': average_loss}
                 t.set_postfix(metrics)
+                metrics.update(iter_success_per_task)
                 self.log_metrics(metrics)
 
                 # Meta-optimize
@@ -155,6 +162,17 @@ class MamlTRPO(Experiment):
         if cl_test:
             print('Running Continual Learning experiment...')
             run_cl_rl_exp(self.model_path, env, policy, baseline, cl_params=cl_params)
+
+
+def get_ep_successes(episodes):
+    successes = 0
+    # Reshape ExperienceReplay so its easy to iterate
+    success_matrix = episodes.success().reshape(params['max_path_length'], -1).T
+    for episode_suc in success_matrix:  # Iterate over each episode
+        # if there was a success in that episode
+        if 1. in episode_suc:  # Same as if True in [bool(s) for s in episode_suc]
+            successes += 1
+    return successes
 
 
 if __name__ == '__main__':
