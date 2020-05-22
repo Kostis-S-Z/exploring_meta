@@ -104,8 +104,9 @@ class AnilTRPO(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Fast adapt
-                    learner, eval_loss, task_replay, task_rew = fast_adapt_trpo(task, clone, baseline, self.params,
-                                                                                anil=True, first_order=True)
+                    learner, eval_loss, task_replay, task_rew, task_suc = fast_adapt_trpo(task, clone, baseline,
+                                                                                          self.params,
+                                                                                          anil=True, first_order=True)
 
                     iter_reward += task_rew
                     iter_loss += eval_loss.item()

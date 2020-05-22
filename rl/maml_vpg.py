@@ -112,7 +112,7 @@ class MamlVPG(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Adapt
-                    loss, task_rew = fast_adapt_vpg(task, learner, baseline, self.params, first_order=False)
+                    loss, task_rew, task_suc = fast_adapt_vpg(task, learner, baseline, self.params, first_order=False)
 
                     iter_reward += task_rew
                     iter_loss += loss

@@ -118,7 +118,7 @@ class MamlPPO(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Adapt
-                    eval_loss, task_rew = fast_adapt_ppo(task, learner, baseline, self.params)
+                    eval_loss, task_rew, task_suc = fast_adapt_ppo(task, learner, baseline, self.params)
 
                     iter_reward += task_rew
                     iter_loss += eval_loss

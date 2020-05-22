@@ -106,8 +106,8 @@ class AnilVPG(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Fast adapt
-                    loss, task_rew = fast_adapt_vpg(task, learner, baseline, self.params,
-                                                    anil=True, first_order=False)
+                    loss, task_rew, task_suc = fast_adapt_vpg(task, learner, baseline, self.params,
+                                                              anil=True, first_order=False)
 
                     print(f'Task {task_i}: Loss: {loss.item()} | Rew: {task_rew}')
                     iter_reward += task_rew

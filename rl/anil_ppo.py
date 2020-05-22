@@ -109,7 +109,7 @@ class AnilPPO(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Fast adapt
-                    loss, task_rew = fast_adapt_ppo(task, learner, baseline, self.params, anil=True)
+                    loss, task_rew, task_suc = fast_adapt_ppo(task, learner, baseline, self.params, anil=True)
 
                     # print(f'Task {task_i}: Loss: {loss.item()} | Rew: {task_rew}')
                     iter_reward += task_rew

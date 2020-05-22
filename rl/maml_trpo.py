@@ -116,12 +116,11 @@ class MamlTRPO(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Adapt
-                    learner, eval_loss, task_replay, task_rew = fast_adapt_trpo(task, learner, baseline, self.params,
-                                                                                first_order=True)
+                    learner, eval_loss, task_replay, task_rew, task_suc = fast_adapt_trpo(task, learner, baseline,
+                                                                                          self.params, first_order=True)
 
                     # Calculate average success rate of support episodes
                     task_adapt_suc = get_ep_successes(task_replay[0]) / self.params['adapt_batch_size']
-                    task_suc = get_ep_successes(task_replay[1]) / self.params['adapt_batch_size']
                     iter_success_per_task[task_id + '_adapt'] = task_adapt_suc
                     iter_success_per_task[task_id] = task_suc
                     iter_reward += task_rew
