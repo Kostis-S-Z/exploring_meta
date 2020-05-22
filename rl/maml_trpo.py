@@ -19,7 +19,7 @@ from misc_scripts import run_cl_rl_exp
 params = {
     # Inner loop parameters
     'inner_lr': 0.01,
-    'max_path_length': None,  # [100, 150] or None=use the maximum length
+    'max_path_length': 150,  # [100, 150] or None=use the maximum length (None currently WIP)
     'adapt_steps': 1,
     'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
@@ -120,7 +120,9 @@ class MamlTRPO(Experiment):
                                                                                 first_order=True)
 
                     # Calculate average success rate of support episodes
+                    task_adapt_suc = get_ep_successes(task_replay[0]) / self.params['adapt_batch_size']
                     task_suc = get_ep_successes(task_replay[1]) / self.params['adapt_batch_size']
+                    iter_success_per_task[task_id + '_adapt'] = task_adapt_suc
                     iter_success_per_task[task_id] = task_suc
                     iter_reward += task_rew
                     iter_loss += eval_loss.item()
