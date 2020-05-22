@@ -19,8 +19,8 @@ from misc_scripts import run_cl_rl_exp
 
 params = {
     # Inner loop parameters
-    'ppo_epochs': 1,
-    'ppo_clip_ratio': 0.2,
+    'ppo_epochs': 3,
+    'ppo_clip_ratio': 0.1,
     'inner_lr': 0.05,
     'adapt_steps': 1,
     'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
@@ -33,7 +33,7 @@ params = {
     'gamma': 0.99,
     # Other parameters
     'num_iterations': 1000,
-    'save_every': 25,
+    'save_every': 100,
     'seed': 42}
 
 
@@ -64,7 +64,7 @@ cl_params = {
 #   - ML1_reach-v1, ML1_pick-place-v1, ML1_push-v1
 #   - ML10, ML45
 
-env_name = 'Particles2D-v1'
+env_name = 'ML1_push-v1'
 
 workers = 5
 
@@ -122,7 +122,7 @@ class MamlPPO(Experiment):
 
                     iter_reward += task_rew
                     iter_loss += eval_loss
-                    # print(f'\tTask {task_i} reward: {task_rew} | Loss : {loss.item()}')
+                    # print(f'\tTask {task_i} reward: {task_rew} | Loss : {eval_loss.item()}')
 
                 # Log
                 average_return = iter_reward / self.params['meta_batch_size']

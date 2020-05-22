@@ -51,13 +51,13 @@ eval_params = {
 #   - ML1_reach-v1, ML1_pick-place-v1, ML1_push-v1
 #   - ML10, ML45
 
-env_name = 'ML1_reach-v1'
-workers = 4
+env_name = 'ML1_push-v1'
+workers = 5
+
+wandb = False
 
 cl_test = False
 rep_test = False
-
-wandb = False
 
 
 class AnilTRPO(Experiment):
