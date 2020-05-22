@@ -28,6 +28,21 @@ def get_episode_values(episodes):
     return states, actions, rewards, dones, next_states
 
 
+def get_ep_successes(episodes, path_length):
+    successes = 0
+    # This works only if ExperienceReplay has a 'success' attribute!
+    try:
+        # Reshape ExperienceReplay so its easy to iterate
+        success_matrix = episodes.success().reshape(path_length, -1).T
+        for episode_suc in success_matrix:  # Iterate over each episode
+            # if there was a success in that episode
+            if 1. in episode_suc:  # Same as if True in [bool(s) for s in episode_suc]
+                successes += 1
+    except AttributeError:
+        pass  # Returning 0! Implement success attribute if you want to count success of task
+    return successes
+
+
 def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states, update_vf=True):
     returns = ch.td.discount(gamma, rewards, dones)
     # if baseline.linear.weight.dim() != states.dim():  # if dimensions are not equal, try to flatten
@@ -126,8 +141,9 @@ def fast_adapt_vpg(task, learner, baseline, params, anil=False, first_order=Fals
     outer_loss = vpg_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'])
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
+    query_success_rate = get_ep_successes(query_episodes, params['max_path_length']) / params['adapt_batch_size']
 
-    return outer_loss, query_rew
+    return outer_loss, query_rew, query_success_rate
 
 
 def evaluate_vpg(env, policy, baseline, eval_params, anil=False, render=False):
@@ -205,8 +221,9 @@ def fast_adapt_ppo(task, learner, baseline, params, anil=False, render=False):
     outer_loss = ppo_update(query_episodes, eval_learner, eval_baseline, params, anil=anil)
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
+    query_success_rate = get_ep_successes(query_episodes, params['max_path_length']) / params['adapt_batch_size']
 
-    return outer_loss, query_rew
+    return outer_loss, query_rew, query_success_rate
 
 
 def evaluate_ppo(env, policy, baseline, eval_params, anil=False, render=False):
@@ -270,11 +287,13 @@ def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=Fal
     # Collect evaluation / query episodes
     query_episodes = task.run(learner, episodes=params['adapt_batch_size'])
     task_replay.append(query_episodes)
+    # Calculate loss for the outer loop optimization WITHOUT adapting
+    outer_loss = trpo_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'], update_vf=False)
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
-    outer_loss = trpo_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'], update_vf=False)
+    query_success_rate = get_ep_successes(query_episodes, params['max_path_length']) / params['adapt_batch_size']
 
-    return learner, outer_loss, task_replay, query_rew
+    return learner, outer_loss, task_replay, query_rew, query_success_rate
 
 
 def meta_optimize_trpo(params, policy, baseline, iter_replays, iter_policies):
