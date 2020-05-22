@@ -66,6 +66,8 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
 
 def evaluate(algo, env, policy, baseline, eval_params, anil, render=False):
     tasks_rewards = []
+    tasks_success_rate = []
+
     eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
 
     for i, task in enumerate(eval_task_list):
@@ -75,17 +77,20 @@ def evaluate(algo, env, policy, baseline, eval_params, anil, render=False):
         task = ch.envs.Runner(env)
 
         if algo == 'vpg':
-            _, task_reward = fast_adapt_vpg(task, learner, baseline, eval_params, anil=anil, render=render)
+            _, task_reward, task_suc = fast_adapt_vpg(task, learner, baseline, eval_params, anil=anil, render=render)
         elif algo == 'ppo':
-            _, task_reward = fast_adapt_ppo(task, learner, baseline, eval_params, render=render)
+            _, task_reward, task_suc = fast_adapt_ppo(task, learner, baseline, eval_params, render=render)
         else:
-            _, _, _, task_reward = fast_adapt_trpo(task, learner, baseline, eval_params, anil=anil, render=render)
+            _, _, _, task_reward, task_suc = fast_adapt_trpo(task, learner, baseline, eval_params, anil=anil, render=render)
 
         tasks_rewards.append(task_reward)
-        print(f"Reward for task {i} : {task_reward}")
+        tasks_success_rate.append(task_suc)
+        print(f"Task {i} : {task_reward} rew | {task_suc * 100}% success rate")
 
     final_eval_reward = sum(tasks_rewards) / eval_params['n_eval_tasks']
-    return tasks_rewards, final_eval_reward
+    final_eval_suc = sum(tasks_success_rate) / eval_params['n_eval_tasks']
+
+    return tasks_rewards, final_eval_reward, final_eval_suc
 
 
 """ VPG RELATED """
