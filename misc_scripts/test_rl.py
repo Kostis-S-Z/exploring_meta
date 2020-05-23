@@ -21,6 +21,7 @@ path = base + model_path
 ML_ALGO = model_path.split('_')[0]
 RL_ALGO = model_path.split('_')[1]
 DATASET = model_path.split('_')[2] + '_' + model_path.split('_')[3]
+anil = False if ML_ALGO == 'maml' else True
 
 workers = 1
 cuda = False
@@ -40,15 +41,17 @@ eval_params = {
 }
 
 cl_params = {
-    'normalize_rewards': False,
+    'algo': RL_ALGO,
+    'anil': anil,
+    'max_path_length': 150,
+    'normalize_rewards': True,
     'adapt_steps': 3,
-    'adapt_batch_size': 1,  # shots
+    'adapt_batch_size': 10,  # shots
     'inner_lr': 0.1,
     'gamma': 0.99,
     'tau': 1.0,
     'n_tasks': 5
 }
-anil = False if ML_ALGO == 'maml' else True
 
 
 def run():
