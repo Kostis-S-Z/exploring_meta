@@ -10,7 +10,7 @@ import cherry as ch
 from learn2learn.algorithms import MAML
 
 from utils import make_env
-from misc_scripts import run_cl_rl_exp
+from misc_scripts import run_cl_rl_exp, run_rep_rl_exp
 from core_functions.rl import evaluate
 from core_functions.policies import DiagNormalPolicy
 
@@ -51,6 +51,13 @@ cl_params = {
     'gamma': 0.99,
     'tau': 1.0,
     'n_tasks': 5
+}
+
+rep_params = {
+    "adapt_steps": 1,
+    "inner_lr": 0.1,
+    "n_tasks": 10,
+    "layers": [0, 1]
 }
 
 
@@ -103,7 +110,12 @@ def run():
     # Run a Continual Learning experiment
     if cl_exp:
         print('Running Continual Learning experiment...')
-        run_cl_rl_exp(path, env, policy, baseline, cl_params=cl_params)
+        run_cl_rl_exp(path, env, policy, baseline, cl_params)
+
+    # Run a Representation change experiment
+    if cl_exp:
+        print('Running Continual Learning experiment...')
+        run_rep_rl_exp(path, env, policy, baseline, rep_params)
 
 
 if __name__ == '__main__':

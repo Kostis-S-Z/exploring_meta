@@ -11,25 +11,30 @@ Setting:
 import os
 import json
 import numpy as np
-from core_functions.vision import accuracy
-from utils import prepare_batch, plot_dict
+from copy import deepcopy
+
+import cherry as ch
+
+from core_functions.rl import ppo_update
+from utils import plot_dict
 from utils import get_cca_similarity, get_linear_CKA, get_kernel_CKA
-from tqdm import tqdm
 
 
-def run_rep_exp(path, model, loss, tasks, device, ways, shots, rep_params):
+def run_rep_rl_exp(path, env, policy, baseline, rep_params):
     rep_path = path + '/rep_exp'
     os.mkdir(rep_path)
 
-    # Ignore labels
-    sanity_batch, _ = tasks.sample()
-    sanity_batch = sanity_batch.to(device)
-
     # An instance of the model before adaptation
-    init_model = model.clone()
-    adapt_model = model.clone()
+    init_model = deepcopy(policy)
+    adapt_model = deepcopy(policy)
 
-    init_rep_sanity = get_rep_from_batch(init_model, sanity_batch)
+    # Sample sanity batch
+    sanity_task = env.sample_tasks(1)
+    env.set_task(sanity_task[0])
+    env.reset()
+    sanity_task = ch.envs.Runner(env)
+    sanity_ep = sanity_task.run(init_model, episodes=rep_params['adapt_batch_size'])
+    init_rep_sanity = get_rep_from_batch(init_model, sanity_ep)
 
     # column 0: adaptation results, column 1: init results
     acc_results = np.zeros((rep_params['n_tasks'], 2))
@@ -38,41 +43,37 @@ def run_rep_exp(path, model, loss, tasks, device, ways, shots, rep_params):
     cka_l_results = {str(layer): [] for layer in rep_params['layers']}
     cka_k_results = {str(layer): [] for layer in rep_params['layers']}
 
-    for task in tqdm(range(rep_params['n_tasks']), desc="Tasks"):
+    tasks = env.sample_tasks(rep_params['n_tasks'])
 
-        batch = tasks.sample()
+    for task in range(rep_params['n_tasks']):
 
-        adapt_d, adapt_l, eval_d, eval_l = prepare_batch(batch, shots, ways, device)
+        # Sample task
+        env.set_task(tasks)
+        env.reset()
+        task_i = ch.envs.Runner(env)
 
         # Adapt the model
         for step in range(rep_params['adapt_steps']):
-            train_error = loss(adapt_model(adapt_d), adapt_l)
-            train_error /= len(adapt_d)
-            adapt_model.adapt(train_error)
+            # Adapt the model to support episodes
+            adapt_ep = task_i.run(adapt_model, episodes=rep_params['adapt_batch_size'])
+            ppo_update(adapt_ep, adapt_model, baseline, rep_params, anil=rep_params['anil'])
 
-            # Evaluate the adapted model
-            a_predictions = adapt_model(eval_d)
-            a_valid_acc = accuracy(a_predictions, eval_l)
+            # Evaluate the adapted model on evaluation episodes
 
-            # Evaluate the init model
-            i_predictions = init_model(eval_d)
-            i_valid_acc = accuracy(i_predictions, eval_l)
-
-            # TODO: We want to compare representations / weights
-            # what is the difference with the activations? -> weights vs activations?
+            # Evaluate the init model on evaluation episodes
 
             # Get their representations for every layer
             for i, layer in enumerate(cca_results.keys()):
-                adapted_rep_i = get_rep_from_batch(adapt_model, adapt_d, i + 2)
-                init_rep_i = get_rep_from_batch(init_model, adapt_d, i + 2)
+                adapted_rep_i = get_rep_from_batch(adapt_model, adapt_ep, i + 2)
+                init_rep_i = get_rep_from_batch(init_model, adapt_ep, i + 2)
 
                 cca_results[layer].append(get_cca_similarity(adapted_rep_i.T, init_rep_i.T, epsilon=1e-10)[1])
                 # NOTE: Currently CKA takes too long to compute so leave it out
                 # cka_l_results[layer].append(get_linear_CKA(adapted_rep_i, init_rep_i))
                 # cka_k_results[layer].append(get_kernel_CKA(adapted_rep_i, init_rep_i))
 
-            acc_results[task, 0] = a_valid_acc
-            acc_results[task, 1] = i_valid_acc
+            acc_results[task, 0] = 0  # a_valid_acc
+            acc_results[task, 1] = 0  # i_valid_acc
 
     # print("We expect that column 0 has higher values than column 1")
     # print(acc_results)
