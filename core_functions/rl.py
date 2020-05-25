@@ -104,7 +104,7 @@ def weighted_cumsum(values, weights):
 
 def vpg_a2c_loss(episodes, learner, baseline, gamma, tau, dice=False):
     # Get values to device
-    states, actions, rewards, dones, next_states = get_episode_values(episodes, device)
+    states, actions, rewards, dones, next_states = get_episode_values(episodes)
 
     # Calculate loss between states and action in the network
     log_probs = learner.log_prob(states, actions)
