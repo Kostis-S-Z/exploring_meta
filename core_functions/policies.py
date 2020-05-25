@@ -61,9 +61,8 @@ class DiagNormalPolicy(nn.Module):
         return action
 
     def get_representation(self, x, layer=-1):
-        # TODO: WIP
         modules = list(self.mean.modules())
-        for layer_i in modules[:layer]:
+        for layer_i in modules[1:layer]:
             x = layer_i(x)
         return x
 
@@ -121,7 +120,10 @@ class DiagNormalPolicyANIL(nn.Module):
         return action
 
     def get_representation(self, x, layer=-1):
-        raise NotImplementedError
+        modules = list(self.body.modules())
+        for layer_i in modules[1:layer]:
+            x = layer_i(x)
+        return x
 
 
 class DiagNormalPolicyCNN(nn.Module):
