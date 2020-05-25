@@ -20,22 +20,50 @@ from utils import plot_dict
 from utils import get_cca_similarity, get_linear_CKA, get_kernel_CKA
 
 
+def sanity_check(env, model_1, model_2):
+
+    # Sample a sanity batch
+    env.active_env.random_init = False
+
+    sanity_task = env.sample_tasks(1)
+
+    env.set_task(sanity_task[0])
+    env.reset()
+    env_task = ch.envs.Runner(env)
+    init_sanity_ep = env_task.run(model_1, episodes=1)
+
+    env.set_task(sanity_task[0])
+    env.reset()
+    env_task = ch.envs.Runner(env)
+    adapt_sanity_ep = env_task.run(model_2, episodes=1)
+
+    init_san_rew = init_sanity_ep.reward().sum().item()
+    adapt_san_rew = adapt_sanity_ep.reward().sum().item()
+
+    print(f'These should be equal: {init_san_rew}={adapt_san_rew}')
+    assert (init_san_rew == adapt_san_rew), "Random envs"
+
+
 def run_rep_rl_exp(path, env, policy, baseline, rep_params):
     rep_path = path + '/rep_exp'
-    os.mkdir(rep_path)
+    if not os.path.isdir(rep_path):
+        os.mkdir(rep_path)
 
     # An instance of the model before adaptation
     init_model = deepcopy(policy)
     adapt_model = deepcopy(policy)
 
-    # Sample sanity batch
+    # sanity_check(env, init_model, adapt_model)
+
     sanity_task = env.sample_tasks(1)
     env.set_task(sanity_task[0])
     env.reset()
-    sanity_task = ch.envs.Runner(env)
-    sanity_ep = sanity_task.run(init_model, episodes=rep_params['adapt_batch_size'])
-    init_rep_sanity = get_rep_from_batch(init_model, sanity_ep)
+    env_task = ch.envs.Runner(env)
+    init_sanity_ep = env_task.run(init_model, episodes=1)
 
+    init_rep_sanity = init_model.get_representation(init_sanity_ep)
+
+    exit()
     # column 0: adaptation results, column 1: init results
     acc_results = np.zeros((rep_params['n_tasks'], 2))
     # Create a dictionary of layer : results for each metric (e.g cca_results["0"] = [0.3, 0.2, 0.1])
