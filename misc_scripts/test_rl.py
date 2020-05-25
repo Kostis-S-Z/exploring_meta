@@ -26,7 +26,7 @@ anil = False if ML_ALGO == 'maml' else True
 workers = 1
 cuda = False
 
-render = False  # if you want to render you need to select just 1 worker
+render = False  # Rendering doesn't work with parallel async envs, use 1 worker
 
 evaluate_model = False
 cl_exp = True
@@ -41,28 +41,34 @@ eval_params = {
 }
 
 cl_params = {
-    'algo': RL_ALGO,
-    'anil': anil,
     'max_path_length': 150,
-    'normalize_rewards': True,
+    'normalize_rewards': False,
     'adapt_steps': 3,
-    'adapt_batch_size': 10,  # shots
+    'adapt_batch_size': 10,
     'inner_lr': 0.1,
     'gamma': 0.99,
     'tau': 1.0,
-    'n_tasks': 5
+    'n_tasks': 5,
+    # PPO
+    'ppo_epochs': 3,
+    'ppo_clip_ratio': 0.1,
 }
 
 rep_params = {
-    "adapt_steps": 1,
-    "inner_lr": 0.1,
-    "n_tasks": 10,
-    "layers": [0, 1]
+    'max_path_length': 150,
+    'adapt_steps': 1,
+    'inner_lr': 0.1,
+    'n_tasks': 10,
+    'layers': [0, 1]
 }
 
 
 def run():
-    # Initialize
+    cl_params['algo'] = RL_ALGO
+    rep_params['algo'] = RL_ALGO
+    cl_params['anil'] = anil
+    rep_params['anil'] = anil
+
     print(f'Testing {ML_ALGO}-{RL_ALGO} on {DATASET}')
     try:
         with open(path + '/logger.json', 'r') as f:
@@ -107,15 +113,27 @@ def run():
         print(f'Average meta-testing reward: {av_test_rew}')
         print(f'Average meta-testing success rate: {av_test_suc * 100}%')
 
-    # Run a Continual Learning experiment
     if cl_exp:
-        print('Running Continual Learning experiment...')
-        run_cl_rl_exp(path, env, policy, baseline, cl_params)
+        cl(env, policy, baseline)
+    if rep_exp:
+        rep(env, policy, baseline)
 
+
+def cl(env, policy, baseline):
+    # Continual Learning experiment
+    print('Running Continual Learning experiment...')
+    run_cl_rl_exp(path, env, policy, baseline, cl_params)
+
+    adapt_bsz_list = range(1, 10, 1)
+    # for adapt_bsz in adapt_bsz_list:
+    #     cl_params['adapt_batch_size'] = adapt_bsz
+    #     run_cl_rl_exp(path, env, policy, baseline, cl_params)
+
+
+def rep(env, policy, baseline):
     # Run a Representation change experiment
-    if cl_exp:
-        print('Running Continual Learning experiment...')
-        run_rep_rl_exp(path, env, policy, baseline, rep_params)
+    print('Running Continual Learning experiment...')
+    run_rep_rl_exp(path, env, policy, baseline, rep_params)
 
 
 if __name__ == '__main__':
