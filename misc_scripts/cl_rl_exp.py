@@ -31,17 +31,23 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params):
     suc_matrix = np.zeros((cl_params['n_tasks'], cl_params['n_tasks']))
 
     # Sample tasks
+    # Randomly
     tasks = env.sample_tasks(cl_params['n_tasks'])
+    # Manually
+    tasks[0]['goal'] = 0
+    tasks[1]['goal'] = 1
+    tasks[2]['goal'] = 2
+    tasks[3]['goal'] = 3
+    tasks[4]['goal'] = 4
 
     rew_adapt_progress = {}
     suc_adapt_progress = {}
 
     for i, train_task in enumerate(tasks):
-
+        print(f'Training on Task {i} with ID: {train_task["task"]} and goal: {train_task["goal"]}')
         learner = deepcopy(policy)
         env.set_task(train_task)
         env.reset()
-
         task_i = ch.envs.Runner(env)
 
         rew_adapt_progress[f'task_{i + 1}'] = {}
@@ -77,22 +83,28 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params):
 
         # Evaluate on all tasks
         for j, valid_task in enumerate(tasks):
+            print(f'\tEvaluating on Task {j} with ID: {valid_task["task"]} and goal: {valid_task["goal"]}')
             env.set_task(valid_task)
             env.reset()
             task_j = ch.envs.Runner(env)
 
-            valid_episodes = task_j.run(learner, episodes=cl_params['adapt_batch_size'])
+            valid_episodes = task_j.run(learner, episodes=1)
             task_j_reward = valid_episodes.reward().sum().item() / cl_params['adapt_batch_size']
             task_j_success = get_ep_successes(valid_episodes, cl_params['max_path_length']) / cl_params['adapt_batch_size']
 
             rew_matrix[i, j] = task_j_reward
             suc_matrix[i, j] = task_j_success
 
-    # Plot adaptation progress
-    plot_progress(rew_adapt_progress, y_axis='Reward')
-    plot_progress(suc_adapt_progress, y_axis='Success Rate')
+    # Plot matrix results
+    plot_task_res(rew_matrix, y_title='Reward')
+    plot_task_res(suc_matrix, y_title='Success Rate')
 
-    print(rew_matrix)
+    # Plot adaptation progress
+    plot_progress(rew_adapt_progress, y_title='Reward')
+    plot_progress(suc_adapt_progress, y_title='Success Rate')
+
+    print(f'Rewards Matrix:\n{rew_matrix}\n')
+    print(f'Success rates Matrix:\n{suc_matrix}\n')
 
     if cl_params['normalize_rewards']:
         norm_rew = preprocessing.normalize(rew_matrix)
@@ -105,8 +117,8 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params):
     cl_res_rew = calc_cl_metrics(rew_matrix)
     cl_res_suc = calc_cl_metrics(suc_matrix)
 
-    print(cl_res_rew)
-    print(cl_res_suc)
+    print(f'Metrics based on rewards: {cl_res_rew}')
+    print(f'Metrics based on success rates: {cl_res_suc}')
 
     save_acc_matrix(cl_path, rew_matrix, name='cl_rew_matrix')
     save_acc_matrix(cl_path, suc_matrix, name='cl_suc_matrix')
@@ -124,19 +136,31 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params):
 
 
 def save_acc_matrix(path, acc_matrix, name='acc_matrix'):
-    print('Saving accuracy matrix..')
-    print(acc_matrix)
+    print('Saving matrix to file..')
     np.savetxt(path + f'/{name}.out', acc_matrix, fmt='%1.2f')
 
 
-def plot_progress(progress_dict, y_axis='Reward'):
+def plot_progress(progress_dict, y_title='Reward'):
     plt.figure().gca().xaxis.set_major_locator(MaxNLocator(integer=True))  # Set integers only in x ticks
     plt.title('Adaptation progress')
     plt.xlabel('Adaptation steps')
-    plt.ylabel(y_axis)
+    plt.ylabel(y_title)
     for task, steps in progress_dict.items():
-        y_axis = list(steps.values())
-        x_axis = range(1, len(y_axis) + 1)
-        plt.plot(x_axis, y_axis, label=task, marker='o')
+        y_title = list(steps.values())
+        x_axis = range(1, len(y_title) + 1)
+        plt.plot(x_axis, y_title, label=task, marker='o', alpha=0.8)
+    plt.legend()
+    plt.show()
+
+
+def plot_task_res(matrix, y_title='Reward'):
+    plt.figure().gca().xaxis.set_major_locator(MaxNLocator(integer=True))  # Set integers only in x ticks
+    plt.title('Performance across tasks')
+    plt.xlabel('Task ID')
+    plt.ylabel(y_title)
+    for i in range(matrix.shape[0]):
+        y_title = matrix[i]
+        x_axis = range(1, len(y_title) + 1)
+        plt.plot(x_axis, y_title, label=f'Tr_task_{i + 1}', marker='o', alpha=0.5)
     plt.legend()
     plt.show()
