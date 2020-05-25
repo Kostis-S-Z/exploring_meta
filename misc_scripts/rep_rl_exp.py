@@ -11,6 +11,7 @@ Setting:
 import os
 import json
 import numpy as np
+import torch
 from copy import deepcopy
 
 import cherry as ch
@@ -27,21 +28,37 @@ def sanity_check(env, model_1, model_2):
 
     sanity_task = env.sample_tasks(1)
 
-    env.set_task(sanity_task[0])
-    env.reset()
-    env_task = ch.envs.Runner(env)
-    init_sanity_ep = env_task.run(model_1, episodes=1)
+    with torch.no_grad():
+        env.set_task(sanity_task[0])
+        env.reset()
+        env_task = ch.envs.Runner(env)
+        init_sanity_ep = env_task.run(model_1, episodes=1)
 
-    env.set_task(sanity_task[0])
-    env.reset()
-    env_task = ch.envs.Runner(env)
-    adapt_sanity_ep = env_task.run(model_2, episodes=1)
+        env.set_task(sanity_task[0])
+        env.reset()
+        env_task = ch.envs.Runner(env)
+        adapt_sanity_ep = env_task.run(model_2, episodes=1)
 
-    init_san_rew = init_sanity_ep.reward().sum().item()
-    adapt_san_rew = adapt_sanity_ep.reward().sum().item()
+        init_san_rew = init_sanity_ep.reward().sum().item()
+        adapt_san_rew = adapt_sanity_ep.reward().sum().item()
 
-    print(f'These should be equal: {init_san_rew}={adapt_san_rew}')
-    assert (init_san_rew == adapt_san_rew), "Random envs"
+        print(f'These should be equal: {init_san_rew}={adapt_san_rew}')
+        # assert (init_san_rew == adapt_san_rew), "Environment initial states are random"
+        init_sanity_state = init_sanity_ep[0].state
+
+        init_rep_sanity = model_1.get_representation(init_sanity_state)
+        init_rep_sanity_2 = model_1.get_representation(init_sanity_state, layer=3)
+
+        adapt_rep_sanity = model_2.get_representation(init_sanity_state)
+        adapt_rep_sanity_2 = model_2.get_representation(init_sanity_state, layer=3)
+
+        init_rep_array = init_rep_sanity.detach().numpy()
+        init_rep_2_array = init_rep_sanity_2.detach().numpy()
+        adapt_rep_array = adapt_rep_sanity.detach().numpy()
+        adapt_rep_2_array = adapt_rep_sanity_2.detach().numpy()
+
+        assert np.array_equal(init_rep_array, adapt_rep_array), "Representations not identical"
+        assert np.array_equal(init_rep_2_array, adapt_rep_2_array), "Representations not identical"
 
 
 def run_rep_rl_exp(path, env, policy, baseline, rep_params):
@@ -53,17 +70,8 @@ def run_rep_rl_exp(path, env, policy, baseline, rep_params):
     init_model = deepcopy(policy)
     adapt_model = deepcopy(policy)
 
-    # sanity_check(env, init_model, adapt_model)
+    sanity_check(env, init_model, adapt_model)
 
-    sanity_task = env.sample_tasks(1)
-    env.set_task(sanity_task[0])
-    env.reset()
-    env_task = ch.envs.Runner(env)
-    init_sanity_ep = env_task.run(init_model, episodes=1)
-
-    init_rep_sanity = init_model.get_representation(init_sanity_ep)
-
-    exit()
     # column 0: adaptation results, column 1: init results
     acc_results = np.zeros((rep_params['n_tasks'], 2))
     # Create a dictionary of layer : results for each metric (e.g cca_results["0"] = [0.3, 0.2, 0.1])
@@ -142,7 +150,7 @@ def run_rep_rl_exp(path, env, policy, baseline, rep_params):
 
 def get_rep_from_batch(model, batch, layer=4):
     representation = model.get_rep_i(batch, layer)
-    representation = representation.cpu().detach().numpy()
+    representation = representation.detach().numpy()
 
     # TODO: reshape representation
     return representation

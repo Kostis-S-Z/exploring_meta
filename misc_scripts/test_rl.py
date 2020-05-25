@@ -29,8 +29,8 @@ cuda = False
 render = False  # Rendering doesn't work with parallel async envs, use 1 worker
 
 evaluate_model = False
-cl_exp = True
-rep_exp = False
+cl_exp = False
+rep_exp = True
 
 # An episode can have either a finite number of steps, e.g 100 for Particles 2D or until done
 eval_params = {
@@ -58,7 +58,7 @@ rep_params = {
     'max_path_length': 150,
     'adapt_steps': 1,
     'inner_lr': 0.1,
-    'n_tasks': 10,
+    'n_tasks': 2,
     'layers': [0, 1]
 }
 
