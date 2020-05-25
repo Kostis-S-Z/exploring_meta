@@ -60,6 +60,13 @@ class DiagNormalPolicy(nn.Module):
         action = density.sample()
         return action
 
+    def get_representation(self, x, layer=-1):
+        # TODO: WIP
+        modules = list(self.mean.modules())
+        for layer_i in modules[:layer]:
+            x = layer_i(x)
+        return x
+
 
 class DiagNormalPolicyANIL(nn.Module):
 
@@ -112,6 +119,9 @@ class DiagNormalPolicyANIL(nn.Module):
         density = self.density(state)
         action = density.sample()
         return action
+
+    def get_representation(self, x, layer=-1):
+        raise NotImplementedError
 
 
 class DiagNormalPolicyCNN(nn.Module):
