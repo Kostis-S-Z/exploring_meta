@@ -16,13 +16,14 @@ from copy import deepcopy
 
 import cherry as ch
 
-from core_functions.rl import ppo_update
+from core_functions.rl import ppo_update, vpg_a2c_loss, trpo_update
 from utils import plot_dict
 from utils import get_cca_similarity, get_linear_CKA, get_kernel_CKA
 
+metrics = []
+
 
 def sanity_check(env, model_1, model_2):
-
     # Sample a sanity batch
     env.active_env.random_init = False
 
@@ -62,6 +63,9 @@ def sanity_check(env, model_1, model_2):
 
 
 def run_rep_rl_exp(path, env, policy, baseline, rep_params):
+    global metrics
+    metrics = rep_params['metrics']
+
     rep_path = path + '/rep_exp'
     if not os.path.isdir(rep_path):
         os.mkdir(rep_path)
@@ -71,6 +75,7 @@ def run_rep_rl_exp(path, env, policy, baseline, rep_params):
     adapt_model = deepcopy(policy)
 
     sanity_check(env, init_model, adapt_model)
+    del adapt_model
 
     # column 0: adaptation results, column 1: init results
     acc_results = np.zeros((rep_params['n_tasks'], 2))
@@ -81,35 +86,44 @@ def run_rep_rl_exp(path, env, policy, baseline, rep_params):
 
     tasks = env.sample_tasks(rep_params['n_tasks'])
 
-    for task in range(rep_params['n_tasks']):
+    for task in tasks:
 
         # Sample task
-        env.set_task(tasks)
+        env.set_task(task)
         env.reset()
         task_i = ch.envs.Runner(env)
 
-        # Adapt the model
+        before_adapt_model = deepcopy(policy)
+        after_adapt_model = deepcopy(policy)
+
         for step in range(rep_params['adapt_steps']):
             # Adapt the model to support episodes
-            adapt_ep = task_i.run(adapt_model, episodes=rep_params['adapt_batch_size'])
-            ppo_update(adapt_ep, adapt_model, baseline, rep_params, anil=rep_params['anil'])
+            adapt_ep = task_i.run(before_adapt_model, episodes=rep_params['adapt_batch_size'])
 
-            # Evaluate the adapted model on evaluation episodes
+            if rep_params['algo'] == 'vpg':
+                # Calculate loss & fit the value function
+                inner_loss = vpg_a2c_loss(adapt_ep, after_adapt_model, baseline, rep_params['gamma'], rep_params['tau'])
+                # Adapt model based on the loss
+                after_adapt_model.adapt(inner_loss, allow_unused=rep_params['anil'])
+            elif rep_params['algo'] == 'ppo':
+                # Calculate loss & fit the value function & update the policy
+                ppo_update(adapt_ep, after_adapt_model, baseline, rep_params, anil=rep_params['anil'])
+            else:
+                after_adapt_model = trpo_update(adapt_ep, after_adapt_model, baseline,
+                                                rep_params['inner_lr'], rep_params['gamma'], rep_params['tau'],
+                                                anil=rep_params['anil'])
 
-            # Evaluate the init model on evaluation episodes
+            # Compare representations with initial model
+            init_mean_change, init_var_change = episode_mean_var(adapt_ep, init_model, after_adapt_model)
+            # Compare representations before & after adaptation
+            adapt_mean_change, adapt_var_change = episode_mean_var(adapt_ep, before_adapt_model, after_adapt_model)
 
-            # Get their representations for every layer
-            for i, layer in enumerate(cca_results.keys()):
-                adapted_rep_i = get_rep_from_batch(adapt_model, adapt_ep, i + 2)
-                init_rep_i = get_rep_from_batch(init_model, adapt_ep, i + 2)
+            print(f'Change between initial and adapted model:'
+                  f'\n\t mean: {init_mean_change} | var: {init_var_change}'
+                  f'Change between before & after 1 adaptation step model:'
+                  f'\n\t mean: {adapt_mean_change} | var: {adapt_var_change}')
 
-                cca_results[layer].append(get_cca_similarity(adapted_rep_i.T, init_rep_i.T, epsilon=1e-10)[1])
-                # NOTE: Currently CKA takes too long to compute so leave it out
-                # cka_l_results[layer].append(get_linear_CKA(adapted_rep_i, init_rep_i))
-                # cka_k_results[layer].append(get_kernel_CKA(adapted_rep_i, init_rep_i))
-
-            acc_results[task, 0] = 0  # a_valid_acc
-            acc_results[task, 1] = 0  # i_valid_acc
+            before_adapt_model = deepcopy(after_adapt_model)
 
     # print("We expect that column 0 has higher values than column 1")
     # print(acc_results)
@@ -146,6 +160,43 @@ def run_rep_rl_exp(path, env, policy, baseline, rep_params):
         json.dump(cca_results, fp, sort_keys=True, indent=4)
 
     return cca_results
+
+
+def episode_mean_var(episode, model_1, model_2):
+    """
+    Find the mean & variance of the representation difference
+    between two models in a series of states of an episode.
+    """
+    results = []
+    mean = {}
+    var = {}
+    for state in episode.state():
+        rep_1 = model_1.get_representation(state)
+        rep_2 = model_2.get_representation(state)
+
+        result = calculate_rep_change(rep_1, rep_2)
+
+        results.append(result)
+
+    for metric, values in results.item():
+        mean[metric] = np.mean(values)
+        var[metric] = np.var(values)
+        print(f'{metric} mean: {mean[metric]}')
+        print(f'{metric} mean: {var[metric]}')
+
+    return mean, var
+
+
+def calculate_rep_change(rep_1, rep_2):
+    results = {}
+    if 'CCA' in metrics:
+        results['CCA'] = get_cca_similarity(rep_1, rep_2, epsilon=1e-10)[1]
+    if 'CKA_L' in metrics:
+        results['CKA_L'] = get_linear_CKA(rep_1, rep_2)
+    if 'CKA_K' in metrics:
+        results['CKA_K'] = get_kernel_CKA(rep_1, rep_2)
+
+    return results
 
 
 def get_rep_from_batch(model, batch, layer=4):
