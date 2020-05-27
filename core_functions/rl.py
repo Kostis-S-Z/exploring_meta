@@ -166,21 +166,12 @@ def ppo_update(episodes, learner, baseline, params, anil=False):
     # Get values to device
     states, actions, rewards, dones, next_states = get_episode_values(episodes)
 
+    # Update value function & Compute advantages
     returns = ch.td.discount(params['gamma'], rewards, dones)
-
-    # Update value function and get new values
-    baseline.fit(states, returns)
-    values = baseline(states)
-    new_values = baseline(next_states)
-    bootstraps = values * (1.0 - dones) + new_values * dones
-
-    # Compute advantages
+    advantages = compute_advantages(baseline, params['tau'], params['gamma'], rewards, dones, states, next_states)
+    advantages = ch.normalize(advantages, epsilon=1e-8).detach()
+    # Calculate loss between states and action in the network
     with torch.no_grad():
-        advantages = ch.pg.generalized_advantage(gamma=params['gamma'], tau=params['tau'],
-                                                 rewards=rewards, dones=dones, values=bootstraps,
-                                                 next_value=torch.zeros(1, device=values.device))
-        advantages = ch.normalize(advantages, epsilon=1e-8).detach()
-        # Calculate loss between states and action in the network
         old_log_probs = learner.log_prob(states, actions)
 
     # Initialize inner loop PPO optimizer
