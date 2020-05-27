@@ -14,10 +14,12 @@ from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import vpg_a2c_loss
 
 params = {
+    # VPG parameter
+    'dice': False,
+    # Common parameters
     'batch_size': 20,
     'n_episodes': 10,
     'lr': 0.05,
-    'dice': False,
     'activation': 'tanh',  # for MetaWorld use tanh, others relu
     'tau': 1.0,
     'gamma': 0.99,

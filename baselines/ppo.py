@@ -14,10 +14,13 @@ from core_functions.policies import DiagNormalPolicy
 
 
 params = {
+    # PPO parameters
+    'ppo_epochs': 3,
+    'ppo_clip_ratio': 0.2,
+    # Common parameters
     'batch_size': 20,
     'n_episodes': 10,
     'lr': 0.05,
-    'dice': False,
     'activation': 'tanh',  # for MetaWorld use tanh, others relu
     'tau': 1.0,
     'gamma': 0.99,
@@ -79,17 +82,19 @@ class PPO(Experiment):
                     task = ch.envs.Runner(env)
 
                     episodes = task.run(policy, episodes=params['n_episodes'])
-                    iter_reward += episodes.reward().sum().item() / params['n_episodes']
+                    task_reward = episodes.reward().sum().item() / params['n_episodes']
 
                     # Calculate loss & fit the value function & update the policy
                     # This functions requires the policy to be a MAML object
                     # iter_loss += ppo_update(episodes, policy, baseline, params)
+                    iter_reward += task_reward
+                    # iter_loss += loss.item()
 
                 # Log
                 average_return = iter_reward / self.params['batch_size']
                 av_loss = iter_loss / self.params['batch_size']
                 metrics = {'average_return': average_return,
-                           'loss': av_loss.item()}
+                           'loss': av_loss}
 
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)

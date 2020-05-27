@@ -17,9 +17,14 @@ from core_functions.rl import fast_adapt_vpg, evaluate_vpg
 from misc_scripts import run_cl_rl_exp
 
 params = {
+    # TRPO parameters
+    'backtrack_factor': 0.5,
+    'ls_max_steps': 15,
+    'max_kl': 0.01,
+    # Common parameters
     'batch_size': 20,
+    'n_episodes': 10,
     'lr': 0.05,
-    'dice': False,
     'activation': 'tanh',  # for MetaWorld use tanh, others relu
     'tau': 1.0,
     'gamma': 0.99,
@@ -35,20 +40,17 @@ params = {
 #   - ML1_reach-v1, ML1_pick-place-v1, ML1_push-v1
 #   - ML10, ML45
 
-env_name = 'Particles2D-v1'
+env_name = 'ML1_push-v1'
 
 workers = 5
 
 wandb = False
 
-cl_test = False
-rep_test = False
-
 
 class TRPO(Experiment):
 
     def __init__(self):
-        super(TRPO, self).__init__('trpo', env_name, params, path='results/', use_wandb=wandb)
+        super(TRPO, self).__init__('trpo', env_name, params, path='trpo_results/', use_wandb=wandb)
 
         # Set seed
         device = torch.device('cpu')
@@ -76,19 +78,31 @@ class TRPO(Experiment):
                 iter_loss = 0.0
 
                 task_list = env.sample_tasks(self.params['batch_size'])
+                for task_i in trange(len(task_list), leave=False, desc='Task', position=0):
+                    task = task_list[task_i]
+                    env.set_task(task)
+                    env.reset()
+                    task = ch.envs.Runner(env)
 
+                    episodes = task.run(policy, episodes=params['n_episodes'])
+                    task_reward = episodes.reward().sum().item() / params['n_episodes']
+
+                    # Calculate loss
+
+                    iter_reward += task_reward
+                    iter_loss += loss.item()
 
                 # Log
                 average_return = iter_reward / self.params['batch_size']
                 av_loss = iter_loss / self.params['batch_size']
                 metrics = {'average_return': average_return,
-                           'loss': av_loss.item()}
+                           'loss': av_loss}
 
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
 
                 if iteration % self.params['save_every'] == 0:
-                    self.save_model_checkpoint(policy.module, str(iteration + 1))
+                    self.save_model_checkpoint(policy, str(iteration + 1))
                     self.save_model_checkpoint(baseline, 'baseline_' + str(iteration + 1))
 
         # Support safely manually interrupt training
@@ -97,7 +111,7 @@ class TRPO(Experiment):
             self.logger['manually_stopped'] = True
             self.params['num_iterations'] = iteration
 
-        self.save_model(policy.module)
+        self.save_model(policy)
         self.save_model(baseline, name='baseline')
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
@@ -119,8 +133,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    params['lr'] = args.inner_lr
-    params['batch_size'] = args.meta_batch_size
+    params['lr'] = args.lr
+    params['batch_size'] = args.batch_size
     params['num_iterations'] = args.num_iterations
     params['save_every'] = args.save_every
     params['seed'] = args.seed
