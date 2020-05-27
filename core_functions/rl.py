@@ -195,7 +195,8 @@ def ppo_update(episodes, learner, baseline, params, anil=False):
         # Adapt model based on the loss
         learner.adapt(loss, allow_unused=anil)
 
-        # baseline.fit(states, returns)  # TODO: update the value function in every epoch? only once outside?
+        # Do we need to update the value function in every epoch? only once outside?
+        baseline.fit(states, returns)
         av_loss += loss
 
     return av_loss / params['ppo_epochs']
