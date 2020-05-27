@@ -13,12 +13,13 @@ from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo
+from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo, set_device
 from misc_scripts import run_cl_rl_exp
 
 params = {
     # Inner loop parameters
-    'inner_lr': 0.1,
+    'inner_lr': 0.01,
+    'max_path_length': 150,  # [100, 150] or None=use the maximum length (None currently WIP)
     'adapt_steps': 1,
     'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
@@ -60,7 +61,7 @@ cl_params = {
 #   - ML1_reach-v1, ML1_pick-place-v1, ML1_push-v1
 #   - ML10, ML45
 
-env_name = 'Particles2D-v1'
+env_name = 'ML1_push-v1'
 
 workers = 5
 
@@ -81,11 +82,12 @@ class MamlTRPO(Experiment):
         np.random.seed(self.params['seed'])
         torch.manual_seed(self.params['seed'])
 
-        env = make_env(env_name, workers, params['seed'])
+        env = make_env(env_name, workers, params['seed'], max_path_length=params['max_path_length'])
         self.run(env, device)
 
     def run(self, env, device):
 
+        set_device(device)
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
         policy = DiagNormalPolicy(env.state_size, env.action_size)
 
@@ -97,6 +99,7 @@ class MamlTRPO(Experiment):
 
                 iter_loss = 0.0
                 iter_reward = 0.0
+                iter_success_per_task = {}
                 iter_replays = []
                 iter_policies = []
 
@@ -104,6 +107,8 @@ class MamlTRPO(Experiment):
 
                 for task_i in trange(len(task_list), leave=False, desc='Task', position=0):
                     task = task_list[task_i]
+                    task_id = f'task_{task["task"]}'
+                    # task['goal'] = 0  # Set only one goal to optimize (debug purposes)
 
                     learner = deepcopy(policy)
                     env.set_task(task)
@@ -111,9 +116,13 @@ class MamlTRPO(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Adapt
-                    learner, eval_loss, task_replay, task_rew = fast_adapt_trpo(task, learner, baseline, self.params,
-                                                                                first_order=True, device=device)
+                    learner, eval_loss, task_replay, task_rew, task_suc = fast_adapt_trpo(task, learner, baseline,
+                                                                                          self.params, first_order=True)
 
+                    # Calculate average success rate of support episodes
+                    # task_adapt_suc = get_ep_successes(task_replay[0]) / self.params['adapt_batch_size']
+                    # iter_success_per_task[task_id + '_adapt'] = task_adapt_suc
+                    iter_success_per_task[task_id] = task_suc
                     iter_reward += task_rew
                     iter_loss += eval_loss.item()
                     iter_replays.append(task_replay)
@@ -125,10 +134,11 @@ class MamlTRPO(Experiment):
                 metrics = {'average_return': average_return,
                            'loss': average_loss}
                 t.set_postfix(metrics)
+                metrics.update(iter_success_per_task)
                 self.log_metrics(metrics)
 
                 # Meta-optimize
-                meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies, device)
+                meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies)
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy, str(iteration + 1))

@@ -10,8 +10,15 @@ from cherry.pg import generalized_advantage
 
 """ COMMON """
 
+device = torch.device('cpu')
 
-def get_episode_values(episodes, device):
+
+def set_device(dev):
+    global device
+    device = dev
+
+
+def get_episode_values(episodes):
     states = episodes.state().to(device)
     actions = episodes.action().to(device)
     rewards = episodes.reward().to(device)
@@ -19,6 +26,21 @@ def get_episode_values(episodes, device):
     next_states = episodes.next_state().to(device)
 
     return states, actions, rewards, dones, next_states
+
+
+def get_ep_successes(episodes, path_length):
+    successes = 0
+    # This works only if ExperienceReplay has a 'success' attribute!
+    try:
+        # Reshape ExperienceReplay so its easy to iterate
+        success_matrix = episodes.success().reshape(path_length, -1).T
+        for episode_suc in success_matrix:  # Iterate over each episode
+            # if there was a success in that episode
+            if 1. in episode_suc:  # Same as if True in [bool(s) for s in episode_suc]
+                successes += 1
+    except AttributeError:
+        pass  # Returning 0! Implement success attribute if you want to count success of task
+    return successes
 
 
 def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states, update_vf=True):
@@ -44,6 +66,8 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
 
 def evaluate(algo, env, policy, baseline, eval_params, anil, render=False):
     tasks_rewards = []
+    tasks_success_rate = []
+
     eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
 
     for i, task in enumerate(eval_task_list):
@@ -53,17 +77,20 @@ def evaluate(algo, env, policy, baseline, eval_params, anil, render=False):
         task = ch.envs.Runner(env)
 
         if algo == 'vpg':
-            _, task_reward = fast_adapt_vpg(task, learner, baseline, eval_params, anil=anil, render=render)
+            _, task_reward, task_suc = fast_adapt_vpg(task, learner, baseline, eval_params, anil=anil, render=render)
         elif algo == 'ppo':
-            _, task_reward = fast_adapt_ppo(task, learner, baseline, eval_params, render=render)
+            _, task_reward, task_suc = fast_adapt_ppo(task, learner, baseline, eval_params, render=render)
         else:
-            _, _, _, task_reward = fast_adapt_trpo(task, learner, baseline, eval_params, anil=anil, render=render)
+            _, _, _, task_reward, task_suc = fast_adapt_trpo(task, learner, baseline, eval_params, anil=anil, render=render)
 
         tasks_rewards.append(task_reward)
-        print(f"Reward for task {i} : {task_reward}")
+        tasks_success_rate.append(task_suc)
+        print(f"Task {i} : {task_reward} rew | {task_suc * 100}% success rate")
 
     final_eval_reward = sum(tasks_rewards) / eval_params['n_eval_tasks']
-    return tasks_rewards, final_eval_reward
+    final_eval_suc = sum(tasks_success_rate) / eval_params['n_eval_tasks']
+
+    return tasks_rewards, final_eval_reward, final_eval_suc
 
 
 """ VPG RELATED """
@@ -75,9 +102,9 @@ def weighted_cumsum(values, weights):
     return values
 
 
-def vpg_a2c_loss(episodes, learner, baseline, gamma, tau, dice=False, device='cpu'):
+def vpg_a2c_loss(episodes, learner, baseline, gamma, tau, dice=False):
     # Get values to device
-    states, actions, rewards, dones, next_states = get_episode_values(episodes, device)
+    states, actions, rewards, dones, next_states = get_episode_values(episodes)
 
     # Calculate loss between states and action in the network
     log_probs = learner.log_prob(states, actions)
@@ -96,7 +123,7 @@ def vpg_a2c_loss(episodes, learner, baseline, gamma, tau, dice=False, device='cp
     return a2c.policy_loss(log_probs, advantages)
 
 
-def fast_adapt_vpg(task, learner, baseline, params, anil=False, first_order=False, render=False, device='cpu'):
+def fast_adapt_vpg(task, learner, baseline, params, anil=False, first_order=False, render=False):
     # During inner loop adaptation we do not store gradients for the network body
     if anil:
         learner.module.turn_off_body_grads()
@@ -105,7 +132,7 @@ def fast_adapt_vpg(task, learner, baseline, params, anil=False, first_order=Fals
         # Collect adaptation / support episodes
         support_episodes = task.run(learner, episodes=params['adapt_batch_size'], render=render)
         # Calculate loss & fit the value function
-        inner_loss = vpg_a2c_loss(support_episodes, learner, baseline, params['gamma'], params['tau'], device)
+        inner_loss = vpg_a2c_loss(support_episodes, learner, baseline, params['gamma'], params['tau'])
         # Adapt model based on the loss
         learner.adapt(inner_loss, first_order=first_order, allow_unused=anil)  # In ANIL, not all parameters have grads
 
@@ -116,11 +143,12 @@ def fast_adapt_vpg(task, learner, baseline, params, anil=False, first_order=Fals
     # Collect evaluation / query episodes
     query_episodes = task.run(learner, episodes=params['adapt_batch_size'])
     # Calculate loss for the outer loop optimization
-    outer_loss = vpg_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'], device)
+    outer_loss = vpg_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'])
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
+    query_success_rate = get_ep_successes(query_episodes, params['max_path_length']) / params['adapt_batch_size']
 
-    return outer_loss, query_rew
+    return outer_loss, query_rew, query_success_rate
 
 
 def evaluate_vpg(env, policy, baseline, eval_params, anil=False, render=False):
@@ -130,29 +158,20 @@ def evaluate_vpg(env, policy, baseline, eval_params, anil=False, render=False):
 """ PPO RELATED """
 
 
-def ppo_update(episodes, learner, baseline, params, anil=False, device='cpu'):
+def ppo_update(episodes, learner, baseline, params, anil=False):
     """
     Inspired by cherry-rl/examples/spinning-up/cherry_ppo.py
     """
 
     # Get values to device
-    states, actions, rewards, dones, next_states = get_episode_values(episodes, device)
+    states, actions, rewards, dones, next_states = get_episode_values(episodes)
 
+    # Update value function & Compute advantages
     returns = ch.td.discount(params['gamma'], rewards, dones)
-
-    # Update value function and get new values
-    baseline.fit(states, returns)
-    values = baseline(states)
-    new_values = baseline(next_states)
-    bootstraps = values * (1.0 - dones) + new_values * dones
-
-    # Compute advantages
+    advantages = compute_advantages(baseline, params['tau'], params['gamma'], rewards, dones, states, next_states)
+    advantages = ch.normalize(advantages, epsilon=1e-8).detach()
+    # Calculate loss between states and action in the network
     with torch.no_grad():
-        advantages = ch.pg.generalized_advantage(gamma=params['gamma'], tau=params['tau'],
-                                                 rewards=rewards, dones=dones, values=bootstraps,
-                                                 next_value=torch.zeros(1, device=values.device))
-        advantages = ch.normalize(advantages, epsilon=1e-8).detach()
-        # Calculate loss between states and action in the network
         old_log_probs = learner.log_prob(states, actions)
 
     # Initialize inner loop PPO optimizer
@@ -167,15 +186,14 @@ def ppo_update(episodes, learner, baseline, params, anil=False, device='cpu'):
         # Adapt model based on the loss
         learner.adapt(loss, allow_unused=anil)
 
-        # TODO: do we need to update the value function in every epoch? only once outside?
-        # baseline.fit(states, returns)
-        # print(f'\tPPO EPOCH {ppo_epoch}: {round(loss.item(), 3)}')
+        # Do we need to update the value function in every epoch? only once outside?
+        baseline.fit(states, returns)
         av_loss += loss
 
     return av_loss / params['ppo_epochs']
 
 
-def fast_adapt_ppo(task, learner, baseline, params, anil=False, render=False, device='cpu'):
+def fast_adapt_ppo(task, learner, baseline, params, anil=False, render=False):
     # During inner loop adaptation we do not store gradients for the network body
     if anil:
         learner.module.turn_off_body_grads()
@@ -185,7 +203,7 @@ def fast_adapt_ppo(task, learner, baseline, params, anil=False, render=False, de
         support_episodes = task.run(learner, episodes=params['adapt_batch_size'], render=render)
 
         # Calculate loss & fit the value function & update the policy
-        inner_loss = ppo_update(support_episodes, learner, baseline, params, anil=anil, device=device)
+        inner_loss = ppo_update(support_episodes, learner, baseline, params, anil=anil)
         # print(f'Inner loss {step}: {round(inner_loss.item(), 3)}')
 
     # We need to include the body network parameters for the query set
@@ -194,12 +212,15 @@ def fast_adapt_ppo(task, learner, baseline, params, anil=False, render=False, de
 
     # Collect evaluation / query episodes
     query_episodes = task.run(learner, episodes=params['adapt_batch_size'])
-    # Calculate loss for the outer loop optimization
-    outer_loss = vpg_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'], device=device)
+    # Calculate loss for the outer loop optimization WITHOUT adapting (works, tested!)
+    eval_learner = learner.clone()
+    eval_baseline = deepcopy(baseline)
+    outer_loss = ppo_update(query_episodes, eval_learner, eval_baseline, params, anil=anil)
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
+    query_success_rate = get_ep_successes(query_episodes, params['max_path_length']) / params['adapt_batch_size']
 
-    return outer_loss, query_rew
+    return outer_loss, query_rew, query_success_rate
 
 
 def evaluate_ppo(env, policy, baseline, eval_params, anil=False, render=False):
@@ -209,9 +230,9 @@ def evaluate_ppo(env, policy, baseline, eval_params, anil=False, render=False):
 """ TRPO RELATED """
 
 
-def trpo_a2c_loss(episodes, learner, baseline, gamma, tau, device, update_vf=True):
+def trpo_a2c_loss(episodes, learner, baseline, gamma, tau, update_vf=True):
     # Get values to device
-    states, actions, rewards, dones, next_states = get_episode_values(episodes, device)
+    states, actions, rewards, dones, next_states = get_episode_values(episodes)
 
     # Calculate loss between states and action in the network
     log_probs = learner.log_prob(states, actions)
@@ -224,11 +245,11 @@ def trpo_a2c_loss(episodes, learner, baseline, gamma, tau, device, update_vf=Tru
     return a2c.policy_loss(log_probs, advantages)
 
 
-def trpo_update(episodes, learner, baseline, inner_lr, gamma, tau, anil=False, first_order=False, device='cpu'):
+def trpo_update(episodes, learner, baseline, inner_lr, gamma, tau, anil=False, first_order=False):
     second_order = not first_order
 
     # Calculate loss & fit the value function
-    loss = trpo_a2c_loss(episodes, learner, baseline, gamma, tau, device)
+    loss = trpo_a2c_loss(episodes, learner, baseline, gamma, tau)
 
     # First or Second order derivatives
     gradients = torch.autograd.grad(loss, learner.parameters(),
@@ -240,7 +261,7 @@ def trpo_update(episodes, learner, baseline, inner_lr, gamma, tau, anil=False, f
     return l2l.algorithms.maml.maml_update(learner, inner_lr, gradients)
 
 
-def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=False, render=False, device='cpu'):
+def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=False, render=False):
     task_replay = []
 
     # During inner loop adaptation we do not store gradients for the network body
@@ -254,7 +275,7 @@ def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=Fal
 
         learner = trpo_update(support_episodes, learner, baseline,
                               params['inner_lr'], params['gamma'], params['tau'],
-                              anil=anil, first_order=first_order, device=device)
+                              anil=anil, first_order=first_order)
 
     # We need to include the body network parameters for the query set
     if anil:
@@ -263,16 +284,18 @@ def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=Fal
     # Collect evaluation / query episodes
     query_episodes = task.run(learner, episodes=params['adapt_batch_size'])
     task_replay.append(query_episodes)
+    # Calculate loss for the outer loop optimization WITHOUT adapting
+    outer_loss = trpo_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'], update_vf=False)
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
-    outer_loss = trpo_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'], device, update_vf=False)
+    query_success_rate = get_ep_successes(query_episodes, params['max_path_length']) / params['adapt_batch_size']
 
-    return learner, outer_loss, task_replay, query_rew
+    return learner, outer_loss, task_replay, query_rew, query_success_rate
 
 
-def meta_optimize_trpo(params, policy, baseline, iter_replays, iter_policies, device):
+def meta_optimize_trpo(params, policy, baseline, iter_replays, iter_policies):
     # Compute CG step direction
-    old_loss, old_kl = meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, params, device)
+    old_loss, old_kl = meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, params)
 
     grad = torch.autograd.grad(old_loss,
                                policy.parameters(),
@@ -295,14 +318,14 @@ def meta_optimize_trpo(params, policy, baseline, iter_replays, iter_policies, de
         clone = deepcopy(policy)
         for p, u in zip(clone.parameters(), step):
             p.data.add_(u.data, alpha=-stepsize)  # same as p.data += u.data * (-stepsize)
-        new_loss, kl = meta_surrogate_loss(iter_replays, iter_policies, clone, baseline, params, device)
+        new_loss, kl = meta_surrogate_loss(iter_replays, iter_policies, clone, baseline, params)
         if new_loss < old_loss and kl < params['max_kl']:
             for p, u in zip(policy.parameters(), step):
                 p.data.add_(u.data, alpha=-stepsize)  # same as p.data += u.data * (-stepsize)
             break
 
 
-def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, params, device):
+def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, params):
     mean_loss = 0.0
     mean_kl = 0.0
     for task_replays, old_policy in zip(iter_replays, iter_policies):
@@ -314,10 +337,10 @@ def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, params, d
         for train_episodes in train_replays:
             new_policy = trpo_update(train_episodes, new_policy, baseline,
                                      params['inner_lr'], params['gamma'], params['tau'],
-                                     first_order=False, device=device)
+                                     first_order=False)
 
         # Calculate KL from the validation episodes
-        states, actions, rewards, dones, next_states = get_episode_values(valid_episodes, device)
+        states, actions, rewards, dones, next_states = get_episode_values(valid_episodes)
 
         # Compute KL
         old_densities = old_policy.density(states)

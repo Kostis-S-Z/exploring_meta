@@ -13,15 +13,16 @@ from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import fast_adapt_ppo, evaluate_ppo
+from core_functions.rl import fast_adapt_ppo, evaluate_ppo, set_device
 from misc_scripts import run_cl_rl_exp
 
 
 params = {
     # Inner loop parameters
-    'ppo_epochs': 1,
-    'ppo_clip_ratio': 0.2,
+    'ppo_epochs': 3,
+    'ppo_clip_ratio': 0.1,
     'inner_lr': 0.05,
+    'max_path_length': 150,  # [100, 150] or None=use the maximum length (None currently WIP)
     'adapt_steps': 1,
     'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
@@ -33,7 +34,7 @@ params = {
     'gamma': 0.99,
     # Other parameters
     'num_iterations': 1000,
-    'save_every': 25,
+    'save_every': 100,
     'seed': 42}
 
 
@@ -64,7 +65,7 @@ cl_params = {
 #   - ML1_reach-v1, ML1_pick-place-v1, ML1_push-v1
 #   - ML10, ML45
 
-env_name = 'Particles2D-v1'
+env_name = 'ML1_push-v1'
 
 workers = 5
 
@@ -90,6 +91,7 @@ class MamlPPO(Experiment):
 
     def run(self, env, device):
 
+        set_device(device)
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
         policy = DiagNormalPolicy(env.state_size, env.action_size)
         policy = MAML(policy, lr=self.params['inner_lr'])
@@ -117,11 +119,11 @@ class MamlPPO(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Adapt
-                    eval_loss, task_rew = fast_adapt_ppo(task, learner, baseline, self.params, device=device)
+                    eval_loss, task_rew, task_suc = fast_adapt_ppo(task, learner, baseline, self.params)
 
                     iter_reward += task_rew
                     iter_loss += eval_loss
-                    # print(f'\tTask {task_i} reward: {task_rew} | Loss : {loss.item()}')
+                    # print(f'\tTask {task_i} reward: {task_rew} | Loss : {eval_loss.item()}')
 
                 # Log
                 average_return = iter_reward / self.params['meta_batch_size']
