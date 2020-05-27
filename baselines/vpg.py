@@ -4,20 +4,18 @@ import argparse
 import random
 import torch
 import numpy as np
-from copy import deepcopy
 
-from tqdm import trange, tqdm
+from tqdm import trange
 
 import cherry as ch
-from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import fast_adapt_vpg, evaluate_vpg
-from misc_scripts import run_cl_rl_exp
+from core_functions.rl import vpg_a2c_loss
 
 params = {
     'batch_size': 20,
+    'n_episodes': 10,
     'lr': 0.05,
     'dice': False,
     'activation': 'tanh',  # for MetaWorld use tanh, others relu
@@ -28,27 +26,23 @@ params = {
     'save_every': 25,
     'seed': 42}
 
-
 # Environments:
 #   - Particles2D-v1
 #   - AntDirection-v1
 #   - ML1_reach-v1, ML1_pick-place-v1, ML1_push-v1
 #   - ML10, ML45
 
-env_name = 'Particles2D-v1'
+env_name = 'ML1_push-v1'
 
 workers = 5
 
 wandb = False
 
-cl_test = False
-rep_test = False
-
 
 class VPG(Experiment):
 
     def __init__(self):
-        super(VPG, self).__init__('vpg', env_name, params, path='results/', use_wandb=wandb)
+        super(VPG, self).__init__('vpg', env_name, params, path='vpg_results/', use_wandb=wandb)
 
         # Set seed
         device = torch.device('cpu')
@@ -68,7 +62,7 @@ class VPG(Experiment):
 
         self.log_model(policy, device, input_shape=(1, env.state_size))
 
-        t = trange(self.params['num_iterations'], desc='Iteration', position=0)
+        t = trange(self.params['num_iterations'], desc='Iteration', position=1)
         try:
             for iteration in t:
 
@@ -77,18 +71,38 @@ class VPG(Experiment):
 
                 task_list = env.sample_tasks(self.params['batch_size'])
 
+                for task_i in trange(len(task_list), leave=False, desc='Task', position=0):
+                    task = task_list[task_i]
+                    env.set_task(task)
+                    env.reset()
+                    task = ch.envs.Runner(env)
+
+                    episodes = task.run(policy, episodes=params['n_episodes'])
+                    task_reward = episodes.reward().sum().item() / params['n_episodes']
+
+                    # Calculate loss
+                    policy_loss = vpg_a2c_loss(episodes, policy, baseline, params['gamma'], params['tau'], device)
+
+                    # Optimize
+                    optimizer.zero_grad()
+                    policy_loss.backward()
+                    optimizer.step()
+
+                    iter_loss += policy_loss.item()
+                    iter_reward += task_reward
+                    print(f'Task {task_i}: Rew: {task_reward} | loss: {policy_loss.item()}')
 
                 # Log
                 average_return = iter_reward / self.params['batch_size']
                 av_loss = iter_loss / self.params['batch_size']
                 metrics = {'average_return': average_return,
-                           'loss': av_loss.item()}
+                           'loss': av_loss}
 
                 t.set_postfix(metrics)
                 self.log_metrics(metrics)
 
                 if iteration % self.params['save_every'] == 0:
-                    self.save_model_checkpoint(policy.module, str(iteration + 1))
+                    self.save_model_checkpoint(policy, str(iteration + 1))
                     self.save_model_checkpoint(baseline, 'baseline_' + str(iteration + 1))
 
         # Support safely manually interrupt training
@@ -97,7 +111,7 @@ class VPG(Experiment):
             self.logger['manually_stopped'] = True
             self.params['num_iterations'] = iteration
 
-        self.save_model(policy.module)
+        self.save_model(policy)
         self.save_model(baseline, name='baseline')
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
@@ -119,8 +133,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    params['lr'] = args.inner_lr
-    params['batch_size'] = args.meta_batch_size
+    params['lr'] = args.lr
+    params['batch_size'] = args.batch_size
     params['num_iterations'] = args.num_iterations
     params['save_every'] = args.save_every
     params['seed'] = args.seed
