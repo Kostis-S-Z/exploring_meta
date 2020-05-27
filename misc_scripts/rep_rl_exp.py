@@ -140,8 +140,10 @@ def run_rep_rl_exp(path, env, policy, baseline, rep_params):
             before_adapt_model = after_adapt_model.clone()
 
     for metric in metrics:
-        plot_sim(init_mean[metric], init_var[metric], metric=metric)
+        plot_sim(init_mean[metric], init_var[metric], metric=metric, title='RepChange between init and adapted')
 
+    for metric in metrics:
+        plot_sim(adapt_mean[metric], adapt_var[metric], metric=metric, title='RepChange after each step')
     """
     print("We expect that column 0 has higher values than column 1")
     print(acc_results)
@@ -224,10 +226,10 @@ def get_state_representation(model, state, layer=3):
     return representation
 
 
-def plot_sim(r_mean, r_var, metric='CCA'):
+def plot_sim(r_mean, r_var, metric='CCA', title=''):
     plt.figure().gca().xaxis.set_major_locator(MaxNLocator(integer=True))  # Set integers only in x ticks
 
-    plt.title('Representation change during adaptation')
+    plt.title(title)
     plt.xlabel('Adaptation step')
     plt.ylabel(f'{metric} Similarity')
 
