@@ -8,9 +8,11 @@ import numpy as np
 from tqdm import trange
 
 import cherry as ch
+from cherry.algorithms import ppo
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
+from core_functions.rl import get_episode_values, compute_advantages
 
 
 params = {
@@ -85,10 +87,10 @@ class PPO(Experiment):
                     task_reward = episodes.reward().sum().item() / params['n_episodes']
 
                     # Calculate loss & fit the value function & update the policy
-                    # This functions requires the policy to be a MAML object
-                    # iter_loss += ppo_update(episodes, policy, baseline, params)
+                    loss = ppo_update(episodes, policy, optimizer, baseline, params)
                     iter_reward += task_reward
-                    # iter_loss += loss.item()
+                    iter_loss += loss
+                    print(f'Task {task_i}: Rew: {task_reward} | loss: {loss}')
 
                 # Log
                 average_return = iter_reward / self.params['batch_size']
@@ -109,7 +111,7 @@ class PPO(Experiment):
             self.logger['manually_stopped'] = True
             self.params['num_iterations'] = iteration
 
-        self.save_model(policy.module)
+        self.save_model(policy)
         self.save_model(baseline, name='baseline')
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
@@ -117,6 +119,39 @@ class PPO(Experiment):
         env = make_env(env_name, workers, params['seed'], test=True)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
+
+
+def ppo_update(episodes, policy, optimizer, baseline, prms):
+
+    # Get values to device
+    states, actions, rewards, dones, next_states = get_episode_values(episodes)
+
+    # Update value function & Compute advantages
+    returns = ch.td.discount(prms['gamma'], rewards, dones)
+    advantages = compute_advantages(baseline, prms['tau'], prms['gamma'], rewards, dones, states, next_states)
+    advantages = ch.normalize(advantages, epsilon=1e-8).detach()
+    # Calculate loss between states and action in the network
+    with torch.no_grad():
+        old_log_probs = policy.log_prob(states, actions)
+
+    # Initialize inner loop PPO optimizer
+    av_loss = 0.0
+
+    for ppo_epoch in range(prms['ppo_epochs']):
+        new_log_probs = policy.log_prob(states, actions)
+
+        # Compute the policy loss
+        policy_loss = ppo.policy_loss(new_log_probs, old_log_probs, advantages, clip=prms['ppo_clip_ratio'])
+
+        # Adapt model based on the loss
+        optimizer.zero_grad()
+        policy_loss.backward()
+        optimizer.step()
+
+        baseline.fit(states, returns)
+        av_loss += policy_loss.item()
+
+    return av_loss / prms['ppo_epochs']
 
 
 if __name__ == '__main__':
