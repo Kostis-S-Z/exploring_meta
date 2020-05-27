@@ -13,6 +13,10 @@ import json
 import numpy as np
 import torch
 from copy import deepcopy
+from collections import defaultdict
+
+from matplotlib import pyplot as plt
+from matplotlib.ticker import MaxNLocator
 
 import cherry as ch
 
@@ -78,13 +82,18 @@ def run_rep_rl_exp(path, env, policy, baseline, rep_params):
     del adapt_model
 
     # column 0: adaptation results, column 1: init results
-    acc_results = np.zeros((rep_params['n_tasks'], 2))
+    # acc_results = np.zeros((rep_params['n_tasks'], 2))
     # Create a dictionary of layer : results for each metric (e.g cca_results["0"] = [0.3, 0.2, 0.1])
-    cca_results = {str(layer): [] for layer in rep_params['layers']}
-    cka_l_results = {str(layer): [] for layer in rep_params['layers']}
-    cka_k_results = {str(layer): [] for layer in rep_params['layers']}
+    # cca_results = {str(layer): [] for layer in rep_params['layers']}
+    # cka_l_results = {str(layer): [] for layer in rep_params['layers']}
+    # cka_k_results = {str(layer): [] for layer in rep_params['layers']}
 
     tasks = env.sample_tasks(rep_params['n_tasks'])
+
+    init_mean = defaultdict(list)
+    init_var = defaultdict(list)
+    adapt_mean = defaultdict(list)
+    adapt_var = defaultdict(list)
 
     for task in tasks:
 
@@ -118,21 +127,30 @@ def run_rep_rl_exp(path, env, policy, baseline, rep_params):
             # Compare representations before & after adaptation
             adapt_mean_change, adapt_var_change = episode_mean_var(adapt_ep, before_adapt_model, after_adapt_model)
 
-            print(f'Change between initial and adapted model:'
+            print(f'\nSimilarity between initial and adapted model after {step + 1} steps:'
                   f'\n\t mean: {init_mean_change} | var: {init_var_change}'
-                  f'Change between before & after 1 adaptation step model:'
+                  f'\nSimilarity between before & after 1 adaptation step model:'
                   f'\n\t mean: {adapt_mean_change} | var: {adapt_var_change}')
+            for metric in metrics:
+                init_mean[metric] += [init_mean_change[metric]]
+                init_var[metric] += [init_var_change[metric]]
+                adapt_mean[metric] += [adapt_mean_change[metric]]
+                adapt_var[metric] += [adapt_var_change[metric]]
 
-            before_adapt_model = deepcopy(after_adapt_model)
+            before_adapt_model = after_adapt_model.clone()
 
-    # print("We expect that column 0 has higher values than column 1")
-    # print(acc_results)
-    # print("We expect that the values decrease over time?")
-    # print("CCA:", cca_results)
-    # print("We expect that the values decrease over time?")
-    # print("linear CKA:", cka1_results)
-    # print("We expect that the values decrease over time?")
-    # print("Kernerl CKA:", cka2_results)
+    for metric in metrics:
+        plot_sim(init_mean[metric], init_var[metric], metric=metric)
+
+    """
+    print("We expect that column 0 has higher values than column 1")
+    print(acc_results)
+    print("We expect that the values decrease over time?")
+    print("CCA:", cca_results)
+    print("We expect that the values decrease over time?")
+    print("linear CKA:", cka1_results)
+    print("We expect that the values decrease over time?")
+    print("Kernerl CKA:", cka2_results)
 
     cca_plot = dict(title="CCA Evolution",
                     x_legend="Inner loop steps",
@@ -152,14 +170,12 @@ def run_rep_rl_exp(path, env, policy, baseline, rep_params):
     plot_dict(cca_plot, save=True)
     # plot_dict(cka_l_plot, save=True)
     # plot_dict(cka_k_plot, save=True)
+    """
 
     with open(rep_path + '/rep_params.json', 'w') as fp:
         json.dump(rep_params, fp, sort_keys=True, indent=4)
 
-    with open(rep_path + '/cca_results.json', 'w') as fp:
-        json.dump(cca_results, fp, sort_keys=True, indent=4)
-
-    return cca_results
+    return 0
 
 
 def episode_mean_var(episode, model_1, model_2):
@@ -167,22 +183,24 @@ def episode_mean_var(episode, model_1, model_2):
     Find the mean & variance of the representation difference
     between two models in a series of states of an episode.
     """
-    results = []
-    mean = {}
-    var = {}
+    results = defaultdict(list)
     for state in episode.state():
-        rep_1 = model_1.get_representation(state)
-        rep_2 = model_2.get_representation(state)
+        rep_1 = get_state_representation(model_1, state)
+        rep_2 = get_state_representation(model_2, state)
 
         result = calculate_rep_change(rep_1, rep_2)
 
-        results.append(result)
+        # Append results to dictionary with list for each metric
+        for metric, value in result.items():
+            results[metric] += [value]
 
-    for metric, values in results.item():
+    mean = {}
+    var = {}
+    for metric, values in results.items():
         mean[metric] = np.mean(values)
         var[metric] = np.var(values)
-        print(f'{metric} mean: {mean[metric]}')
-        print(f'{metric} mean: {var[metric]}')
+        # print(f'{metric} mean: {mean[metric]}')
+        # print(f'{metric} var: {var[metric]}')
 
     return mean, var
 
@@ -190,7 +208,7 @@ def episode_mean_var(episode, model_1, model_2):
 def calculate_rep_change(rep_1, rep_2):
     results = {}
     if 'CCA' in metrics:
-        results['CCA'] = get_cca_similarity(rep_1, rep_2, epsilon=1e-10)[1]
+        results['CCA'] = get_cca_similarity(rep_1.T, rep_2.T, epsilon=1e-10)[1]
     if 'CKA_L' in metrics:
         results['CKA_L'] = get_linear_CKA(rep_1, rep_2)
     if 'CKA_K' in metrics:
@@ -199,9 +217,23 @@ def calculate_rep_change(rep_1, rep_2):
     return results
 
 
-def get_rep_from_batch(model, batch, layer=4):
-    representation = model.get_rep_i(batch, layer)
-    representation = representation.detach().numpy()
+def get_state_representation(model, state, layer=3):
+    representation = model.get_representation(state, layer)
+    representation = representation.detach().numpy().reshape(-1, 1)
 
-    # TODO: reshape representation
     return representation
+
+
+def plot_sim(r_mean, r_var, metric='CCA'):
+    plt.figure().gca().xaxis.set_major_locator(MaxNLocator(integer=True))  # Set integers only in x ticks
+
+    plt.title('Representation change during adaptation')
+    plt.xlabel('Adaptation step')
+    plt.ylabel(f'{metric} Similarity')
+
+    x_axis = range(1, len(r_mean) + 1)
+    y_axis = r_mean
+    y_err = r_var
+    plt.errorbar(x_axis, y_axis, yerr=y_err, marker='o')
+    # plt.legend()
+    plt.show()

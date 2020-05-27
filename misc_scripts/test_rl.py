@@ -55,14 +55,14 @@ cl_params = {
 }
 
 rep_params = {
-    'metrics': ['CCA'],  # CCA, CKA_L, CKA_K
+    'metrics': ['CCA', 'CKA_L'],  # CCA, CKA_L, CKA_K
     'max_path_length': 150,
-    'adapt_steps': 1,
-    'adapt_batch_size': 10,
+    'adapt_steps': 3,
+    'adapt_batch_size': 5,
     'inner_lr': 0.1,
     'gamma': 0.99,
     'tau': 1.0,
-    'n_tasks': 2,
+    'n_tasks': 1,
     'layers': [2, 4]
 }
 # Layer 1/3: Linear output
