@@ -184,15 +184,7 @@ def ppo_update(episodes, learner, baseline, params, anil=False):
         loss = ppo.policy_loss(new_log_probs, old_log_probs, advantages, clip=params['ppo_clip_ratio'])
 
         # Adapt model based on the loss
-        # OPTION 1: Use MAML.adapt()
-        # learner.adapt(loss, allow_unused=anil)
-
-        # OPTION 2: Manually update model
-        gradients = torch.autograd.grad(loss, learner.parameters(),
-                                        retain_graph=True,
-                                        create_graph=True,
-                                        allow_unused=anil)
-        learner = l2l.algorithms.maml.maml_update(learner, params['inner_lr'], gradients)
+        learner.adapt(loss, allow_unused=anil)
 
         # Do we need to update the value function in every epoch? only once outside?
         baseline.fit(states, returns)
