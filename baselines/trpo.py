@@ -13,13 +13,12 @@ from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import fast_adapt_vpg, evaluate_vpg
-from misc_scripts import run_cl_rl_exp
 
 params = {
     # TRPO parameters
     'backtrack_factor': 0.5,
     'ls_max_steps': 15,
+    'trpo_steps': 10,
     'max_kl': 0.01,
     # Common parameters
     'batch_size': 20,
@@ -32,7 +31,6 @@ params = {
     'num_iterations': 1000,
     'save_every': 25,
     'seed': 42}
-
 
 # Environments:
 #   - Particles2D-v1
@@ -66,8 +64,6 @@ class TRPO(Experiment):
         baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
         policy = DiagNormalPolicy(env.state_size, env.action_size)
 
-        optimizer = torch.optim.Adam(policy.parameters(), lr=self.params['lr'])
-
         self.log_model(policy, device, input_shape=(1, env.state_size))
 
         t = trange(self.params['num_iterations'], desc='Iteration', position=0)
@@ -87,10 +83,12 @@ class TRPO(Experiment):
                     episodes = task.run(policy, episodes=params['n_episodes'])
                     task_reward = episodes.reward().sum().item() / params['n_episodes']
 
-                    # Calculate loss
+                    # Calculate loss & fit value function & update policy
+                    loss = trpo_update(episodes, policy, baseline, self.params)
 
                     iter_reward += task_reward
                     iter_loss += loss.item()
+                    print(f'Task {task_i}: Rew: {task_reward} | loss: {loss.item()}')
 
                 # Log
                 average_return = iter_reward / self.params['batch_size']
@@ -119,6 +117,68 @@ class TRPO(Experiment):
         env = make_env(env_name, workers, params['seed'], test=True)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
+
+
+def trpo_update(episodes, policy, baseline, prms):
+    """
+    Inspired by cherry-rl/examples/bsuite/trpo_v_random.py
+    """
+    new_loss = 0.0
+    old_policy = deepcopy(policy)
+    for step in range(prms['trpo_steps']):
+        states = episodes.state()
+        actions = episodes.action()
+        rewards = episodes.reward()
+        dones = episodes.done()
+        next_states = episodes.next_state()
+        returns = ch.td.discount(prms['gamma'], rewards, dones)
+        baseline.fit(states, returns)
+        values = baseline(states)
+        next_values = baseline(next_states)
+
+        # Compute KL
+        with torch.no_grad():
+            old_density = old_policy.density(states)
+        new_density = policy.density(states)
+        kl = torch.distributions.kl_divergence(old_density, new_density).mean()
+
+        # Compute surrogate loss
+        old_log_probs = old_density.log_prob(actions).mean(dim=1, keepdim=True)
+        new_log_probs = new_density.log_prob(actions).mean(dim=1, keepdim=True)
+        bootstraps = values * (1.0 - dones) + next_values * dones
+        advantages = ch.pg.generalized_advantage(prms['gamma'], prms['tau'], rewards,
+                                                 dones, bootstraps, torch.zeros(1))
+        advantages = ch.normalize(advantages).detach()
+        surr_loss = ch.algorithms.trpo.policy_loss(new_log_probs, old_log_probs, advantages)
+
+        # Compute the update
+        grad = torch.autograd.grad(surr_loss, policy.parameters(), retain_graph=True)
+
+        fvp = ch.algorithms.trpo.hessian_vector_product(kl, policy.parameters())
+        grad = torch.nn.utils.parameters_to_vector(grad).detach()
+        step = ch.algorithms.trpo.conjugate_gradient(fvp, grad)
+        lagrange_mult = 0.5 * torch.dot(step, fvp(step)) / prms['max_kl']
+        step = step / lagrange_mult
+        step_ = [torch.zeros_like(p.data) for p in policy.parameters()]
+        torch.nn.utils.vector_to_parameters(step, step_)
+        step = step_
+
+        #  Line-search
+        for ls_step in range(prms['ls_max_steps']):
+            stepsize = prms['backtrack_factor'] ** ls_step
+            clone = deepcopy(policy)
+            for c, u in zip(clone.parameters(), step):
+                c.data.add_(-stepsize, u.data)
+            new_density = clone.density(states)
+            new_kl = torch.distributions.kl_divergence(old_density, new_density).mean()
+            new_log_probs = new_density.log_prob(actions).mean(dim=1, keepdim=True)
+            new_loss = ch.algorithms.trpo.policy_loss(new_log_probs, old_log_probs, advantages)
+            if new_loss < surr_loss and new_kl < prms['max_kl']:
+                for p, c in zip(policy.parameters(), clone.parameters()):
+                    p.data[:] = c.data[:]
+                break
+
+    return new_loss
 
 
 if __name__ == '__main__':
