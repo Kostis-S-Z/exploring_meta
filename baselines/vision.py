@@ -13,9 +13,9 @@ from core_functions.vision import accuracy, evaluate
 
 params = {
     "ways": 5,
-    "shots": 1,
-    "lr": 0.5,
-    "batch_size": 32,
+    "shots": 5,
+    "lr": 0.001,
+    "batch_size": 256,
     "num_iterations": 10000,  # 10k for Mini-ImageNet, 5k for Omniglot
     "save_every": 1000,
     "seed": 42,
@@ -25,6 +25,7 @@ params = {
 dataset = "min"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
+log_validation = False
 cl_test = False
 rep_test = False
 
@@ -37,7 +38,7 @@ class VisionBaseline(Experiment):
 
     def __init__(self):
         super(VisionBaseline, self).__init__(f"bsln_{params['ways']}w{params['shots']}s",
-                                             dataset, params, path="results/", use_wandb=wandb)
+                                             dataset, params, path="vision_results/", use_wandb=wandb)
 
         # Initialize seeds & devices
         random.seed(self.params['seed'])
@@ -67,6 +68,9 @@ class VisionBaseline(Experiment):
             print("Dataset not supported")
             exit(2)
 
+        if not log_validation:
+            valid_tasks = None
+
         self.run(train_tasks, valid_tasks, test_tasks, model, input_shape, device)
 
     def run(self, train_tasks, valid_tasks, test_tasks, model, input_shape, device):
@@ -77,7 +81,7 @@ class VisionBaseline(Experiment):
 
         self.log_model(model, device, input_shape=input_shape)  # Input shape is specific to dataset
 
-        n_batch_iter = self.params['data_size'] / self.params['batch_size']
+        n_batch_iter = int(320 / self.params['batch_size'])
         t = trange(self.params['num_iterations'])
         try:
 
@@ -89,25 +93,29 @@ class VisionBaseline(Experiment):
                 valid_accuracy = 0.0
 
                 for task in range(n_batch_iter):
-                    batch = train_tasks.sample()
+                    data, labels = train_tasks.sample()
+                    data, labels = data.to(device), labels.to(device)
 
                     optimizer.zero_grad()
 
-                    predictions = model(batch['data'])
-                    train_loss += loss(predictions, batch['labels'])
-                    train_accuracy += accuracy(predictions, batch['labels'])
+                    predictions = model(data)
+                    batch_loss = loss(predictions, labels)
+                    batch_accuracy = accuracy(predictions, labels)
 
-                    train_loss.backward()
-
+                    batch_loss.backward()
                     optimizer.step()
+
+                    train_loss += batch_loss.item()
+                    train_accuracy += batch_accuracy.item()
 
                 if valid_tasks is not None:
                     with torch.no_grad():
                         for task in range(n_batch_iter):
-                            batch = train_tasks.sample()
-                            predictions = model(batch['data'])
-                            valid_loss += loss(predictions, batch['labels'])
-                            valid_accuracy += accuracy(predictions, batch['labels'])
+                            valid_data, valid_labels = train_tasks.sample()
+                            valid_data, valid_labels = valid_data.to(device), valid_labels.to(device)
+                            predictions = model(valid_data)
+                            valid_loss += loss(predictions, valid_labels)
+                            valid_accuracy += accuracy(predictions, valid_labels)
 
                 train_loss = train_loss / n_batch_iter
                 valid_loss = valid_loss / n_batch_iter
@@ -156,7 +164,7 @@ if __name__ == '__main__':
     dataset = args.dataset
     params['ways'] = args.ways
     params['shots'] = args.shots
-    params['lr'] = args.lr_lr
+    params['lr'] = args.lr
     params['batch_size'] = args.batch_size
     params['num_iterations'] = args.num_iterations
     params['save_every'] = args.save_every
