@@ -168,7 +168,7 @@ def trpo_update(episodes, policy, baseline, prms):
             stepsize = prms['backtrack_factor'] ** ls_step
             clone = deepcopy(policy)
             for c, u in zip(clone.parameters(), step):
-                c.data.add_(-stepsize, u.data)
+                c.data.add_(u.data, alpha=-stepsize)
             new_density = clone.density(states)
             new_kl = torch.distributions.kl_divergence(old_density, new_density).mean()
             new_log_probs = new_density.log_prob(actions).mean(dim=1, keepdim=True)
