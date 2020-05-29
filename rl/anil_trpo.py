@@ -99,20 +99,20 @@ class AnilTRPO(Experiment):
                 for task_i in trange(len(task_list), leave=False, desc='Task', position=0):
                     task = task_list[task_i]
 
-                    clone = deepcopy(policy)
+                    learner = deepcopy(policy)
                     env.set_task(task)
                     env.reset()
                     task = ch.envs.Runner(env)
 
                     # Fast adapt
-                    _, eval_loss, task_replay, task_rew, task_suc = fast_adapt_trpo(task, clone, baseline,
+                    learner, eval_loss, task_replay, task_rew, task_suc = fast_adapt_trpo(task, learner, baseline,
                                                                                           self.params,
                                                                                           anil=True, first_order=True)
 
                     iter_reward += task_rew
                     iter_loss += eval_loss.item()
                     iter_replays.append(task_replay)
-                iter_policies.append(policy)
+                    iter_policies.append(learner)
 
                 # Log
                 average_return = iter_reward / self.params['meta_batch_size']
