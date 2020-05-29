@@ -17,6 +17,7 @@ from core_functions.rl import fast_adapt_vpg, evaluate_vpg, set_device
 params = {
     # Inner loop parameters
     'inner_lr': 0.1,
+    'max_path_length': 150,
     'adapt_steps': 1,
     'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters

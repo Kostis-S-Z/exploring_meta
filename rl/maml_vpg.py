@@ -19,6 +19,7 @@ from misc_scripts import run_cl_rl_exp
 params = {
     # Inner loop parameters
     'inner_lr': 0.05,
+    'max_path_length': 150,
     'adapt_steps': 1,
     'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters

@@ -18,6 +18,7 @@ from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo
 params = {
     # Inner loop parameters
     'inner_lr': 0.1,
+    'max_path_length': 150,
     'adapt_steps': 1,
     'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
@@ -104,14 +105,14 @@ class AnilTRPO(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Fast adapt
-                    learner, eval_loss, task_replay, task_rew, task_suc = fast_adapt_trpo(task, clone, baseline,
+                    _, eval_loss, task_replay, task_rew, task_suc = fast_adapt_trpo(task, clone, baseline,
                                                                                           self.params,
                                                                                           anil=True, first_order=True)
 
                     iter_reward += task_rew
                     iter_loss += eval_loss.item()
                     iter_replays.append(task_replay)
-                    iter_policies.append(learner)
+                iter_policies.append(policy)
 
                 # Log
                 average_return = iter_reward / self.params['meta_batch_size']
