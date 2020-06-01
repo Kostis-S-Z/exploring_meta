@@ -18,6 +18,7 @@ from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo
 params = {
     # Inner loop parameters
     'inner_lr': 0.1,
+    'max_path_length': 150,
     'adapt_steps': 1,
     'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
@@ -41,6 +42,7 @@ eval_params = {
     'n_eval_episodes': 10,  # Number of shots per task
     'n_eval_tasks': 10,  # Number of different tasks to evaluate on
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
+    'max_path_length': params['max_path_length'],
     'tau': params['tau'],
     'gamma': params['gamma'],
 }
@@ -98,13 +100,13 @@ class AnilTRPO(Experiment):
                 for task_i in trange(len(task_list), leave=False, desc='Task', position=0):
                     task = task_list[task_i]
 
-                    clone = deepcopy(policy)
+                    learner = deepcopy(policy)
                     env.set_task(task)
                     env.reset()
                     task = ch.envs.Runner(env)
 
                     # Fast adapt
-                    learner, eval_loss, task_replay, task_rew, task_suc = fast_adapt_trpo(task, clone, baseline,
+                    learner, eval_loss, task_replay, task_rew, task_suc = fast_adapt_trpo(task, learner, baseline,
                                                                                           self.params,
                                                                                           anil=True, first_order=True)
 
@@ -123,7 +125,7 @@ class AnilTRPO(Experiment):
                 self.log_metrics(metrics)
 
                 # Meta-optimize
-                meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies)
+                meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies, anil=True)
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy.body, 'body_' + str(iteration + 1))
