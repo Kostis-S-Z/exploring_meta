@@ -42,6 +42,7 @@ eval_params = {
     'n_eval_episodes': 10,  # Number of shots per task
     'n_eval_tasks': 10,  # Number of different tasks to evaluate on
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
+    'max_path_length': params['max_path_length'],
     'tau': params['tau'],
     'gamma': params['gamma'],
 }
@@ -124,7 +125,7 @@ class AnilTRPO(Experiment):
                 self.log_metrics(metrics)
 
                 # Meta-optimize
-                meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies)
+                meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies, anil=True)
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy.body, 'body_' + str(iteration + 1))

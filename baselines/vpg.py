@@ -20,6 +20,7 @@ params = {
     'batch_size': 20,
     'n_episodes': 10,
     'lr': 0.05,
+    'max_path_length': 150,
     'activation': 'tanh',  # for MetaWorld use tanh, others relu
     'tau': 1.0,
     'gamma': 0.99,
