@@ -19,6 +19,7 @@ from misc_scripts import run_cl_rl_exp
 params = {
     # Inner loop parameters
     'inner_lr': 0.05,
+    'max_path_length': 150,
     'adapt_steps': 1,
     'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
@@ -39,6 +40,7 @@ eval_params = {
     'adapt_batch_size': 10,  # Number of shots per task
     'n_eval_tasks': 10,  # Number of different tasks to evaluate on
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
+    'max_path_length': params['max_path_length'],
     'tau': params['tau'],
     'gamma': params['gamma'],
 }
@@ -112,7 +114,7 @@ class MamlVPG(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Adapt
-                    loss, task_rew = fast_adapt_vpg(task, learner, baseline, self.params, first_order=False)
+                    loss, task_rew, task_suc = fast_adapt_vpg(task, learner, baseline, self.params, first_order=False)
 
                     iter_reward += task_rew
                     iter_loss += loss

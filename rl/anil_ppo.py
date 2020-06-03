@@ -19,6 +19,7 @@ params = {
     'ppo_epochs': 1,
     'ppo_clip_ratio': 0.1,
     'inner_lr': 0.05,
+    'max_path_length': 150,
     'adapt_steps': 1,
     'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
@@ -39,6 +40,7 @@ eval_params = {
     'adapt_batch_size': 10,  # Number of shots per task
     'n_eval_tasks': 10,  # Number of different tasks to evaluate on
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
+    'max_path_length': params['max_path_length'],
     'tau': params['tau'],
     'gamma': params['gamma'],
     'ppo_epochs': params['ppo_epochs'],
@@ -109,7 +111,7 @@ class AnilPPO(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Fast adapt
-                    loss, task_rew = fast_adapt_ppo(task, learner, baseline, self.params, anil=True)
+                    loss, task_rew, task_suc = fast_adapt_ppo(task, learner, baseline, self.params, anil=True)
 
                     # print(f'Task {task_i}: Loss: {loss.item()} | Rew: {task_rew}')
                     iter_reward += task_rew

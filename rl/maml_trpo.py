@@ -42,6 +42,7 @@ eval_params = {
     'adapt_batch_size': 10,  # Number of shots per task
     'n_eval_tasks': 10,  # Number of different tasks to evaluate on
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
+    'max_path_length': params['max_path_length'],
     'tau': params['tau'],
     'gamma': params['gamma'],
 }
@@ -116,13 +117,12 @@ class MamlTRPO(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Adapt
-                    learner, eval_loss, task_replay, task_rew = fast_adapt_trpo(task, learner, baseline, self.params,
-                                                                                first_order=True)
+                    learner, eval_loss, task_replay, task_rew, task_suc = fast_adapt_trpo(task, learner, baseline,
+                                                                                          self.params, first_order=True)
 
                     # Calculate average success rate of support episodes
-                    task_adapt_suc = get_ep_successes(task_replay[0]) / self.params['adapt_batch_size']
-                    task_suc = get_ep_successes(task_replay[1]) / self.params['adapt_batch_size']
-                    iter_success_per_task[task_id + '_adapt'] = task_adapt_suc
+                    # task_adapt_suc = get_ep_successes(task_replay[0]) / self.params['adapt_batch_size']
+                    # iter_success_per_task[task_id + '_adapt'] = task_adapt_suc
                     iter_success_per_task[task_id] = task_suc
                     iter_reward += task_rew
                     iter_loss += eval_loss.item()
@@ -164,17 +164,6 @@ class MamlTRPO(Experiment):
         if cl_test:
             print('Running Continual Learning experiment...')
             run_cl_rl_exp(self.model_path, env, policy, baseline, cl_params=cl_params)
-
-
-def get_ep_successes(episodes):
-    successes = 0
-    # Reshape ExperienceReplay so its easy to iterate
-    success_matrix = episodes.success().reshape(params['max_path_length'], -1).T
-    for episode_suc in success_matrix:  # Iterate over each episode
-        # if there was a success in that episode
-        if 1. in episode_suc:  # Same as if True in [bool(s) for s in episode_suc]
-            successes += 1
-    return successes
 
 
 if __name__ == '__main__':

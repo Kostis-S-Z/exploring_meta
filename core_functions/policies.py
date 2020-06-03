@@ -60,6 +60,12 @@ class DiagNormalPolicy(nn.Module):
         action = density.sample()
         return action
 
+    def get_representation(self, x, layer=-1):
+        modules = list(self.mean.modules())
+        for layer_i in modules[1:layer]:
+            x = layer_i(x)
+        return x
+
 
 class DiagNormalPolicyANIL(nn.Module):
 
@@ -112,6 +118,12 @@ class DiagNormalPolicyANIL(nn.Module):
         density = self.density(state)
         action = density.sample()
         return action
+
+    def get_representation(self, x, layer=-1):
+        modules = list(self.body.modules())
+        for layer_i in modules[1:layer]:
+            x = layer_i(x)
+        return x
 
 
 class DiagNormalPolicyCNN(nn.Module):
