@@ -20,10 +20,10 @@ params = {
     'ppo_epochs': 3,
     'ppo_clip_ratio': 0.1,
     # Common parameters
-    'batch_size': 40,
-    'n_episodes': 20,
+    'batch_size': 20,
+    'n_episodes': 10,
     'max_path_length': 150,  # [100, 150] or None=use the maximum length (None currently WIP)
-    'lr': 0.01,
+    'lr': 0.001,
     'activation': 'tanh',  # for MetaWorld use tanh, others relu
     'tau': 1.0,
     'gamma': 0.99,
