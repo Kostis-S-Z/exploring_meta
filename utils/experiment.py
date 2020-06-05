@@ -6,7 +6,7 @@ import os
 
 import numpy as np
 import torch
-from torchsummary import summary_string
+from torchsummary import summary
 import wandb
 
 
@@ -53,7 +53,7 @@ class Experiment:
         """
         Save information (such as architecture) of the network.
         """
-        model_info, _ = summary_string(model, input_shape, device=device)
+        model_info = str(summary(model, input_shape, device=device))
         print(model_info)
         with open(self.model_path + '/' + name + '.summary', 'w') as file:
             file.write(model_info)
