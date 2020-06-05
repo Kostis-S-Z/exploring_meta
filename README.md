@@ -16,34 +16,61 @@ Track runs & results in [weights&biases](https://app.wandb.ai/kosz/l2l)
 
 _Note: There is a [bug](https://stackoverflow.com/questions/26193365/pycharm-does-not-recognize-modules-installed-in-development-mode) in PyCharm that packages installed in development mode might not be recognised at first and you need to re-open the project in order for it to be properly indexed._
 
-3. Install github version of torch summary (because PyPI package hasn't been updated as of [now](https://github.com/sksq96/pytorch-summary/issues/115) to support summary_string function)
+3. Install core dependencies
 
-```pip install git+https://github.com/sksq96/pytorch-summary.git@4ee5ac5#egg=torchsummary```
+```pip install -r requirements.txt```
 
-#### RL dependencies
+#### Dependencies for RL & Meta-World experiments
 
-4. Install [cherry](https://github.com/learnables/cherry):
+4. Install [OpenAI's Gym](https://github.com/openai/gym):
+
+```pip install gym==0.15.4```
+
+5. Install [cherry](https://github.com/learnables/cherry):
 
 ```pip install cherry-rl```
-
-5. Install [baselines](https://github.com/openai/baselines) (Only for Procgen):
-
-```pip install https://github.com/openai/baselines/archive/9ee399f5b20cd70ac0a871927a6cf043b478193f.zip```
 
 6. Install [metaworld](https://github.com/rlworkgroup/metaworld) :
 
 ```pip install git+https://github.com/rlworkgroup/metaworld.git@master#egg=metaworld```
 
-7. Install the rest of dependencies:
+#### Dependencies for Procgen experiments
 
-```pip install -r requirements.txt```
+5. Install [Procgen](https://github.com/openai/procgen):
+
+```pip install procgen==0.9.2```
+
+
+6. Install [baselines](https://github.com/openai/baselines):
+
+```pip install https://github.com/openai/baselines/archive/9ee399f5b20cd70ac0a871927a6cf043b478193f.zip```
+
+
+7. Install [tensorflow v1.15](https://www.tensorflow.org/):
+
+```pip install tensorflow==1.15.0```
+
+
+8. Install [mpi4py](https://github.com/openai/baselines):
+
+```pip install mpi4py==3.0.3```
+
+#### Optional dependencies
+
+8. Track results with [W&B](https://www.wandb.com/):
+
+```pip install wandb```
+
+9. For development:
+
+```pip install pytest```
 
 
 ## Guide
 
-For a vision walk-through of the code check [here](https://github.com/Kostis-S-Z/exploring_meta/blob/master/VISION_CODE_WALKTHROUGH.md)
+For a vision walk-through of the code check [here](https://github.com/Kostis-S-Z/exploring_meta/blob/master/vision/VISION_CODE_WALKTHROUGH.md)
 
-For an RL walk-through of the code check [here](https://github.com/Kostis-S-Z/exploring_meta/blob/master/RL_CODE_WALKTHROUGH.md)
+For an RL walk-through of the code check [here](https://github.com/Kostis-S-Z/exploring_meta/blob/master/rl/RL_CODE_WALKTHROUGH.md)
 
 ## Run
 
@@ -61,3 +88,5 @@ For scripts that can use MPI run:
 ```mpiexec -np 8 python3 maml_rl.py ```
 
 ## Acknowledgements
+
+A lot of the code for the implementations of MAML & ANIL depends on the [learn2learn](https://github.com/learnables/learn2learn) library.
