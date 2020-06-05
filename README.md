@@ -20,17 +20,21 @@ _Note: There is a [bug](https://stackoverflow.com/questions/26193365/pycharm-doe
 
 ```pip install git+https://github.com/sksq96/pytorch-summary.git@4ee5ac5#egg=torchsummary```
 
-4. Install my forked version of [cherry](https://github.com/Kostis-S-Z/cherry) specifically modified for experiments for this repo (For RL):
+#### RL dependencies
 
-```pip install git+git://github.com/Kostis-S-Z/cherry.git#egg=cherry```
+4. Install [cherry](https://github.com/learnables/cherry):
 
-`pip install git+https://github.com/Kostis-S-Z/cherry.git@runner_save_info#egg=cherry`
+```pip install cherry-rl```
 
-5. Install baselines (For RL):
+5. Install [baselines](https://github.com/openai/baselines) (Only for Procgen):
 
 ```pip install https://github.com/openai/baselines/archive/9ee399f5b20cd70ac0a871927a6cf043b478193f.zip```
 
-6. Install the rest of dependencies:
+6. Install [metaworld](https://github.com/rlworkgroup/metaworld) :
+
+```pip install git+https://github.com/rlworkgroup/metaworld.git@master#egg=metaworld```
+
+7. Install the rest of dependencies:
 
 ```pip install -r requirements.txt```
 
