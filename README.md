@@ -74,7 +74,9 @@ For an RL walk-through of the code check [here](https://github.com/Kostis-S-Z/ex
 
 ## Run
 
-Simply run the python scripts like so: `python3 maml_vision.py`
+Bug: Currently the project depends on running the scripts through PyCharm by setting the project root as sources root. This will be fixed soon...
+
+~~Simply run the python scripts like so:~~ `python3 maml_vision.py`
 
 Change hyper-parameters / experiment settings like so:
 ```
