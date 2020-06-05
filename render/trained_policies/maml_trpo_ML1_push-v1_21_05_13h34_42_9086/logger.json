@@ -1,0 +1,39 @@
+{
+    "config": {
+        "activation": "tanh",
+        "adapt_batch_size": 20,
+        "adapt_steps": 1,
+        "algo": "maml_trpo",
+        "backtrack_factor": 0.5,
+        "dataset": "ML1_push-v1",
+        "gamma": 0.99,
+        "inner_lr": 0.01,
+        "ls_max_steps": 15,
+        "max_kl": 0.01,
+        "meta_batch_size": 40,
+        "num_iterations": 2120,
+        "outer_lr": 0.1,
+        "save_every": 25,
+        "seed": 42,
+        "tau": 1.0
+    },
+    "date": "21_05_13h34",
+    "elapsed_time": "600826.85 sec",
+    "manually_stopped": true,
+    "model_id": "42_9086",
+    "test_reward": [
+        [
+            50017.621875,
+            91429.325,
+            104150.2625,
+            82121.925,
+            28887.709375,
+            62586.19375,
+            122558.2,
+            96032.0875,
+            76922.275,
+            66909.55625
+        ],
+        78161.515625
+    ]
+}
