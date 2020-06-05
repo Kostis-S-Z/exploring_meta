@@ -20,20 +20,21 @@ from misc_scripts import run_cl_rl_exp
 params = {
     # Inner loop parameters
     'ppo_epochs': 3,
-    'ppo_clip_ratio': 0.2,
-    'inner_lr': 0.1,
+    'ppo_clip_ratio': 0.1,
+    'inner_lr': 0.01,
+    'max_path_length': 150,  # [100, 150] or None=use the maximum length (None currently WIP)
     'adapt_steps': 1,
-    'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
+    'adapt_batch_size': 20,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
-    'meta_batch_size': 20,  # 'ways'
-    'outer_lr': 0.1,
+    'meta_batch_size': 40,  # 'ways'
+    'outer_lr': 0.01,
     # Common parameters
     'activation': 'tanh',  # for MetaWorld use tanh, others relu
     'tau': 1.0,
     'gamma': 0.99,
     # Other parameters
     'num_iterations': 1000,
-    'save_every': 25,
+    'save_every': 100,
     'seed': 42}
 
 
@@ -42,6 +43,7 @@ eval_params = {
     'adapt_batch_size': 10,  # Number of shots per task
     'n_eval_tasks': 10,  # Number of different tasks to evaluate on
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
+    'max_path_length': params['max_path_length'],
     'tau': params['tau'],
     'gamma': params['gamma'],
     'ppo_epochs': params['ppo_epochs'],
@@ -64,7 +66,7 @@ cl_params = {
 #   - ML1_reach-v1, ML1_pick-place-v1, ML1_push-v1
 #   - ML10, ML45
 
-env_name = 'ML1_push-v1'
+env_name = 'ML10'
 
 workers = 5
 
@@ -118,11 +120,11 @@ class MamlPPO(Experiment):
                     task = ch.envs.Runner(env)
 
                     # Adapt
-                    eval_loss, task_rew = fast_adapt_ppo(task, learner, baseline, self.params)
+                    eval_loss, task_rew, task_suc = fast_adapt_ppo(task, learner, baseline, self.params)
 
                     iter_reward += task_rew
                     iter_loss += eval_loss
-                    # print(f'\tTask {task_i} reward: {task_rew} | Loss : {loss.item()}')
+                    # print(f'\tTask {task_i} reward: {task_rew} | Loss : {eval_loss.item()}')
 
                 # Log
                 average_return = iter_reward / self.params['meta_batch_size']

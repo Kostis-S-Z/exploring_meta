@@ -28,6 +28,21 @@ def get_episode_values(episodes):
     return states, actions, rewards, dones, next_states
 
 
+def get_ep_successes(episodes, path_length):
+    successes = 0
+    # This works only if ExperienceReplay has a 'success' attribute!
+    try:
+        # Reshape ExperienceReplay so its easy to iterate
+        success_matrix = episodes.success().reshape(path_length, -1).T
+        for episode_suc in success_matrix:  # Iterate over each episode
+            # if there was a success in that episode
+            if 1. in episode_suc:  # Same as if True in [bool(s) for s in episode_suc]
+                successes += 1
+    except AttributeError:
+        pass  # Returning 0! Implement success attribute if you want to count success of task
+    return successes
+
+
 def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states, update_vf=True):
     returns = ch.td.discount(gamma, rewards, dones)
     # if baseline.linear.weight.dim() != states.dim():  # if dimensions are not equal, try to flatten
@@ -51,6 +66,8 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
 
 def evaluate(algo, env, policy, baseline, eval_params, anil, render=False):
     tasks_rewards = []
+    tasks_success_rate = []
+
     eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
 
     for i, task in enumerate(eval_task_list):
@@ -60,17 +77,20 @@ def evaluate(algo, env, policy, baseline, eval_params, anil, render=False):
         task = ch.envs.Runner(env)
 
         if algo == 'vpg':
-            _, task_reward = fast_adapt_vpg(task, learner, baseline, eval_params, anil=anil, render=render)
+            _, task_reward, task_suc = fast_adapt_vpg(task, learner, baseline, eval_params, anil=anil, render=render)
         elif algo == 'ppo':
-            _, task_reward = fast_adapt_ppo(task, learner, baseline, eval_params, render=render)
+            _, task_reward, task_suc = fast_adapt_ppo(task, learner, baseline, eval_params, render=render)
         else:
-            _, _, _, task_reward = fast_adapt_trpo(task, learner, baseline, eval_params, anil=anil, render=render)
+            _, _, _, task_reward, task_suc = fast_adapt_trpo(task, learner, baseline, eval_params, anil=anil, render=render)
 
         tasks_rewards.append(task_reward)
-        print(f"Reward for task {i} : {task_reward}")
+        tasks_success_rate.append(task_suc)
+        print(f"Task {i} : {task_reward} rew | {task_suc * 100}% success rate")
 
     final_eval_reward = sum(tasks_rewards) / eval_params['n_eval_tasks']
-    return tasks_rewards, final_eval_reward
+    final_eval_suc = sum(tasks_success_rate) / eval_params['n_eval_tasks']
+
+    return tasks_rewards, final_eval_reward, final_eval_suc
 
 
 """ VPG RELATED """
@@ -84,7 +104,7 @@ def weighted_cumsum(values, weights):
 
 def vpg_a2c_loss(episodes, learner, baseline, gamma, tau, dice=False):
     # Get values to device
-    states, actions, rewards, dones, next_states = get_episode_values(episodes, device)
+    states, actions, rewards, dones, next_states = get_episode_values(episodes)
 
     # Calculate loss between states and action in the network
     log_probs = learner.log_prob(states, actions)
@@ -126,8 +146,9 @@ def fast_adapt_vpg(task, learner, baseline, params, anil=False, first_order=Fals
     outer_loss = vpg_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'])
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
+    query_success_rate = get_ep_successes(query_episodes, params['max_path_length']) / params['adapt_batch_size']
 
-    return outer_loss, query_rew
+    return outer_loss, query_rew, query_success_rate
 
 
 def evaluate_vpg(env, policy, baseline, eval_params, anil=False, render=False):
@@ -145,21 +166,12 @@ def ppo_update(episodes, learner, baseline, params, anil=False):
     # Get values to device
     states, actions, rewards, dones, next_states = get_episode_values(episodes)
 
+    # Update value function & Compute advantages
     returns = ch.td.discount(params['gamma'], rewards, dones)
-
-    # Update value function and get new values
-    baseline.fit(states, returns)
-    values = baseline(states)
-    new_values = baseline(next_states)
-    bootstraps = values * (1.0 - dones) + new_values * dones
-
-    # Compute advantages
+    advantages = compute_advantages(baseline, params['tau'], params['gamma'], rewards, dones, states, next_states)
+    advantages = ch.normalize(advantages, epsilon=1e-8).detach()
+    # Calculate loss between states and action in the network
     with torch.no_grad():
-        advantages = ch.pg.generalized_advantage(gamma=params['gamma'], tau=params['tau'],
-                                                 rewards=rewards, dones=dones, values=bootstraps,
-                                                 next_value=torch.zeros(1, device=values.device))
-        advantages = ch.normalize(advantages, epsilon=1e-8).detach()
-        # Calculate loss between states and action in the network
         old_log_probs = learner.log_prob(states, actions)
 
     # Initialize inner loop PPO optimizer
@@ -174,9 +186,8 @@ def ppo_update(episodes, learner, baseline, params, anil=False):
         # Adapt model based on the loss
         learner.adapt(loss, allow_unused=anil)
 
-        # TODO: do we need to update the value function in every epoch? only once outside?
-        # baseline.fit(states, returns)
-        # print(f'\tPPO EPOCH {ppo_epoch}: {round(loss.item(), 3)}')
+        # Do we need to update the value function in every epoch? only once outside?
+        baseline.fit(states, returns)
         av_loss += loss
 
     return av_loss / params['ppo_epochs']
@@ -201,14 +212,15 @@ def fast_adapt_ppo(task, learner, baseline, params, anil=False, render=False):
 
     # Collect evaluation / query episodes
     query_episodes = task.run(learner, episodes=params['adapt_batch_size'])
-    # Calculate loss for the outer loop optimization
+    # Calculate loss for the outer loop optimization WITHOUT adapting (works, tested!)
     eval_learner = learner.clone()
     eval_baseline = deepcopy(baseline)
     outer_loss = ppo_update(query_episodes, eval_learner, eval_baseline, params, anil=anil)
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
+    query_success_rate = get_ep_successes(query_episodes, params['max_path_length']) / params['adapt_batch_size']
 
-    return outer_loss, query_rew
+    return outer_loss, query_rew, query_success_rate
 
 
 def evaluate_ppo(env, policy, baseline, eval_params, anil=False, render=False):
@@ -272,11 +284,13 @@ def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=Fal
     # Collect evaluation / query episodes
     query_episodes = task.run(learner, episodes=params['adapt_batch_size'])
     task_replay.append(query_episodes)
+    # Calculate loss for the outer loop optimization WITHOUT adapting
+    outer_loss = trpo_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'], update_vf=False)
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
-    outer_loss = trpo_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'], update_vf=False)
+    query_success_rate = get_ep_successes(query_episodes, params['max_path_length']) / params['adapt_batch_size']
 
-    return learner, outer_loss, task_replay, query_rew
+    return learner, outer_loss, task_replay, query_rew, query_success_rate
 
 
 def meta_optimize_trpo(params, policy, baseline, iter_replays, iter_policies):
