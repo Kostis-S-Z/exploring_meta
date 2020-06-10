@@ -12,6 +12,14 @@ from cherry.pg import generalized_advantage
 
 device = torch.device('cpu')
 
+ML10_eval_task_names = {
+    0: 'drawer-open-v1',
+    1: 'door-close-v1',
+    2: 'shelf-place-v1',
+    3: 'sweep-into-v1',
+    4: 'lever-pull-v1',
+}
+
 
 def set_device(dev):
     global device
@@ -64,31 +72,33 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
                                  next_value=next_value)
 
 
-def evaluate(algo, env, policy, baseline, eval_params, anil, render=False):
+def evaluate(algo, env, policy, baseline, params, anil, render=False):
     tasks_rewards = []
     tasks_success_rate = []
 
-    eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
+    eval_task_list = env.sample_tasks(params['n_eval_tasks'])
 
     for i, task in enumerate(eval_task_list):
         learner = deepcopy(policy)
         env.set_task(task)
         env.reset()
-        task = ch.envs.Runner(env)
+        env_task = ch.envs.Runner(env)
 
         if algo == 'vpg':
-            _, task_reward, task_suc = fast_adapt_vpg(task, learner, baseline, eval_params, anil=anil, render=render)
+            _, task_reward, task_suc = fast_adapt_vpg(env_task, learner, baseline, params, anil=anil, render=render)
         elif algo == 'ppo':
-            _, task_reward, task_suc = fast_adapt_ppo(task, learner, baseline, eval_params, render=render)
+            _, task_reward, task_suc = fast_adapt_ppo(env_task, learner, baseline, params, render=render)
         else:
-            _, _, _, task_reward, task_suc = fast_adapt_trpo(task, learner, baseline, eval_params, anil=anil, render=render)
+            _, _, _, task_reward, task_suc = fast_adapt_trpo(env_task, learner, baseline, params, anil=anil,
+                                                             render=render)
 
         tasks_rewards.append(task_reward)
         tasks_success_rate.append(task_suc)
-        print(f"Task {i} : {task_reward} rew | {task_suc * 100}% success rate")
+        print(f'Task {i + 1} / {len(eval_task_list)}: {ML10_eval_task_names[task["task"]]} task'
+              f'\t {task_reward:.1f} rew | {task_suc * 100}% success rate')
 
-    final_eval_reward = sum(tasks_rewards) / eval_params['n_eval_tasks']
-    final_eval_suc = sum(tasks_success_rate) / eval_params['n_eval_tasks']
+    final_eval_reward = sum(tasks_rewards) / params['n_eval_tasks']
+    final_eval_suc = sum(tasks_success_rate) / params['n_eval_tasks']
 
     return tasks_rewards, final_eval_reward, final_eval_suc
 

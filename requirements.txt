@@ -1,9 +1,4 @@
-# mpi4py==3.0.3
-gym==0.15.4
-# procgen==0.9.2
-# tensorflow==1.15.0
+torch-summary
 sklearn
-pytest
 matplotlib
 tqdm
-wandb
