@@ -12,7 +12,7 @@ Track runs & results in [weights&biases](https://app.wandb.ai/kosz/l2l)
 
 2. Install my forked version of [learn2learn](https://github.com/learnables/learn2learn) specifically modified for experiments for this repo:
 
-```pip install -e git+https://github.com/Kostis-S-Z/learn2learn.git@exploring_meta#egg=learn2learn```
+```pip install -e git+https://github.com/Kostis-S-Z/learn2learn.git@metaworld#egg=learn2learn```
 
 _Note: There is a [bug](https://stackoverflow.com/questions/26193365/pycharm-does-not-recognize-modules-installed-in-development-mode) in PyCharm that packages installed in development mode might not be recognised at first and you need to re-open the project in order for it to be properly indexed._
 
