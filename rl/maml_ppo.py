@@ -4,9 +4,8 @@ import argparse
 import random
 import torch
 import numpy as np
-from copy import deepcopy
 
-from tqdm import trange, tqdm
+from tqdm import trange
 
 import cherry as ch
 from learn2learn.algorithms import MAML
@@ -14,7 +13,6 @@ from learn2learn.algorithms import MAML
 from utils import *
 from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import fast_adapt_ppo, evaluate_ppo, set_device
-from misc_scripts import run_cl_rl_exp
 
 
 params = {
@@ -41,7 +39,7 @@ params = {
 eval_params = {
     'adapt_steps': 5,  # Number of steps to adapt to a new task
     'adapt_batch_size': 10,  # Number of shots per task
-    'n_eval_tasks': 10,  # Number of different tasks to evaluate on
+    'n_tasks': 10,  # Number of different tasks to evaluate on
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
     'max_path_length': params['max_path_length'],
     'tau': params['tau'],
@@ -49,16 +47,6 @@ eval_params = {
     'ppo_epochs': params['ppo_epochs'],
     'ppo_clip_ratio': params['ppo_clip_ratio'],
 }
-
-cl_params = {
-    'adapt_steps': 10,
-    'adapt_batch_size': 10,  # shots
-    'inner_lr': 0.3,
-    'gamma': 0.99,
-    'tau': 1.0,
-    'n_tasks': 5
-}
-
 
 # Environments:
 #   - Particles2D-v1
@@ -69,11 +57,7 @@ cl_params = {
 env_name = 'ML10'
 
 workers = 5
-
 wandb = False
-
-cl_test = False
-rep_test = False
 
 
 class MamlPPO(Experiment):
@@ -160,10 +144,6 @@ class MamlPPO(Experiment):
         self.logger['test_reward'] = evaluate_ppo(env, policy, baseline, eval_params)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
-
-        if cl_test:
-            print('Running Continual Learning experiment...')
-            run_cl_rl_exp(self.model_path, env, policy, baseline, cl_params=cl_params)
 
 
 if __name__ == '__main__':

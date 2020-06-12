@@ -56,11 +56,7 @@ eval_params = {
 env_name = 'Particles2D-v1'
 
 workers = 5
-
 wandb = False
-
-cl_test = False
-rep_test = False
 
 
 class AnilPPO(Experiment):

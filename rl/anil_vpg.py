@@ -53,11 +53,7 @@ eval_params = {
 env_name = 'Particles2D-v1'
 
 workers = 5
-
 wandb = False
-
-cl_test = False
-rep_test = False
 
 
 class AnilVPG(Experiment):
@@ -111,7 +107,7 @@ class AnilVPG(Experiment):
                     loss, task_rew, task_suc = fast_adapt_vpg(task, learner, baseline, self.params,
                                                               anil=True, first_order=False)
 
-                    print(f'Task {task_i}: Loss: {loss.item()} | Rew: {task_rew}')
+                    # print(f'Task {task_i}: Loss: {loss.item()} | Rew: {task_rew}')
                     iter_reward += task_rew
                     iter_loss += loss
 

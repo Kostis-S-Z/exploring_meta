@@ -19,16 +19,16 @@ params = {
     # Inner loop parameters
     'inner_lr': 0.1,
     'max_path_length': 150,
-    'adapt_steps': 1,
-    'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
+    'adapt_steps': 3,
+    'adapt_batch_size': 20,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
-    'meta_batch_size': 20,  # 'ways'
+    'meta_batch_size': 40,  # 'ways'
     'outer_lr': 0.1,
     'backtrack_factor': 0.5,
     'ls_max_steps': 15,
     'max_kl': 0.01,
     # Common parameters
-    'activation': 'tanh',  # for MetaWorld use tanh, others relu
+    'activation': 'relu',  # for MetaWorld use tanh, others relu
     'tau': 1.0,
     'gamma': 0.99,
     'fc_neurons': 100,
@@ -53,13 +53,10 @@ eval_params = {
 #   - ML1_reach-v1, ML1_pick-place-v1, ML1_push-v1
 #   - ML10, ML45
 
-env_name = 'ML1_push-v1'
+env_name = 'Particles2D-v1'
+
 workers = 5
-
 wandb = False
-
-cl_test = False
-rep_test = False
 
 
 class AnilTRPO(Experiment):

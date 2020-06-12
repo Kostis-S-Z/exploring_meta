@@ -4,9 +4,8 @@ import argparse
 import random
 import torch
 import numpy as np
-from copy import deepcopy
 
-from tqdm import trange, tqdm
+from tqdm import trange
 
 import cherry as ch
 from learn2learn.algorithms import MAML
@@ -45,14 +44,6 @@ eval_params = {
     'gamma': params['gamma'],
 }
 
-cl_params = {
-    'adapt_steps': 10,
-    'adapt_batch_size': 10,  # shots
-    'inner_lr': 0.3,
-    'gamma': 0.99,
-    'tau': 1.0,
-    'n_tasks': 5
-}
 
 # Environments:
 #   - Particles2D-v1
@@ -63,11 +54,7 @@ cl_params = {
 env_name = 'Particles2D-v1'
 
 workers = 5
-
 wandb = False
-
-cl_test = False
-rep_test = False
 
 
 class MamlVPG(Experiment):
@@ -151,10 +138,6 @@ class MamlVPG(Experiment):
         self.logger['test_reward'] = evaluate_vpg(env, policy, baseline, eval_params)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
-
-        if cl_test:
-            print('Running Continual Learning experiment...')
-            run_cl_rl_exp(self.model_path, env, policy, baseline, cl_params=cl_params)
 
 
 if __name__ == '__main__':

@@ -6,10 +6,9 @@ import torch
 import numpy as np
 from copy import deepcopy
 
-from tqdm import trange, tqdm
+from tqdm import trange
 
 import cherry as ch
-from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
@@ -47,15 +46,6 @@ eval_params = {
     'gamma': params['gamma'],
 }
 
-cl_params = {
-    'adapt_steps': 10,
-    'adapt_batch_size': 10,  # shots
-    'inner_lr': 0.3,
-    'gamma': 0.99,
-    'tau': 1.0,
-    'n_tasks': 5
-}
-
 # Environments:
 #   - Particles2D-v1
 #   - AntDirection-v1
@@ -67,9 +57,6 @@ env_name = 'ML1_push-v1'
 workers = 5
 
 wandb = False
-
-cl_test = False
-rep_test = False
 
 
 class MamlTRPO(Experiment):
@@ -109,7 +96,6 @@ class MamlTRPO(Experiment):
                 for task_i in trange(len(task_list), leave=False, desc='Task', position=0):
                     task = task_list[task_i]
                     task_id = f'task_{task["task"]}'
-                    # task['goal'] = 0  # Set only one goal to optimize (debug purposes)
 
                     learner = deepcopy(policy)
                     env.set_task(task)
@@ -160,10 +146,6 @@ class MamlTRPO(Experiment):
         self.logger['test_reward'] = evaluate_trpo(env, policy, baseline, eval_params)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
-
-        if cl_test:
-            print('Running Continual Learning experiment...')
-            run_cl_rl_exp(self.model_path, env, policy, baseline, cl_params=cl_params)
 
 
 if __name__ == '__main__':
