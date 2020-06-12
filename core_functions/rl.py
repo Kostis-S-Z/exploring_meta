@@ -76,7 +76,7 @@ def evaluate(algo, env, policy, baseline, params, anil, render=False):
     tasks_rewards = []
     tasks_success_rate = []
 
-    eval_task_list = env.sample_tasks(params['n_eval_tasks'])
+    eval_task_list = env.sample_tasks(params['n_tasks'])
 
     for i, task in enumerate(eval_task_list):
         learner = deepcopy(policy)
@@ -84,18 +84,24 @@ def evaluate(algo, env, policy, baseline, params, anil, render=False):
         env.reset()
         env_task = ch.envs.Runner(env)
 
+        # Adapt
         if algo == 'vpg':
             _, task_reward, task_suc = fast_adapt_vpg(env_task, learner, baseline, params, anil=anil, render=render)
         elif algo == 'ppo':
             _, task_reward, task_suc = fast_adapt_ppo(env_task, learner, baseline, params, render=render)
         else:
-            _, _, _, task_reward, task_suc = fast_adapt_trpo(env_task, learner, baseline, params, anil=anil,
-                                                             render=render)
+            learner, _, _, task_reward, task_suc = fast_adapt_trpo(env_task, learner, baseline, params, anil=anil,
+                                                                   render=render)
 
-        tasks_rewards.append(task_reward)
-        tasks_success_rate.append(task_suc)
+        # Evaluate
+        eval_episodes = env_task.run(learner, episodes=1, render=render)
+        eval_rew = eval_episodes.reward().sum().item() / 1.
+        eval_success_rate = get_ep_successes(eval_episodes, params['max_path_length']) / 1.
+
+        tasks_rewards.append(eval_rew)
+        tasks_success_rate.append(eval_success_rate)
         print(f'Task {i + 1} / {len(eval_task_list)}: {ML10_eval_task_names[task["task"]]} task'
-              f'\t {task_reward:.1f} rew | {task_suc * 100}% success rate')
+              f'\t {eval_rew:.1f} rew | {eval_success_rate * 100}% success rate')
 
     final_eval_reward = sum(tasks_rewards) / params['n_eval_tasks']
     final_eval_suc = sum(tasks_success_rate) / params['n_eval_tasks']
