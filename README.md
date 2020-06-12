@@ -28,7 +28,7 @@ _Note: There is a [bug](https://stackoverflow.com/questions/26193365/pycharm-doe
 
 5. Install [cherry](https://github.com/learnables/cherry):
 
-```pip install cherry-rl```
+```pip install git+https://github.com/Kostis-S-Z/cherry@master#egg=cherry-rl```
 
 6. Install [metaworld](https://github.com/rlworkgroup/metaworld) :
 
