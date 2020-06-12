@@ -8,6 +8,8 @@ from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from cherry.algorithms import a2c, trpo, ppo
 from cherry.pg import generalized_advantage
 
+from utils import make_env
+
 """ COMMON """
 
 device = torch.device('cpu')
@@ -73,17 +75,19 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
                                  next_value=next_value)
 
 
-def evaluate(algo, env, policy, baseline, params, anil, render=False):
+def evaluate(algo, env_name, policy, baseline, params, anil, render=False):
     tasks_rewards = []
     tasks_success_rate = []
 
+    extra_info = True if 'ML' in env_name else False  # if env is metaworld, log success metric
+    env = make_env(env_name, 1, params['seed'], test=True)
     eval_task_list = env.sample_tasks(params['n_tasks'])
 
     for i, task in enumerate(eval_task_list):
         learner = deepcopy(policy)
         env.set_task(task)
         env.reset()
-        env_task = ch.envs.Runner(env)
+        env_task = ch.envs.Runner(env, extra_info=extra_info)
 
         # Adapt
         if algo == 'vpg':
@@ -102,8 +106,9 @@ def evaluate(algo, env, policy, baseline, params, anil, render=False):
 
         tasks_rewards.append(query_rew)
         tasks_success_rate.append(query_success_rate)
-        print(f'Task {i + 1} / {len(eval_task_list)}: {ML10_eval_task_names[task["task"]]} task'
-              f'\t {query_rew:.1f} rew | {query_success_rate * 100}% success rate')
+        if extra_info:
+            print(f'Task {i + 1} / {len(eval_task_list)}: {ML10_eval_task_names[task["task"]]} task'
+                  f'\t {query_rew:.1f} rew | {query_success_rate * 100}% success rate')
 
     final_eval_reward = sum(tasks_rewards) / params['n_tasks']
     final_eval_suc = sum(tasks_success_rate) / params['n_tasks']
