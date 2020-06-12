@@ -70,3 +70,7 @@ def calculate_samples_seen(n_steps, n_episodes, n_inner_steps, n_tasks, n_iters)
     n_samples['iter'] = n_samples['task_total'] * n_tasks  # Samples in one iteration
     n_samples['total'] = n_samples['iter'] * n_iters
     return n_samples
+
+
+if __name__ == '__main__':
+    print(calculate_samples_seen(150, 10, 1, 20, 1000))

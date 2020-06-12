@@ -19,16 +19,16 @@ params = {
     # Inner loop parameters
     'inner_lr': 0.1,
     'max_path_length': 150,
-    'adapt_steps': 1,
-    'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
+    'adapt_steps': 3,
+    'adapt_batch_size': 20,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
-    'meta_batch_size': 20,  # 'ways'
+    'meta_batch_size': 40,  # 'ways'
     'outer_lr': 0.1,
     'backtrack_factor': 0.5,
     'ls_max_steps': 15,
     'max_kl': 0.01,
     # Common parameters
-    'activation': 'tanh',  # for MetaWorld use tanh, others relu
+    'activation': 'relu',  # for MetaWorld use tanh, others relu
     'tau': 1.0,
     'gamma': 0.99,
     'fc_neurons': 100,
@@ -38,13 +38,14 @@ params = {
     'seed': 42}
 
 eval_params = {
-    'n_eval_adapt_steps': 5,  # Number of steps to adapt to a new task
-    'n_eval_episodes': 10,  # Number of shots per task
-    'n_eval_tasks': 10,  # Number of different tasks to evaluate on
+    'adapt_steps': 5,  # Number of steps to adapt to a new task
+    'adapt_batch_size': 10,  # Number of shots per task
+    'n_tasks': 10,  # Number of different tasks to evaluate on
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
     'max_path_length': params['max_path_length'],
     'tau': params['tau'],
     'gamma': params['gamma'],
+    'seed': params['seed']
 }
 
 # Environments:
@@ -54,12 +55,11 @@ eval_params = {
 #   - ML10, ML45
 
 env_name = 'ML1_push-v1'
-workers = 5
 
+workers = 5
 wandb = False
 
-cl_test = False
-rep_test = False
+extra_info = True if 'ML' in env_name else False
 
 
 class AnilTRPO(Experiment):
@@ -103,7 +103,7 @@ class AnilTRPO(Experiment):
                     learner = deepcopy(policy)
                     env.set_task(task)
                     env.reset()
-                    task = ch.envs.Runner(env)
+                    task = ch.envs.Runner(env, extra_info=extra_info)
 
                     # Fast adapt
                     learner, eval_loss, task_replay, task_rew, task_suc = fast_adapt_trpo(task, learner, baseline,
@@ -125,7 +125,7 @@ class AnilTRPO(Experiment):
                 self.log_metrics(metrics)
 
                 # Meta-optimize
-                meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies, anil=True)
+                # meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies, anil=True)
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy.body, 'body_' + str(iteration + 1))
@@ -144,8 +144,7 @@ class AnilTRPO(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
-        env = make_env(env_name, workers, params['seed'], test=True)
-        self.logger['test_reward'] = evaluate_trpo(env, policy, baseline, eval_params)
+        self.logger['test_reward'] = evaluate_trpo(env_name, policy, baseline, eval_params)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
 

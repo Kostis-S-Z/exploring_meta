@@ -8,11 +8,13 @@ import numpy as np
 from tqdm import trange
 
 import cherry as ch
+from learn2learn.algorithms import MAML
+
 from cherry.algorithms import ppo
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
-from core_functions.rl import get_episode_values, compute_advantages
+from core_functions.rl import get_episode_values, compute_advantages, evaluate_ppo
 
 
 params = {
@@ -20,17 +22,22 @@ params = {
     'ppo_epochs': 3,
     'ppo_clip_ratio': 0.1,
     # Common parameters
-    'batch_size': 40,
-    'n_episodes': 20,
+    'batch_size': 20,
+    'n_episodes': 10,
     'max_path_length': 150,  # [100, 150] or None=use the maximum length (None currently WIP)
-    'lr': 0.01,
+    'lr': 0.001,
     'activation': 'tanh',  # for MetaWorld use tanh, others relu
     'tau': 1.0,
     'gamma': 0.99,
     # Other parameters
     'num_iterations': 1000,
     'save_every': 25,
-    'seed': 42}
+    'seed': 42,
+    # For evaluation
+    'n_tasks': 10,
+    'adapt_steps': 3,
+    'adapt_batch_size': 20,
+    'inner_lr': 0.1}
 
 
 # Environments:
@@ -117,7 +124,8 @@ class PPO(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
-        env = make_env(env_name, workers, params['seed'], test=True)
+        policy = MAML(policy, lr=self.params['inner_lr'])
+        self.logger['test_reward'] = evaluate_ppo(env_name, policy, baseline, params)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
 

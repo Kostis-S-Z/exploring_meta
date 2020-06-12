@@ -8,9 +8,19 @@ from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from cherry.algorithms import a2c, trpo, ppo
 from cherry.pg import generalized_advantage
 
+from utils import make_env
+
 """ COMMON """
 
 device = torch.device('cpu')
+
+ML10_eval_task_names = {
+    0: 'drawer-open-v1',
+    1: 'door-close-v1',
+    2: 'shelf-place-v1',
+    3: 'sweep-into-v1',
+    4: 'lever-pull-v1',
+}
 
 
 def set_device(dev):
@@ -39,6 +49,7 @@ def get_ep_successes(episodes, path_length):
             if 1. in episode_suc:  # Same as if True in [bool(s) for s in episode_suc]
                 successes += 1
     except AttributeError:
+        print('No success metric registered!')
         pass  # Returning 0! Implement success attribute if you want to count success of task
     return successes
 
@@ -64,31 +75,43 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
                                  next_value=next_value)
 
 
-def evaluate(algo, env, policy, baseline, eval_params, anil, render=False):
+def evaluate(algo, env_name, policy, baseline, params, anil, render=False):
     tasks_rewards = []
     tasks_success_rate = []
 
-    eval_task_list = env.sample_tasks(eval_params['n_eval_tasks'])
+    extra_info = True if 'ML' in env_name else False  # if env is metaworld, log success metric
+    env = make_env(env_name, 1, params['seed'], test=True)
+    eval_task_list = env.sample_tasks(params['n_tasks'])
 
     for i, task in enumerate(eval_task_list):
         learner = deepcopy(policy)
         env.set_task(task)
         env.reset()
-        task = ch.envs.Runner(env)
+        env_task = ch.envs.Runner(env, extra_info=extra_info)
 
+        # Adapt
         if algo == 'vpg':
-            _, task_reward, task_suc = fast_adapt_vpg(task, learner, baseline, eval_params, anil=anil, render=render)
+            _, task_reward, task_suc = fast_adapt_vpg(env_task, learner, baseline, params, anil=anil, render=render)
         elif algo == 'ppo':
-            _, task_reward, task_suc = fast_adapt_ppo(task, learner, baseline, eval_params, render=render)
+            _, task_reward, task_suc = fast_adapt_ppo(env_task, learner, baseline, params, render=render)
         else:
-            _, _, _, task_reward, task_suc = fast_adapt_trpo(task, learner, baseline, eval_params, anil=anil, render=render)
+            learner, _, _, task_reward, task_suc = fast_adapt_trpo(env_task, learner, baseline, params, anil=anil,
+                                                                   render=render)
 
-        tasks_rewards.append(task_reward)
-        tasks_success_rate.append(task_suc)
-        print(f"Task {i} : {task_reward} rew | {task_suc * 100}% success rate")
+        # Evaluate
+        n_query_episodes = params['adapt_batch_size']
+        query_episodes = env_task.run(learner, episodes=n_query_episodes, render=render)
+        query_rew = query_episodes.reward().sum().item() / n_query_episodes
+        query_success_rate = get_ep_successes(query_episodes, params['max_path_length']) / n_query_episodes
 
-    final_eval_reward = sum(tasks_rewards) / eval_params['n_eval_tasks']
-    final_eval_suc = sum(tasks_success_rate) / eval_params['n_eval_tasks']
+        tasks_rewards.append(query_rew)
+        tasks_success_rate.append(query_success_rate)
+        if extra_info:
+            print(f'Task {i + 1} / {len(eval_task_list)}: {ML10_eval_task_names[task["task"]]} task'
+                  f'\t {query_rew:.1f} rew | {query_success_rate * 100}% success rate')
+
+    final_eval_reward = sum(tasks_rewards) / params['n_tasks']
+    final_eval_suc = sum(tasks_success_rate) / params['n_tasks']
 
     return tasks_rewards, final_eval_reward, final_eval_suc
 

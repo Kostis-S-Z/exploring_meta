@@ -6,15 +6,14 @@ import torch
 import numpy as np
 from copy import deepcopy
 
-from tqdm import trange, tqdm
+from tqdm import trange
 
 import cherry as ch
-from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo, set_device
-from misc_scripts import run_cl_rl_exp
+
 
 params = {
     # Inner loop parameters
@@ -35,25 +34,19 @@ params = {
     # Other parameters
     'num_iterations': 1000,
     'save_every': 25,
-    'seed': 42}
+    'seed': 42
+    # For evaluation
+    }
 
 eval_params = {
     'adapt_steps': 5,  # Number of steps to adapt to a new task
     'adapt_batch_size': 10,  # Number of shots per task
-    'n_eval_tasks': 10,  # Number of different tasks to evaluate on
+    'n_tasks': 10,  # Number of different tasks to evaluate on
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
     'max_path_length': params['max_path_length'],
     'tau': params['tau'],
     'gamma': params['gamma'],
-}
-
-cl_params = {
-    'adapt_steps': 10,
-    'adapt_batch_size': 10,  # shots
-    'inner_lr': 0.3,
-    'gamma': 0.99,
-    'tau': 1.0,
-    'n_tasks': 5
+    'seed': params['seed']
 }
 
 # Environments:
@@ -68,8 +61,7 @@ workers = 5
 
 wandb = False
 
-cl_test = False
-rep_test = False
+extra_info = True if 'ML' in env_name else False
 
 
 class MamlTRPO(Experiment):
@@ -100,7 +92,7 @@ class MamlTRPO(Experiment):
 
                 iter_loss = 0.0
                 iter_reward = 0.0
-                iter_success_per_task = {}
+                # iter_success_per_task = {}
                 iter_replays = []
                 iter_policies = []
 
@@ -108,13 +100,12 @@ class MamlTRPO(Experiment):
 
                 for task_i in trange(len(task_list), leave=False, desc='Task', position=0):
                     task = task_list[task_i]
-                    task_id = f'task_{task["task"]}'
-                    # task['goal'] = 0  # Set only one goal to optimize (debug purposes)
+                    # task_id = f'task_{task["task"]}'
 
                     learner = deepcopy(policy)
                     env.set_task(task)
                     env.reset()
-                    task = ch.envs.Runner(env)
+                    task = ch.envs.Runner(env, extra_info=extra_info)
 
                     # Adapt
                     learner, eval_loss, task_replay, task_rew, task_suc = fast_adapt_trpo(task, learner, baseline,
@@ -123,7 +114,7 @@ class MamlTRPO(Experiment):
                     # Calculate average success rate of support episodes
                     # task_adapt_suc = get_ep_successes(task_replay[0]) / self.params['adapt_batch_size']
                     # iter_success_per_task[task_id + '_adapt'] = task_adapt_suc
-                    iter_success_per_task[task_id] = task_suc
+                    # iter_success_per_task[task_id] = task_suc
                     iter_reward += task_rew
                     iter_loss += eval_loss.item()
                     iter_replays.append(task_replay)
@@ -135,7 +126,7 @@ class MamlTRPO(Experiment):
                 metrics = {'average_return': average_return,
                            'loss': average_loss}
                 t.set_postfix(metrics)
-                metrics.update(iter_success_per_task)
+                # metrics.update(iter_success_per_task)
                 self.log_metrics(metrics)
 
                 # Meta-optimize
@@ -156,14 +147,9 @@ class MamlTRPO(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
-        env = make_env(env_name, workers, params['seed'], test=True)
-        self.logger['test_reward'] = evaluate_trpo(env, policy, baseline, eval_params)
+        self.logger['test_reward'] = evaluate_trpo(env_name, policy, baseline, eval_params)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
-
-        if cl_test:
-            print('Running Continual Learning experiment...')
-            run_cl_rl_exp(self.model_path, env, policy, baseline, cl_params=cl_params)
 
 
 if __name__ == '__main__':
