@@ -14,30 +14,35 @@ from misc_scripts import run_cl_rl_exp, run_rep_rl_exp
 from core_functions.rl import evaluate
 from core_functions.policies import DiagNormalPolicy
 
-base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/rl/results/'
-model_path = 'maml_trpo_ML1_push-v1_21_05_13h30_42_2120'
-checkpoint = 1351  # or choose a number
+base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/render/trained_policies/'  # rl/results/'
+model_path = 'maml_trpo_ML10_25_05_09h38_1_2259'
+checkpoint = None  # or choose a number
 path = base + model_path
 ML_ALGO = model_path.split('_')[0]
 RL_ALGO = model_path.split('_')[1]
-DATASET = model_path.split('_')[2] + '_' + model_path.split('_')[3]
+DATASET = model_path.split('_')[2]
+# In case of ML1 also get which task
+if DATASET == 'ML1':
+    DATASET += '_' + model_path.split('_')[3]
 anil = False if ML_ALGO == 'maml' else True
 
-workers = 1
-cuda = False
+workers = 5
 
 render = False  # Rendering doesn't work with parallel async envs, use 1 worker
 
-evaluate_model = False
-cl_exp = False
-rep_exp = True
+evaluate_model = True
+cl_exp = True
+rep_exp = False
 
 # An episode can have either a finite number of steps, e.g 100 for Particles 2D or until done
 eval_params = {
-    'adapt_steps': 1,  # Number of steps to adapt to a new task
-    'adapt_batch_size': 10,  # Number of shots per task
+    'adapt_steps': 3,  # Number of steps to adapt to a new task
+    'adapt_batch_size': 50,  # Number of shots per task
+    'inner_lr': 0.1,
+    'gamma': 0.99,
+    'tau': 1.0,
     'max_path_length': 150,
-    'n_eval_tasks': 10,  # Number of different tasks to evaluate on
+    'n_tasks': 10,  # Number of different tasks to evaluate on
 }
 
 cl_params = {
