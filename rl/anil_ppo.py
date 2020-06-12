@@ -38,13 +38,14 @@ params = {
 eval_params = {
     'adapt_steps': 5,  # Number of steps to adapt to a new task
     'adapt_batch_size': 10,  # Number of shots per task
-    'n_eval_tasks': 10,  # Number of different tasks to evaluate on
+    'n_tasks': 10,  # Number of different tasks to evaluate on
     'inner_lr': params['inner_lr'],  # Just use the default parameters for evaluating
     'max_path_length': params['max_path_length'],
     'tau': params['tau'],
     'gamma': params['gamma'],
     'ppo_epochs': params['ppo_epochs'],
     'ppo_clip_ratio': params['ppo_clip_ratio'],
+    'seed': params['seed']
 }
 
 # Environments:
@@ -53,10 +54,12 @@ eval_params = {
 #   - ML1_reach-v1, ML1_pick-place-v1, ML1_push-v1
 #   - ML10, ML45
 
-env_name = 'Particles2D-v1'
+env_name = 'ML1_push-v1'
 
-workers = 5
+workers = 1
 wandb = False
+
+extra_info = True if 'ML' in env_name else False
 
 
 class AnilPPO(Experiment):
@@ -104,7 +107,7 @@ class AnilPPO(Experiment):
                     learner = policy.clone()
                     env.set_task(task)
                     env.reset()
-                    task = ch.envs.Runner(env)
+                    task = ch.envs.Runner(env, extra_info=extra_info)
 
                     # Fast adapt
                     loss, task_rew, task_suc = fast_adapt_ppo(task, learner, baseline, self.params, anil=True)
@@ -143,8 +146,7 @@ class AnilPPO(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
-        env = make_env(env_name, workers, params['seed'], test=True)
-        self.logger['test_reward'] = evaluate_ppo(env, policy, baseline, eval_params)
+        self.logger['test_reward'] = evaluate_ppo(env_name, policy, baseline, eval_params)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
 

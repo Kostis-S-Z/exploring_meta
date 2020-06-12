@@ -46,6 +46,7 @@ eval_params = {
     'gamma': params['gamma'],
     'ppo_epochs': params['ppo_epochs'],
     'ppo_clip_ratio': params['ppo_clip_ratio'],
+    'seed': params['seed']
 }
 
 # Environments:
@@ -58,6 +59,8 @@ env_name = 'ML10'
 
 workers = 5
 wandb = False
+
+extra_info = True if 'ML' in env_name else False
 
 
 class MamlPPO(Experiment):
@@ -101,7 +104,7 @@ class MamlPPO(Experiment):
                     learner = policy.clone()
                     env.set_task(task)
                     env.reset()
-                    task = ch.envs.Runner(env)
+                    task = ch.envs.Runner(env, extra_info=extra_info)
 
                     # Adapt
                     eval_loss, task_rew, task_suc = fast_adapt_ppo(task, learner, baseline, self.params)
@@ -140,8 +143,7 @@ class MamlPPO(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
-        env = make_env(env_name, workers, params['seed'], test=True)
-        self.logger['test_reward'] = evaluate_ppo(env, policy, baseline, eval_params)
+        self.logger['test_reward'] = evaluate_ppo(env_name, policy, baseline, eval_params)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
 
