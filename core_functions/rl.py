@@ -47,6 +47,7 @@ def get_ep_successes(episodes, path_length):
             if 1. in episode_suc:  # Same as if True in [bool(s) for s in episode_suc]
                 successes += 1
     except AttributeError:
+        print('No success metric registered!')
         pass  # Returning 0! Implement success attribute if you want to count success of task
     return successes
 
@@ -94,17 +95,18 @@ def evaluate(algo, env, policy, baseline, params, anil, render=False):
                                                                    render=render)
 
         # Evaluate
-        eval_episodes = env_task.run(learner, episodes=1, render=render)
-        eval_rew = eval_episodes.reward().sum().item() / 1.
-        eval_success_rate = get_ep_successes(eval_episodes, params['max_path_length']) / 1.
+        n_query_episodes = 2
+        query_episodes = env_task.run(learner, episodes=n_query_episodes, render=render)
+        query_rew = query_episodes.reward().sum().item() / n_query_episodes
+        query_success_rate = get_ep_successes(query_episodes, params['max_path_length']) / n_query_episodes
 
-        tasks_rewards.append(eval_rew)
-        tasks_success_rate.append(eval_success_rate)
+        tasks_rewards.append(query_rew)
+        tasks_success_rate.append(query_success_rate)
         print(f'Task {i + 1} / {len(eval_task_list)}: {ML10_eval_task_names[task["task"]]} task'
-              f'\t {eval_rew:.1f} rew | {eval_success_rate * 100}% success rate')
+              f'\t {query_rew:.1f} rew | {query_success_rate * 100}% success rate')
 
-    final_eval_reward = sum(tasks_rewards) / params['n_eval_tasks']
-    final_eval_suc = sum(tasks_success_rate) / params['n_eval_tasks']
+    final_eval_reward = sum(tasks_rewards) / params['n_tasks']
+    final_eval_suc = sum(tasks_success_rate) / params['n_tasks']
 
     return tasks_rewards, final_eval_reward, final_eval_suc
 
