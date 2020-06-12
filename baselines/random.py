@@ -4,26 +4,35 @@ import argparse
 import random
 import torch
 import numpy as np
-from copy import deepcopy
 
-from tqdm import trange, tqdm
+from tqdm import trange
 
 import cherry as ch
 from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
+from core_functions.rl import evaluate_ppo
 
 params = {
     # Common parameters
-    'batch_size': 20,
-    'n_episodes': 10,
+    'batch_size': 1,
+    'n_episodes': 1,
     'max_path_length': 150,
     'activation': 'tanh',  # for MetaWorld use tanh, others relu
     # Other parameters
     'num_iterations': 1000,
     'save_every': 10000,
-    'seed': 42}
+    'seed': 3,
+    # For evaluation
+    'n_tasks': 10,
+    'adapt_steps': 3,
+    'adapt_batch_size': 20,
+    'gamma': 0.99,
+    'tau': 1.0,
+    'ppo_epochs': 3,
+    'ppo_clip_ratio': 0.1,
+    'inner_lr': 0.1}
 
 # Environments:
 #   - Particles2D-v1
@@ -31,11 +40,11 @@ params = {
 #   - ML1_reach-v1, ML1_pick-place-v1, ML1_push-v1
 #   - ML10, ML45
 
-env_name = 'ML10'  #  ML1_push-v1  ML10
+env_name = 'ML10'
 
-workers = 2
+workers = 1
 
-wandb = True
+wandb = False
 
 
 class Random(Experiment):
@@ -100,6 +109,8 @@ class Random(Experiment):
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
         env = make_env(env_name, workers, params['seed'], test=True)
+        policy = MAML(policy, lr=self.params['inner_lr'])
+        self.logger['test_reward'] = evaluate_ppo(env, policy, baseline, params)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
 
