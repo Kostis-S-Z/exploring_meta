@@ -95,7 +95,7 @@ def evaluate(algo, env, policy, baseline, params, anil, render=False):
                                                                    render=render)
 
         # Evaluate
-        n_query_episodes = 2
+        n_query_episodes = params['adapt_batch_size']
         query_episodes = env_task.run(learner, episodes=n_query_episodes, render=render)
         query_rew = query_episodes.reward().sum().item() / n_query_episodes
         query_success_rate = get_ep_successes(query_episodes, params['max_path_length']) / n_query_episodes
