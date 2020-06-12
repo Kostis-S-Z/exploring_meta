@@ -316,9 +316,9 @@ def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=Fal
     return learner, outer_loss, task_replay, query_rew, query_success_rate
 
 
-def meta_optimize_trpo(params, policy, baseline, iter_replays, iter_policies):
+def meta_optimize_trpo(params, policy, baseline, iter_replays, iter_policies, anil=False):
     # Compute CG step direction
-    old_loss, old_kl = meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, params)
+    old_loss, old_kl = meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, params, anil)
 
     grad = torch.autograd.grad(old_loss,
                                policy.parameters(),
@@ -341,14 +341,14 @@ def meta_optimize_trpo(params, policy, baseline, iter_replays, iter_policies):
         clone = deepcopy(policy)
         for p, u in zip(clone.parameters(), step):
             p.data.add_(u.data, alpha=-stepsize)  # same as p.data += u.data * (-stepsize)
-        new_loss, kl = meta_surrogate_loss(iter_replays, iter_policies, clone, baseline, params)
+        new_loss, kl = meta_surrogate_loss(iter_replays, iter_policies, clone, baseline, params, anil)
         if new_loss < old_loss and kl < params['max_kl']:
             for p, u in zip(policy.parameters(), step):
                 p.data.add_(u.data, alpha=-stepsize)  # same as p.data += u.data * (-stepsize)
             break
 
 
-def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, params):
+def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, params, anil):
     mean_loss = 0.0
     mean_kl = 0.0
     for task_replays, old_policy in zip(iter_replays, iter_policies):
@@ -360,7 +360,7 @@ def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, params):
         for train_episodes in train_replays:
             new_policy = trpo_update(train_episodes, new_policy, baseline,
                                      params['inner_lr'], params['gamma'], params['tau'],
-                                     first_order=False)
+                                     anil=anil, first_order=False)
 
         # Calculate KL from the validation episodes
         states, actions, rewards, dones, next_states = get_episode_values(valid_episodes)

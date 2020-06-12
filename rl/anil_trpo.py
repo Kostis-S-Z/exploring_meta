@@ -57,7 +57,7 @@ eval_params = {
 env_name = 'ML1_push-v1'
 
 workers = 5
-wandb = False
+wandb = True
 
 extra_info = True if 'ML' in env_name else False
 
@@ -125,7 +125,7 @@ class AnilTRPO(Experiment):
                 self.log_metrics(metrics)
 
                 # Meta-optimize
-                # meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies, anil=True)
+                meta_optimize_trpo(self.params, policy, baseline, iter_replays, iter_policies, anil=True)
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy.body, 'body_' + str(iteration + 1))
