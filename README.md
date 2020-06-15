@@ -18,8 +18,8 @@ Track runs & results in [weights&biases](https://app.wandb.ai/kosz/l2l)
 - [X] Baselines: PPO, TRPO & VPG
 
 _Almost done (check branches):_
-- [] Procgen (it works, but incredibly difficult to train)
-- [] MAML/ANIL - VPG
+- [ ] Procgen (it works, but incredibly difficult to train)
+- [ ] MAML/ANIL - VPG
 
 ## Installing
 
