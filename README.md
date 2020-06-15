@@ -4,6 +4,23 @@ Exploring the effects of Meta Learning algorithms (MAML & ANIL) on Vision and RL
 
 Track runs & results in [weights&biases](https://app.wandb.ai/kosz/l2l)
 
+## Overview
+
+#### Vision: Omniglot, Mini-ImageNet
+- [x] MAML with CNN for Image Classification
+- [x] ANIL with CNN for Image Classification
+
+#### RL: Particles2D, MuJoCo Ant, Meta-World
+- [X] MAML-PPO
+- [X] MAML-TRPO
+- [X] ANIL-PPO
+- [X] ANIL-TRPO
+- [X] Baselines: PPO, TRPO & VPG
+
+_Almost done (check branches):_
+- [] Procgen (it works, but incredibly difficult to train)
+- [] MAML/ANIL - VPG
+
 ## Installing
 
 1. Install Cython:
@@ -12,9 +29,7 @@ Track runs & results in [weights&biases](https://app.wandb.ai/kosz/l2l)
 
 2. Install my forked version of [learn2learn](https://github.com/learnables/learn2learn) specifically modified for experiments for this repo:
 
-```pip install -e git+https://github.com/Kostis-S-Z/learn2learn.git@exploring_meta#egg=learn2learn```
-
-_Note: There is a [bug](https://stackoverflow.com/questions/26193365/pycharm-does-not-recognize-modules-installed-in-development-mode) in PyCharm that packages installed in development mode might not be recognised at first and you need to re-open the project in order for it to be properly indexed._
+```pip install git+https://github.com/Kostis-S-Z/learn2learn.git@exploring_meta#egg=learn2learn```
 
 3. Install core dependencies
 
@@ -28,7 +43,7 @@ _Note: There is a [bug](https://stackoverflow.com/questions/26193365/pycharm-doe
 
 5. Install [cherry](https://github.com/learnables/cherry):
 
-```pip install git+https://github.com/Kostis-S-Z/cherry@master#egg=cherry-rl```
+```pip install git+https://github.com/Kostis-S-Z/cherry@runner_save_info#egg=cherry-rl```
 
 6. Install [metaworld](https://github.com/rlworkgroup/metaworld) :
 
@@ -91,4 +106,5 @@ For scripts that can use MPI run:
 
 ## Acknowledgements
 
-A lot of the code for the implementations of MAML & ANIL depends on the [learn2learn](https://github.com/learnables/learn2learn) library.
+- [learn2learn](https://github.com/learnables/learn2learn)
+- [cherry-rl](https://github.com/learnables/cherry)
