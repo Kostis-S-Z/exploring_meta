@@ -20,7 +20,7 @@ from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
 
-def run_cl_rl_exp(path, env, policy, baseline, cl_params):
+def run_cl_rl_exp(path, env, policy, baseline, cl_params, plots=False):
     cl_path = path + '/cl_exp'
     if not os.path.isdir(cl_path):
         os.mkdir(cl_path)
@@ -48,7 +48,7 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params):
         learner = deepcopy(policy)
         env.set_task(train_task)
         env.reset()
-        task_i = ch.envs.Runner(env)
+        task_i = ch.envs.Runner(env, extra_info=cl_params['extra_info'])
 
         rew_adapt_progress[f'task_{i + 1}'] = {}
         suc_adapt_progress[f'task_{i + 1}'] = {}
@@ -83,25 +83,27 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params):
 
         # Evaluate on all tasks
         for j, valid_task in enumerate(tasks):
-            print(f'\tEvaluating on Task {j} with ID: {valid_task["task"]} and goal: {valid_task["goal"]}')
+            print(f'\tEvaluating on Task {j} with ID: {valid_task["task"]} and goal: {valid_task["goal"]}', end='\t')
             env.set_task(valid_task)
             env.reset()
-            task_j = ch.envs.Runner(env)
+            task_j = ch.envs.Runner(env, extra_info=cl_params['extra_info'])
 
-            valid_episodes = task_j.run(learner, episodes=1)
-            task_j_reward = valid_episodes.reward().sum().item() / cl_params['adapt_batch_size']
-            task_j_success = get_ep_successes(valid_episodes, cl_params['max_path_length']) / cl_params['adapt_batch_size']
+            eval_ep = task_j.run(learner, episodes=cl_params['eval_batch_size'])
+            task_j_reward = eval_ep.reward().sum().item() / cl_params['eval_batch_size']
+            task_j_success = get_ep_successes(eval_ep, cl_params['max_path_length']) / cl_params['eval_batch_size']
 
             rew_matrix[i, j] = task_j_reward
             suc_matrix[i, j] = task_j_success
+            print(f'Success: {task_j_success * 100}%')
 
     # Plot matrix results
-    plot_task_res(rew_matrix, y_title='Reward')
-    plot_task_res(suc_matrix, y_title='Success Rate')
+    if plots:
+        plot_task_res(rew_matrix, y_title='Reward')
+        plot_task_res(suc_matrix, y_title='Success Rate')
 
-    # Plot adaptation progress
-    plot_progress(rew_adapt_progress, y_title='Reward')
-    plot_progress(suc_adapt_progress, y_title='Success Rate')
+        # Plot adaptation progress
+        plot_progress(rew_adapt_progress, y_title='Reward')
+        plot_progress(suc_adapt_progress, y_title='Success Rate')
 
     print(f'Rewards Matrix:\n{rew_matrix}\n')
     print(f'Success rates Matrix:\n{suc_matrix}\n')
