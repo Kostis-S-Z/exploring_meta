@@ -15,7 +15,7 @@ from core_functions.rl import evaluate
 from core_functions.policies import DiagNormalPolicy
 
 base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/render/trained_policies/'  # rl/results/'
-model_path = 'maml_trpo_ML10_25_05_09h38_1_2259'
+model_path = 'maml_trpo_ML1_push-v1_21_05_13h34_42_9086'
 checkpoint = None  # or choose a number
 path = base + model_path
 ML_ALGO = model_path.split('_')[0]
@@ -30,14 +30,14 @@ workers = 5
 
 render = False  # Rendering doesn't work with parallel async envs, use 1 worker
 
-evaluate_model = True
+evaluate_model = False
 cl_exp = True
 rep_exp = False
 
 # An episode can have either a finite number of steps, e.g 100 for Particles 2D or until done
 eval_params = {
-    'adapt_steps': 3,  # Number of steps to adapt to a new task
-    'adapt_batch_size': 50,  # Number of shots per task
+    'adapt_steps': 1,  # Number of steps to adapt to a new task
+    'adapt_batch_size': 20,  # Number of shots per task
     'inner_lr': 0.1,
     'gamma': 0.99,
     'tau': 1.0,
@@ -50,6 +50,7 @@ cl_params = {
     'normalize_rewards': False,
     'adapt_steps': 3,
     'adapt_batch_size': 10,
+    'eval_batch_size': 1,
     'inner_lr': 0.1,
     'gamma': 0.99,
     'tau': 1.0,
@@ -57,6 +58,7 @@ cl_params = {
     # PPO
     'ppo_epochs': 3,
     'ppo_clip_ratio': 0.1,
+    'extra_info': True if 'ML' in DATASET else False,  # if env is metaworld, log success metric
 }
 
 rep_params = {
@@ -70,6 +72,8 @@ rep_params = {
     'n_tasks': 1,
     'layers': [2, 4]
 }
+
+
 # Layer 1/3: Linear output
 # Layer 2/4: ReLU output
 
@@ -120,7 +124,8 @@ def run():
     policy.to(device)
 
     if evaluate_model:
-        test_rewards, av_test_rew, av_test_suc = evaluate(RL_ALGO, env, policy, baseline, eval_params, anil=anil, render=render)
+        test_rewards, av_test_rew, av_test_suc = evaluate(RL_ALGO, DATASET, policy, baseline, eval_params, anil=anil,
+                                                          render=render)
         print(f'Average meta-testing reward: {av_test_rew}')
         print(f'Average meta-testing success rate: {av_test_suc * 100}%')
 
