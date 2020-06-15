@@ -29,7 +29,9 @@ _Almost done (check branches):_
 
 2. Install my forked version of [learn2learn](https://github.com/learnables/learn2learn) specifically modified for experiments for this repo:
 
+
 ```pip install git+https://github.com/Kostis-S-Z/learn2learn.git@exploring_meta#egg=learn2learn```
+
 
 3. Install core dependencies
 
