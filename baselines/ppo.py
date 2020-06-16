@@ -32,7 +32,7 @@ params = {
     # Other parameters
     'num_iterations': 1000,
     'save_every': 25,
-    'seed': 42,
+    'seed': 1,
     # For evaluation
     'n_tasks': 10,
     'adapt_steps': 3,
@@ -48,9 +48,16 @@ params = {
 
 env_name = 'ML1_push-v1'
 
-workers = 5
+workers = 2
 
-wandb = False
+wandb = True
+
+if 'ML' in env_name:
+    extra_info = True
+    params['activation'] = 'tanh'
+else:
+    extra_info = False
+    params['activation'] = 'relu'
 
 
 class PPO(Experiment):
@@ -89,7 +96,7 @@ class PPO(Experiment):
                     task = task_list[task_i]
                     env.set_task(task)
                     env.reset()
-                    task = ch.envs.Runner(env)
+                    task = ch.envs.Runner(env, extra_info=extra_info)
 
                     episodes = task.run(policy, episodes=params['n_episodes'])
                     task_reward = episodes.reward().sum().item() / params['n_episodes']
