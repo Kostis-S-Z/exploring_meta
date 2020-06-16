@@ -3,7 +3,7 @@ import cherry as ch
 
 env_name = 'ML10'
 
-env = make_env(env_name, n_workers=1, seed=1, test=False)
+env = make_env(env_name, n_workers=1, seed=1, test=False, max_path_length=100)
 
 obs = env.reset()
 done = False

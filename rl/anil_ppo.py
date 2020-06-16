@@ -72,7 +72,7 @@ class AnilPPO(Experiment):
         np.random.seed(self.params['seed'])
         torch.manual_seed(self.params['seed'])
 
-        env = make_env(env_name, workers, params['seed'])
+        env = make_env(env_name, workers, params['seed'], max_path_length=params['max_path_length'])
         self.run(env, device)
 
     def run(self, env, device):

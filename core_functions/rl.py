@@ -101,7 +101,7 @@ def evaluate(algo, env_name, policy, baseline, params, anil, render=False):
     tasks_success_rate = []
 
     extra_info = True if 'ML' in env_name else False  # if env is metaworld, log success metric
-    env = make_env(env_name, 1, params['seed'], test=True)
+    env = make_env(env_name, 1, params['seed'], test=True, max_path_length=params['max_path_length'])
     eval_task_list = env.sample_tasks(params['n_tasks'])
 
     for i, task in enumerate(eval_task_list):
