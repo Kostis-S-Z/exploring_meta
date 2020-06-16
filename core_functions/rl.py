@@ -3,6 +3,7 @@ import cherry as ch
 import learn2learn as l2l
 from copy import deepcopy
 
+import numpy as np
 from torch.distributions.kl import kl_divergence
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from cherry.algorithms import a2c, trpo, ppo
@@ -52,6 +53,26 @@ def get_ep_successes(episodes, path_length):
         print('No success metric registered!')
         pass  # Returning 0! Implement success attribute if you want to count success of task
     return successes
+
+
+def get_success_per_ep(episodes, path_length):
+    # This works only if ExperienceReplay has a 'success' attribute!
+    n_episodes = episodes.success().reshape(path_length, -1).shape[1]
+    successes = {i: 0 for i in range(n_episodes)}
+    success_step = {i: None for i in range(n_episodes)}
+    try:
+        # Reshape ExperienceReplay so its easy to iterate
+        success_matrix = episodes.success().reshape(path_length, -1).T
+        for i, episode_suc in enumerate(success_matrix):  # Iterate over each episode
+            # if there was a success in that episode
+            if 1. in episode_suc:  # Same as if True in [bool(s) for s in episode_suc]
+                successes[i] = 1
+                # Get the step it succeeded
+                success_step[i] = np.argmax(episode_suc > 0.1)
+    except AttributeError:
+        print('No success metric registered!')
+        pass  # Returning 0! Implement success attribute if you want to count success of task
+    return successes, success_step
 
 
 def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states, update_vf=True):
