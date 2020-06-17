@@ -17,9 +17,9 @@ from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo
 
 params = {
     # Inner loop parameters
-    'inner_lr': 0.1,
+    'inner_lr': 0.01,
     'max_path_length': 150,
-    'adapt_steps': 3,
+    'adapt_steps': 1,
     'adapt_batch_size': 20,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
     'meta_batch_size': 40,  # 'ways'
@@ -28,7 +28,7 @@ params = {
     'ls_max_steps': 15,
     'max_kl': 0.01,
     # Common parameters
-    'activation': 'relu',  # for MetaWorld use tanh, others relu
+    'activation': 'tanh',  # for MetaWorld use tanh, others relu
     'tau': 1.0,
     'gamma': 0.99,
     'fc_neurons': 100,

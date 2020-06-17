@@ -14,16 +14,31 @@ from misc_scripts import run_cl_rl_exp, run_rep_rl_exp
 from core_functions.rl import evaluate
 from core_functions.policies import DiagNormalPolicy
 
-base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/render/trained_policies/'  # rl/results/'
+# BASE PATH
+# base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/baselines/random_results/'
+base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/render/trained_policies/'
+# base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/rl/results/'
+
+# MODEL PATH
+# model_path = 'random_ML1_push-v1_12_06_17h24_1_9000'
 model_path = 'maml_trpo_ML1_push-v1_21_05_13h34_42_9086'
+
+
 checkpoint = None  # or choose a number
 path = base + model_path
 ML_ALGO = model_path.split('_')[0]
 RL_ALGO = model_path.split('_')[1]
 DATASET = model_path.split('_')[2]
+
+# in case of random
+if ML_ALGO == 'random':
+    DATASET = RL_ALGO + '_' + DATASET
+    ML_ALGO = 'maml'
+    RL_ALGO = 'ppo'
 # In case of ML1 also get which task
 if DATASET == 'ML1':
     DATASET += '_' + model_path.split('_')[3]
+
 anil = False if ML_ALGO == 'maml' else True
 
 workers = 5
@@ -41,16 +56,16 @@ eval_params = {
     'inner_lr': 0.1,
     'gamma': 0.99,
     'tau': 1.0,
-    'max_path_length': 150,
+    'max_path_length': 100,
     'n_tasks': 10,  # Number of different tasks to evaluate on
 }
 
 cl_params = {
-    'max_path_length': 150,
+    'max_path_length': 100,
     'normalize_rewards': False,
-    'adapt_steps': 3,
+    'adapt_steps': 1,
     'adapt_batch_size': 10,
-    'eval_batch_size': 1,
+    'eval_batch_size': 100,
     'inner_lr': 0.1,
     'gamma': 0.99,
     'tau': 1.0,
@@ -59,6 +74,7 @@ cl_params = {
     'ppo_epochs': 3,
     'ppo_clip_ratio': 0.1,
     'extra_info': True if 'ML' in DATASET else False,  # if env is metaworld, log success metric
+    'seed': 42,
 }
 
 rep_params = {
@@ -103,7 +119,7 @@ def run():
     np.random.seed(params['seed'])
     torch.manual_seed(params['seed'])
 
-    env = make_env(DATASET, workers, params['seed'], test=True)
+    env = make_env(DATASET, workers, params['seed'], test=True, max_path_length=eval_params['max_path_length'])
 
     eval_params.update(params)
 
@@ -140,7 +156,7 @@ def cl(env, policy, baseline):
     print('Running Continual Learning experiment...')
     run_cl_rl_exp(path, env, policy, baseline, cl_params)
 
-    adapt_bsz_list = range(1, 10, 1)
+    # adapt_bsz_list = [10, 25, 50, 100]
     # for adapt_bsz in adapt_bsz_list:
     #     cl_params['adapt_batch_size'] = adapt_bsz
     #     run_cl_rl_exp(path, env, policy, baseline, cl_params)
