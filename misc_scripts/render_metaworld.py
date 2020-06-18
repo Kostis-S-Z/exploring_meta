@@ -12,10 +12,10 @@ from utils import make_env
 from core_functions.rl import evaluate
 from core_functions.policies import DiagNormalPolicy
 
+random_policy = False
+
 base = './trained_policies/'
 model_path = 'maml_trpo_ML10_25_05_09h38_1_2259'
-
-checkpoint = None  # None or choose a number
 
 path = base + model_path
 ML_ALGO = model_path.split('_')[0]
@@ -24,10 +24,6 @@ DATASET = model_path.split('_')[2]
 # In case of ML1 also get which task
 if DATASET == 'ML1':
     DATASET += '_' + model_path.split('_')[3]
-anil = False if ML_ALGO == 'maml' else True
-
-workers = 5
-render = False  # Rendering doesn't work with parallel async envs, use 1 worker
 
 # An episode can have either a finite number of steps, e.g 100 for Particles 2D or until done
 eval_params = {
@@ -42,8 +38,15 @@ eval_params = {
 
 
 def run():
+    workers = 1
+    render = True  # Rendering doesn't work with parallel async envs, use 1 worker
+
+    checkpoint = None  # None or choose a number
+
+    anil = False if ML_ALGO == 'maml' else True
 
     print(f'Testing {ML_ALGO}-{RL_ALGO} on {DATASET}')
+
     with open(path + '/logger.json', 'r') as f:
         params = json.load(f)['config']
     eval_params['seed'] = params['seed']
@@ -76,5 +79,23 @@ def run():
     print(f'Average meta-testing success rate: {av_test_suc * 100}%')
 
 
+def run_random():
+    env = make_env(DATASET, n_workers=1, seed=1, test=False)
+
+    env.reset()
+    while True:
+        env.set_task(env.sample_tasks(1)[0])
+        env.reset()
+        task = ch.envs.Runner(env)
+
+        def get_action(state):  # Ignore state, sample randomly
+            return env.action_space.sample()
+
+        task.run(get_action, episodes=10, render=True)
+
+
 if __name__ == '__main__':
-    run()
+    if random_policy:
+        run_random()
+    else:
+        run()
