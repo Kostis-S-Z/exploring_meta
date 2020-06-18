@@ -11,19 +11,22 @@ import json
 import numpy as np
 from copy import deepcopy
 import cherry as ch
+import torch
 from sklearn import preprocessing
 
-from utils import calc_cl_metrics
-from core_functions.rl import vpg_a2c_loss, ppo_update, trpo_update, get_ep_successes
+from utils import calc_cl_metrics, make_env
+from core_functions.rl import vpg_a2c_loss, ppo_update, trpo_update, get_ep_successes, get_success_per_ep
 
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
 
-def run_cl_rl_exp(path, env, policy, baseline, cl_params, plots=False):
+def run_cl_rl_exp(path, env_name, policy, baseline, cl_params, workers, plots=False):
     cl_path = path + '/cl_exp'
     if not os.path.isdir(cl_path):
         os.mkdir(cl_path)
+
+    env = make_env(env_name, workers, cl_params['seed'], test=True, max_path_length=cl_params['max_path_length'])
 
     # Matrix R NxN of rewards / success rates in tasks j after trained on a tasks i
     # (x_axis = test tasks, y_axis = train tasks)
@@ -44,7 +47,7 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params, plots=False):
     suc_adapt_progress = {}
 
     for i, train_task in enumerate(tasks):
-        print(f'Training on Task {i} with ID: {train_task["task"]} and goal: {train_task["goal"]}')
+        print(f'Adapting on Task {i} with ID {train_task["task"]} and goal {train_task["goal"]}', end='...')
         learner = deepcopy(policy)
         env.set_task(train_task)
         env.reset()
@@ -73,24 +76,31 @@ def run_cl_rl_exp(path, env, policy, baseline, cl_params, plots=False):
 
                 learner = trpo_update(adapt_ep, learner, baseline,
                                       cl_params['inner_lr'], cl_params['gamma'], cl_params['tau'],
-                                      anil=cl_params['anil'])
+                                      anil=cl_params['anil'], first_order=True)
 
             adapt_rew = adapt_ep.reward().sum().item() / cl_params['adapt_batch_size']
-            adapt_suc = get_ep_successes(adapt_ep, cl_params['max_path_length']) / cl_params['adapt_batch_size']
+            adapt_suc_per_ep, _ = get_success_per_ep(adapt_ep, cl_params['max_path_length'])
+            adapt_suc = sum(adapt_suc_per_ep.values()) / cl_params['adapt_batch_size']
 
             rew_adapt_progress[f'task_{i + 1}'][f'step_{step}'] = adapt_rew
             suc_adapt_progress[f'task_{i + 1}'][f'step_{step}'] = adapt_suc
 
+        print(f'Done!')
+
         # Evaluate on all tasks
         for j, valid_task in enumerate(tasks):
-            print(f'\tEvaluating on Task {j} with ID: {valid_task["task"]} and goal: {valid_task["goal"]}', end='\t')
+            print(f'\tEvaluating on Task {j} with ID {valid_task["task"]} and goal {valid_task["goal"]}...', end='\t')
+            evaluator = learner.clone()
             env.set_task(valid_task)
             env.reset()
             task_j = ch.envs.Runner(env, extra_info=cl_params['extra_info'])
 
-            eval_ep = task_j.run(learner, episodes=cl_params['eval_batch_size'])
+            with torch.no_grad():
+                eval_ep = task_j.run(evaluator, episodes=cl_params['eval_batch_size'])
             task_j_reward = eval_ep.reward().sum().item() / cl_params['eval_batch_size']
             task_j_success = get_ep_successes(eval_ep, cl_params['max_path_length']) / cl_params['eval_batch_size']
+
+            _, success_step = get_success_per_ep(eval_ep, cl_params['max_path_length'])
 
             rew_matrix[i, j] = task_j_reward
             suc_matrix[i, j] = task_j_success

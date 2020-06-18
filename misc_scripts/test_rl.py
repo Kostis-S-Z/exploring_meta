@@ -15,12 +15,13 @@ from core_functions.rl import evaluate
 from core_functions.policies import DiagNormalPolicy
 
 # BASE PATH
-# base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/baselines/random_results/'
-base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/render/trained_policies/'
+base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/render/trained_policies/ML1-push/'
+# base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/render/trained_policies/ML10/'
 # base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/rl/results/'
 
 # MODEL PATH
 # model_path = 'random_ML1_push-v1_12_06_17h24_1_9000'
+# model_path = 'ppo_ML1_push-v1_16_06_13h08_1_686'
 model_path = 'maml_trpo_ML1_push-v1_21_05_13h34_42_9086'
 
 
@@ -31,7 +32,7 @@ RL_ALGO = model_path.split('_')[1]
 DATASET = model_path.split('_')[2]
 
 # in case of random
-if ML_ALGO == 'random':
+if ML_ALGO == 'random' or ML_ALGO == 'ppo':
     DATASET = RL_ALGO + '_' + DATASET
     ML_ALGO = 'maml'
     RL_ALGO = 'ppo'
@@ -41,13 +42,13 @@ if DATASET == 'ML1':
 
 anil = False if ML_ALGO == 'maml' else True
 
-workers = 5
+workers = 2
 
 render = False  # Rendering doesn't work with parallel async envs, use 1 worker
 
 evaluate_model = False
-cl_exp = True
-rep_exp = False
+cl_exp = False
+rep_exp = True
 
 # An episode can have either a finite number of steps, e.g 100 for Particles 2D or until done
 eval_params = {
@@ -64,8 +65,8 @@ cl_params = {
     'max_path_length': 100,
     'normalize_rewards': False,
     'adapt_steps': 1,
-    'adapt_batch_size': 10,
-    'eval_batch_size': 100,
+    'adapt_batch_size': 20,
+    'eval_batch_size': 50,
     'inner_lr': 0.1,
     'gamma': 0.99,
     'tau': 1.0,
@@ -79,14 +80,19 @@ cl_params = {
 
 rep_params = {
     'metrics': ['CCA', 'CKA_L'],  # CCA, CKA_L, CKA_K
-    'max_path_length': 150,
+    'max_path_length': 100,
     'adapt_steps': 3,
     'adapt_batch_size': 5,
     'inner_lr': 0.1,
     'gamma': 0.99,
     'tau': 1.0,
     'n_tasks': 1,
-    'layers': [2, 4]
+    'layers': [2, 4],
+    # PPO
+    'ppo_epochs': 3,
+    'ppo_clip_ratio': 0.1,
+    'extra_info': True if 'ML' in DATASET else False,  # if env is metaworld, log success metric
+    'seed': 42,
 }
 
 
@@ -146,15 +152,15 @@ def run():
         print(f'Average meta-testing success rate: {av_test_suc * 100}%')
 
     if cl_exp:
-        cl(env, policy, baseline)
+        cl(policy, baseline)
     if rep_exp:
-        rep(env, policy, baseline)
+        rep(policy, baseline)
 
 
-def cl(env, policy, baseline):
+def cl(policy, baseline):
     # Continual Learning experiment
     print('Running Continual Learning experiment...')
-    run_cl_rl_exp(path, env, policy, baseline, cl_params)
+    run_cl_rl_exp(path, DATASET, policy, baseline, cl_params, workers)
 
     # adapt_bsz_list = [10, 25, 50, 100]
     # for adapt_bsz in adapt_bsz_list:
@@ -162,10 +168,10 @@ def cl(env, policy, baseline):
     #     run_cl_rl_exp(path, env, policy, baseline, cl_params)
 
 
-def rep(env, policy, baseline):
+def rep(policy, baseline):
     # Run a Representation change experiment
-    print('Running Continual Learning experiment...')
-    run_rep_rl_exp(path, env, policy, baseline, rep_params)
+    print('Running Rep Change experiment...')
+    run_rep_rl_exp(path, DATASET, policy, baseline, rep_params)
 
 
 if __name__ == '__main__':
