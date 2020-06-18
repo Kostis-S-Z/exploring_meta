@@ -1,0 +1,17 @@
+{
+    "adapt_batch_size": 10,
+    "adapt_steps": 1,
+    "algo": "trpo",
+    "anil": false,
+    "eval_batch_size": 100,
+    "extra_info": true,
+    "gamma": 0.99,
+    "inner_lr": 0.1,
+    "max_path_length": 149,
+    "n_tasks": 5,
+    "normalize_rewards": false,
+    "ppo_clip_ratio": 0.1,
+    "ppo_epochs": 3,
+    "seed": 42,
+    "tau": 1.0
+}
