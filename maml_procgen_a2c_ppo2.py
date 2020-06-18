@@ -26,9 +26,9 @@ from sampler_ppo2 import Sampler
 params = {
     # Inner loop parameters
     "n_adapt_steps": 3,  # Number of inner loop iterations
-    "inner_lr": 0.1,  # Default: 0.1
+    "inner_lr": 0.005,  # Default: 0.1
     # Outer loop parameters
-    "outer_lr": 0.05,
+    "outer_lr": 0.0005,
     "backtrack_factor": 0.5,
     "ls_max_steps": 15,
     "max_kl": 0.01,
@@ -46,9 +46,9 @@ params = {
     "n_levels": 1,
     # Number of different levels the agent should train on in an iteration (="ways") prev. meta_batch_size
     # If n_levels = 1, then it a matter of how often to use inner loop adaptation
-    "n_tasks_per_iter": 20,
+    "n_tasks_per_iter": 3,
     # Number of total timesteps performed
-    "n_timesteps": 25_000_000,
+    "n_timesteps": 5_000_000,
     # Number of runs on the same level for one inner iteration (="shots") prev. adapt_batch_size
     # "n_episodes_per_task": 100,  # Currently not in use. So just one episode per environment
     # Rollout length of each of the above runs
@@ -56,9 +56,8 @@ params = {
     # Split the batch in mini batches for faster adaptation
     # "n_steps_per_mini_batch": 256,
     # Model params
-    "save_every": 25,
+    "save_every": 50,
     "seed": 42}
-
 
 # Timesteps performed per task in each iteration
 params['steps_per_task'] = int(params['n_steps_per_episode'] * params['n_envs'])
@@ -68,7 +67,6 @@ params['steps_per_task'] = int(params['n_steps_per_episode'] * params['n_envs'])
 params['n_iters'] = int(params['n_timesteps'] // params['steps_per_task'])
 # Total timesteps performed per task (if task==1, then total timesteps==total steps per task)
 params['total_steps_per_task'] = int(params['steps_per_task'] * params['n_iters'])
-
 
 network = [64, 128, 128]
 
@@ -99,7 +97,7 @@ cl_params = {
 #   bigfish: fast rewards
 
 env_name = "starpilot"
-start_level = 0  # ???
+start_level = params['seed']
 
 cuda = True
 
@@ -214,17 +212,6 @@ class MamlRL(Experiment):
                 # print(f"\nAverage train reward: {tr_iter_reward}")
                 # print(f"Average valid reward: {val_iter_reward}")
 
-                step = iteration * params['n_steps_per_episode']
-                metrics = {'tr_iter_reward': tr_iter_reward,
-                           'tr_iter_policy_loss': policy_loss_tr,
-                           'tr_iter_value_loss': value_loss_tr,
-                           'val_iter_reward': val_iter_reward,
-                           'val_iter_value_loss': value_loss_v,
-                           'val_iter_policy_loss': policy_loss_v}
-
-                t_iter.set_postfix(metrics)
-                self.log_metrics(metrics, step)
-
                 # Optimize actor by updating the PPO loss
                 actor_optimiser.zero_grad()
                 policy_loss_v.requires_grad = True
@@ -236,6 +223,22 @@ class MamlRL(Experiment):
                 value_loss_v.requires_grad = True
                 value_loss_v.backward()
                 critic_optimiser.step()
+
+                step = iteration * params['n_steps_per_episode'] * params['n_tasks_per_iter'] * params['n_envs']
+                metrics = {'step': step,
+                           'tr_iter_reward': tr_iter_reward,
+                           'tr_actor_loss': policy_loss_tr,
+                           'tr_critic_loss': value_loss_tr,
+                           'val_iter_reward': val_iter_reward,
+                           'val_critic_loss': value_loss_v.item(),
+                           'val_actor_loss': policy_loss_v.item()}
+                # 'val_iter_actor_loss': policy_loss_v}
+
+                t_iter.set_postfix({'step': step,
+                                    'tr_iter_reward': tr_iter_reward,
+                                    'tr_actor_loss': policy_loss_tr,
+                                    'tr_critic_loss': value_loss_tr})
+                self.log_metrics(metrics, step)
 
                 if iteration % self.params['save_every'] == 0:
                     self.save_model_checkpoint(policy, str(iteration))

@@ -26,9 +26,7 @@ def to_np(t):
 
 
 class Sampler:
-    def __init__(
-            self, env, model, num_steps, gamma_coef, lambda_coef, device, num_envs
-    ):
+    def __init__(self, env, model, num_steps, gamma_coef, lambda_coef, device, num_envs):
         self.env = env
         self.model = model
         self.num_steps = num_steps
