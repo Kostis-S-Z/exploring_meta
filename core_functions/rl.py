@@ -10,6 +10,7 @@ from cherry.algorithms import a2c, trpo, ppo
 from cherry.pg import generalized_advantage
 
 from utils import make_env
+from core_functions.runner import Runner
 
 """ COMMON """
 
@@ -108,7 +109,7 @@ def evaluate(algo, env_name, policy, baseline, params, anil, render=False):
         learner = deepcopy(policy)
         env.set_task(task)
         env.reset()
-        env_task = ch.envs.Runner(env, extra_info=extra_info)
+        env_task = Runner(env, extra_info=extra_info)
 
         # Adapt
         if algo == 'vpg':

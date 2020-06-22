@@ -13,6 +13,7 @@ import cherry as ch
 from utils import *
 from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import evaluate_trpo
+from core_functions.runner import Runner
 
 
 params = {
@@ -85,7 +86,7 @@ class TRPO(Experiment):
                     task = task_list[task_i]
                     env.set_task(task)
                     env.reset()
-                    task = ch.envs.Runner(env)
+                    task = Runner(env)
 
                     episodes = task.run(policy, episodes=params['n_episodes'])
                     task_reward = episodes.reward().sum().item() / params['n_episodes']

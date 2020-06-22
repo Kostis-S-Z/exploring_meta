@@ -36,12 +36,12 @@ def sanity_check(env, model_1, model_2):
     with torch.no_grad():
         env.set_task(sanity_task[0])
         env.reset()
-        env_task = ch.envs.Runner(env)
+        env_task = Runner(env)
         init_sanity_ep = env_task.run(model_1, episodes=1)
 
         env.set_task(sanity_task[0])
         env.reset()
-        env_task = ch.envs.Runner(env)
+        env_task = Runner(env)
         adapt_sanity_ep = env_task.run(model_2, episodes=1)
 
         init_san_rew = init_sanity_ep.reward().sum().item()
@@ -100,7 +100,7 @@ def run_rep_rl_exp(path, env, policy, baseline, rep_params):
         # Sample task
         env.set_task(task)
         env.reset()
-        task_i = ch.envs.Runner(env)
+        task_i = Runner(env)
 
         before_adapt_model = deepcopy(policy)
         after_adapt_model = deepcopy(policy)

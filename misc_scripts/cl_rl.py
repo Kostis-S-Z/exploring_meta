@@ -51,7 +51,7 @@ def run_cl_rl_exp(path, env_name, policy, baseline, cl_params, workers, plots=Fa
         learner = deepcopy(policy)
         env.set_task(train_task)
         env.reset()
-        task_i = ch.envs.Runner(env, extra_info=cl_params['extra_info'])
+        task_i = .Runner(env, extra_info=cl_params['extra_info'])
 
         rew_adapt_progress[f'task_{i + 1}'] = {}
         suc_adapt_progress[f'task_{i + 1}'] = {}
@@ -93,7 +93,7 @@ def run_cl_rl_exp(path, env_name, policy, baseline, cl_params, workers, plots=Fa
             evaluator = learner.clone()
             env.set_task(valid_task)
             env.reset()
-            task_j = ch.envs.Runner(env, extra_info=cl_params['extra_info'])
+            task_j = Runner(env, extra_info=cl_params['extra_info'])
 
             with torch.no_grad():
                 eval_ep = task_j.run(evaluator, episodes=cl_params['eval_batch_size'])

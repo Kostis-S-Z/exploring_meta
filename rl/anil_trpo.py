@@ -14,6 +14,7 @@ from learn2learn.algorithms import MAML
 from utils import *
 from core_functions.policies import DiagNormalPolicyANIL
 from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo, set_device
+from core_functions.runner import Runner
 
 params = {
     # Inner loop parameters
@@ -103,7 +104,7 @@ class AnilTRPO(Experiment):
                     learner = deepcopy(policy)
                     env.set_task(task)
                     env.reset()
-                    task = ch.envs.Runner(env, extra_info=extra_info)
+                    task = Runner(env, extra_info=extra_info)
 
                     # Fast adapt
                     learner, eval_loss, task_replay, task_rew, task_suc = fast_adapt_trpo(task, learner, baseline,

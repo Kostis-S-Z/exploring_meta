@@ -15,6 +15,7 @@ from cherry.algorithms import ppo
 from utils import *
 from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import get_episode_values, compute_advantages, evaluate_ppo
+from core_functions.runner import Runner
 
 
 params = {
@@ -96,7 +97,7 @@ class PPO(Experiment):
                     task = task_list[task_i]
                     env.set_task(task)
                     env.reset()
-                    task = ch.envs.Runner(env, extra_info=extra_info)
+                    task = Runner(env, extra_info=extra_info)
 
                     episodes = task.run(policy, episodes=params['n_episodes'])
                     task_reward = episodes.reward().sum().item() / params['n_episodes']
