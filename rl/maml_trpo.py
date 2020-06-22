@@ -17,13 +17,13 @@ from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo
 
 params = {
     # Inner loop parameters
-    'inner_lr': 0.01,
+    'inner_lr': 0.001,
     'max_path_length': 150,  # [100, 150] or None=use the maximum length (None currently WIP)
     'adapt_steps': 1,
-    'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
+    'adapt_batch_size': 20,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
-    'meta_batch_size': 20,  # 'ways'
-    'outer_lr': 0.1,
+    'meta_batch_size': 40,  # 'ways'
+    'outer_lr': 0.3,
     'backtrack_factor': 0.5,
     'ls_max_steps': 15,
     'max_kl': 0.01,
@@ -32,8 +32,8 @@ params = {
     'tau': 1.0,
     'gamma': 0.99,
     # Other parameters
-    'num_iterations': 1000,
-    'save_every': 25,
+    'num_iterations': 250,
+    'save_every': 250,
     'seed': 42
     # For evaluation
     }
@@ -59,7 +59,7 @@ env_name = 'ML1_push-v1'
 
 workers = 5
 
-wandb = False
+wandb = True
 
 extra_info = True if 'ML' in env_name else False
 
