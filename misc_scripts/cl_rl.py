@@ -10,12 +10,12 @@ import os
 import json
 import numpy as np
 from copy import deepcopy
-import cherry as ch
 import torch
 from sklearn import preprocessing
 
 from utils import calc_cl_metrics, make_env
 from core_functions.rl import vpg_a2c_loss, ppo_update, trpo_update, get_ep_successes, get_success_per_ep
+from core_functions.runner import Runner
 
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
@@ -51,7 +51,7 @@ def run_cl_rl_exp(path, env_name, policy, baseline, cl_params, workers, plots=Fa
         learner = deepcopy(policy)
         env.set_task(train_task)
         env.reset()
-        task_i = .Runner(env, extra_info=cl_params['extra_info'])
+        task_i = Runner(env, extra_info=cl_params['extra_info'])
 
         rew_adapt_progress[f'task_{i + 1}'] = {}
         suc_adapt_progress[f'task_{i + 1}'] = {}

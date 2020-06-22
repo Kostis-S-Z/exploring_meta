@@ -15,7 +15,7 @@ from core_functions.runner import Runner
 
 random_policy = False
 
-base = './trained_policies/'
+base = '../final_models/rl/ML10_Push/'
 model_path = 'maml_trpo_ML10_25_05_09h38_1_2259'
 
 path = base + model_path

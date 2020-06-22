@@ -18,9 +18,8 @@ from collections import defaultdict
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
-import cherry as ch
-
 from core_functions.rl import ppo_update, vpg_a2c_loss, trpo_update
+from core_functions.runner import Runner
 from utils import plot_dict
 from utils import get_cca_similarity, get_linear_CKA, get_kernel_CKA
 

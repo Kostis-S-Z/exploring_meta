@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import os
 import random
 import numpy as np
 import json
@@ -15,9 +14,9 @@ from core_functions.rl import evaluate
 from core_functions.policies import DiagNormalPolicy
 
 # BASE PATH
-base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/render/trained_policies/ML1-push/'
-# base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/render/trained_policies/ML10/'
-# base = '/home/kosz/Projects/KTH/Thesis/exploring_meta/rl/results/'
+base = '../final_models/rl/ML1_Push/'
+# base = '../final_models/rl/ML10_Push/'
+# base = '../final_models/rl/Particles2D/'
 
 # MODEL PATH
 # model_path = 'random_ML1_push-v1_12_06_17h24_1_9000'
@@ -46,9 +45,9 @@ workers = 2
 
 render = False  # Rendering doesn't work with parallel async envs, use 1 worker
 
-evaluate_model = False
+evaluate_model = True
 cl_exp = False
-rep_exp = True
+rep_exp = False
 
 # An episode can have either a finite number of steps, e.g 100 for Particles 2D or until done
 eval_params = {
