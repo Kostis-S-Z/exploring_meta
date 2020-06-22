@@ -22,12 +22,15 @@ from core_functions.rl import ppo_update, vpg_a2c_loss, trpo_update
 from core_functions.runner import Runner
 from utils import plot_dict
 from utils import get_cca_similarity, get_linear_CKA, get_kernel_CKA
+from utils import make_env
 
 metrics = []
 
 
-def sanity_check(env, model_1, model_2):
+def sanity_check(env_name, model_1, model_2, rep_params):
     # Sample a sanity batch
+    env = make_env(env_name, 1, rep_params['seed'], max_path_length=rep_params['max_path_length'])
+
     env.active_env.random_init = False
 
     sanity_task = env.sample_tasks(1)
@@ -65,7 +68,7 @@ def sanity_check(env, model_1, model_2):
         assert np.array_equal(init_rep_2_array, adapt_rep_2_array), "Representations not identical"
 
 
-def run_rep_rl_exp(path, env, policy, baseline, rep_params):
+def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
     global metrics
     metrics = rep_params['metrics']
 
@@ -77,7 +80,7 @@ def run_rep_rl_exp(path, env, policy, baseline, rep_params):
     init_model = deepcopy(policy)
     adapt_model = deepcopy(policy)
 
-    sanity_check(env, init_model, adapt_model)
+    sanity_check(env_name, init_model, adapt_model, rep_params)
     del adapt_model
 
     # column 0: adaptation results, column 1: init results
@@ -86,6 +89,8 @@ def run_rep_rl_exp(path, env, policy, baseline, rep_params):
     # cca_results = {str(layer): [] for layer in rep_params['layers']}
     # cka_l_results = {str(layer): [] for layer in rep_params['layers']}
     # cka_k_results = {str(layer): [] for layer in rep_params['layers']}
+
+    env = make_env(env_name, 1, rep_params['seed'], max_path_length=rep_params['max_path_length'])
 
     tasks = env.sample_tasks(rep_params['n_tasks'])
 
