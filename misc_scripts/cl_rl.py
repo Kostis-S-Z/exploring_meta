@@ -36,12 +36,13 @@ def run_cl_rl_exp(path, env_name, policy, baseline, cl_params, workers, plots=Fa
     # Sample tasks
     # Randomly
     tasks = env.sample_tasks(cl_params['n_tasks'])
-    # Manually
-    tasks[0]['goal'] = 0
-    tasks[1]['goal'] = 1
-    tasks[2]['goal'] = 2
-    tasks[3]['goal'] = 3
-    tasks[4]['goal'] = 4
+    # Manually set goals in case of a single task e.g ML1_Push
+    if 'ML1_' in env_name:
+        tasks[0]['goal'] = 0
+        tasks[1]['goal'] = 1
+        tasks[2]['goal'] = 2
+        tasks[3]['goal'] = 3
+        tasks[4]['goal'] = 4
 
     rew_adapt_progress = {}
     suc_adapt_progress = {}
