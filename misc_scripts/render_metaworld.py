@@ -11,10 +11,11 @@ from learn2learn.algorithms import MAML
 from utils import make_env
 from core_functions.rl import evaluate
 from core_functions.policies import DiagNormalPolicy
+from core_functions.runner import Runner
 
 random_policy = False
 
-base = './trained_policies/'
+base = '../final_models/rl/ML10_Push/'
 model_path = 'maml_trpo_ML10_25_05_09h38_1_2259'
 
 path = base + model_path
@@ -86,7 +87,7 @@ def run_random():
     while True:
         env.set_task(env.sample_tasks(1)[0])
         env.reset()
-        task = ch.envs.Runner(env)
+        task = Runner(env)
 
         def get_action(state):  # Ignore state, sample randomly
             return env.action_space.sample()

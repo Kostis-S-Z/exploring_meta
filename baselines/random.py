@@ -13,6 +13,7 @@ from learn2learn.algorithms import MAML
 from utils import *
 from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import evaluate_ppo
+from core_functions.runner import Runner
 
 params = {
     # Common parameters
@@ -79,7 +80,7 @@ class Random(Experiment):
                     task = task_list[task_i]
                     env.set_task(task)
                     env.reset()
-                    task = ch.envs.Runner(env)
+                    task = Runner(env)
 
                     episodes = task.run(policy, episodes=params['n_episodes'])
                     task_reward = episodes.reward().sum().item() / params['n_episodes']
@@ -108,9 +109,8 @@ class Random(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Evaluate on new test tasks
-        env = make_env(env_name, workers, params['seed'], test=True)
         policy = MAML(policy, lr=self.params['inner_lr'])
-        self.logger['test_reward'] = evaluate_ppo(env, policy, baseline, params)
+        self.logger['test_reward'] = evaluate_ppo(env_name, policy, baseline, params)
         self.log_metrics({'test_reward': self.logger['test_reward']})
         self.save_logs_to_file()
 

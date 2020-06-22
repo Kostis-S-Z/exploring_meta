@@ -27,7 +27,7 @@ _Almost done (check branches):_
 
 ```pip install cython```
 
-2. Install my forked version of [learn2learn](https://github.com/learnables/learn2learn) specifically modified for experiments for this repo:
+2. Install my fork of [learn2learn](https://github.com/learnables/learn2learn) specifically modified for experiments for this repo:
 
 
 ```pip install git+https://github.com/Kostis-S-Z/learn2learn.git@exploring_meta#egg=learn2learn```
@@ -41,11 +41,11 @@ _Almost done (check branches):_
 
 4. Install [OpenAI's Gym](https://github.com/openai/gym):
 
-```pip install gym==0.15.4```
+```pip install gym```
 
 5. Install [cherry](https://github.com/learnables/cherry):
 
-```pip install git+https://github.com/Kostis-S-Z/cherry@runner_save_info#egg=cherry-rl```
+```pip install cherry-rl```
 
 6. Install [metaworld](https://github.com/rlworkgroup/metaworld) :
 

@@ -13,6 +13,7 @@ import cherry as ch
 from utils import *
 from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo, set_device
+from core_functions.runner import Runner
 
 
 params = {
@@ -105,7 +106,7 @@ class MamlTRPO(Experiment):
                     learner = deepcopy(policy)
                     env.set_task(task)
                     env.reset()
-                    task = ch.envs.Runner(env, extra_info=extra_info)
+                    task = Runner(env, extra_info=extra_info)
 
                     # Adapt
                     learner, eval_loss, task_replay, task_rew, task_suc = fast_adapt_trpo(task, learner, baseline,

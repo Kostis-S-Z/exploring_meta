@@ -13,6 +13,7 @@ from learn2learn.algorithms import MAML
 from utils import *
 from core_functions.policies import DiagNormalPolicyANIL
 from core_functions.rl import fast_adapt_ppo, evaluate_ppo, set_device
+from core_functions.runner import Runner
 
 params = {
     # Inner loop parameters
@@ -107,7 +108,7 @@ class AnilPPO(Experiment):
                     learner = policy.clone()
                     env.set_task(task)
                     env.reset()
-                    task = ch.envs.Runner(env, extra_info=extra_info)
+                    task = Runner(env, extra_info=extra_info)
 
                     # Fast adapt
                     loss, task_rew, task_suc = fast_adapt_ppo(task, learner, baseline, self.params, anil=True)
