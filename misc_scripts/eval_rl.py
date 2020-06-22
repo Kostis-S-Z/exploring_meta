@@ -26,23 +26,8 @@ model_path = 'maml_trpo_ML1_push-v1_21_05_13h34_42_9086'
 
 checkpoint = None  # or choose a number
 path = base + model_path
-ML_ALGO = model_path.split('_')[0]
-RL_ALGO = model_path.split('_')[1]
-DATASET = model_path.split('_')[2]
-
-# in case of random
-if ML_ALGO == 'random' or ML_ALGO == 'ppo':
-    DATASET = RL_ALGO + '_' + DATASET
-    ML_ALGO = 'maml'
-    RL_ALGO = 'ppo'
-# In case of ML1 also get which task
-if DATASET == 'ML1':
-    DATASET += '_' + model_path.split('_')[3]
-
-anil = False if ML_ALGO == 'maml' else True
 
 workers = 2
-
 render = False  # Rendering doesn't work with parallel async envs, use 1 worker
 
 evaluate_model = True
@@ -73,7 +58,7 @@ cl_params = {
     # PPO
     'ppo_epochs': 3,
     'ppo_clip_ratio': 0.1,
-    'extra_info': True if 'ML' in DATASET else False,  # if env is metaworld, log success metric
+    'extra_info': False,  # if env is metaworld, log success metric
     'seed': 42,
 }
 
@@ -90,7 +75,7 @@ rep_params = {
     # PPO
     'ppo_epochs': 3,
     'ppo_clip_ratio': 0.1,
-    'extra_info': True if 'ML' in DATASET else False,  # if env is metaworld, log success metric
+    'extra_info': False,  # if env is metaworld, log success metric
     'seed': 42,
 }
 
@@ -100,12 +85,6 @@ rep_params = {
 
 
 def run():
-    cl_params['algo'] = RL_ALGO
-    rep_params['algo'] = RL_ALGO
-    cl_params['anil'] = anil
-    rep_params['anil'] = anil
-
-    print(f'Testing {ML_ALGO}-{RL_ALGO} on {DATASET}')
     try:
         with open(path + '/logger.json', 'r') as f:
             params = json.load(f)['config']
@@ -119,12 +98,35 @@ def run():
         params['gamma'] = 0.99
         params['seed'] = 42
 
+    algo = params['algo']
+    dataset = params['dataset']
+
+    anil = True if 'anil' in algo else False
+
+    if 'maml' in algo or 'anil' in algo:
+        ml_algo = params['algo'].split('_')[0]
+        rl_algo = params['algo'].split('_')[1]
+    elif 'random' == algo:
+        ml_algo = ''
+        rl_algo = 'ppo'
+    else:
+        ml_algo = ''
+        rl_algo = params['algo'].split('_')[1]
+
+    cl_params['algo'] = rl_algo
+    rep_params['algo'] = rl_algo
+    cl_params['anil'] = anil
+    rep_params['anil'] = anil
+    if 'ML' in dataset:
+        rep_params['extra_info'] = True
+        cl_params['extra_info'] = True
+
     device = torch.device('cpu')
     random.seed(params['seed'])
     np.random.seed(params['seed'])
     torch.manual_seed(params['seed'])
 
-    env = make_env(DATASET, workers, params['seed'], test=True, max_path_length=eval_params['max_path_length'])
+    env = make_env(dataset, workers, params['seed'], test=True, max_path_length=eval_params['max_path_length'])
 
     eval_params.update(params)
 
@@ -144,22 +146,23 @@ def run():
     policy = MAML(policy, lr=eval_params['inner_lr'])
     policy.to(device)
 
+    print(f'Testing {ml_algo}-{rl_algo} on {dataset}')
     if evaluate_model:
-        test_rewards, av_test_rew, av_test_suc = evaluate(RL_ALGO, DATASET, policy, baseline, eval_params, anil=anil,
+        test_rewards, av_test_rew, av_test_suc = evaluate(rl_algo, dataset, policy, baseline, eval_params, anil=anil,
                                                           render=render)
         print(f'Average meta-testing reward: {av_test_rew}')
         print(f'Average meta-testing success rate: {av_test_suc * 100}%')
 
     if cl_exp:
-        cl(policy, baseline)
+        cl(dataset, policy, baseline)
     if rep_exp:
-        rep(policy, baseline)
+        rep(dataset, policy, baseline)
 
 
-def cl(policy, baseline):
+def cl(dataset, policy, baseline):
     # Continual Learning experiment
     print('Running Continual Learning experiment...')
-    run_cl_rl_exp(path, DATASET, policy, baseline, cl_params, workers)
+    run_cl_rl_exp(path, dataset, policy, baseline, cl_params, workers)
 
     # adapt_bsz_list = [10, 25, 50, 100]
     # for adapt_bsz in adapt_bsz_list:
@@ -167,10 +170,10 @@ def cl(policy, baseline):
     #     run_cl_rl_exp(path, env, policy, baseline, cl_params)
 
 
-def rep(policy, baseline):
+def rep(dataset, policy, baseline):
     # Run a Representation change experiment
     print('Running Rep Change experiment...')
-    run_rep_rl_exp(path, DATASET, policy, baseline, rep_params)
+    run_rep_rl_exp(path, dataset, policy, baseline, rep_params)
 
 
 if __name__ == '__main__':
