@@ -14,15 +14,14 @@ from core_functions.rl import evaluate
 from core_functions.policies import DiagNormalPolicy
 
 # BASE PATH
-base = '../final_models/rl/ML1_Push/'
-# base = '../final_models/rl/ML10_Push/'
+# base = '../final_models/rl/ML1_Push/'
+base = '../final_models/rl/ML10/'
 # base = '../final_models/rl/Particles2D/'
 
 # MODEL PATH
 # model_path = 'random_ML1_push-v1_12_06_17h24_1_9000'
 # model_path = 'ppo_ML1_push-v1_16_06_13h08_1_686'
-model_path = 'maml_trpo_ML1_push-v1_21_05_13h34_42_9086'
-
+model_path = 'maml_trpo_ML10_25_05_09h38_1_2259'
 
 checkpoint = None  # or choose a number
 path = base + model_path
@@ -164,7 +163,10 @@ def cl(dataset, policy, baseline):
     print('Running Continual Learning experiment...')
     run_cl_rl_exp(path, dataset, policy, baseline, cl_params, workers)
 
-    # adapt_bsz_list = [10, 25, 50, 100]
+    adapt_bsz_list = [10, 25, 50, 100]
+    adapt_steps = [1, 3, 5, 10]
+    inner_lr = [0.3, 0.1, 0.01, 0.001, 0.0001]
+
     # for adapt_bsz in adapt_bsz_list:
     #     cl_params['adapt_batch_size'] = adapt_bsz
     #     run_cl_rl_exp(path, env, policy, baseline, cl_params)
