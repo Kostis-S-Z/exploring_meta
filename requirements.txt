@@ -2,3 +2,6 @@ torch-summary
 sklearn
 matplotlib
 tqdm
+gym
+cherry-rl
+git+https://github.com/rlworkgroup/metaworld.git@master#egg=metaworld
