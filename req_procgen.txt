@@ -1,0 +1,4 @@
+tensorflow==1.15.0
+procgen==0.9.2
+mpi4py==3.0.3
+https://github.com/openai/baselines/archive/9ee399f5b20cd70ac0a871927a6cf043b478193f.zip
