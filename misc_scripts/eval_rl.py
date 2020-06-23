@@ -22,6 +22,7 @@ base = '../final_models/rl/ML10/'
 # model_path = 'random_ML1_push-v1_12_06_17h24_1_9000'
 # model_path = 'ppo_ML1_push-v1_16_06_13h08_1_686'
 model_path = 'maml_trpo_ML10_25_05_09h38_1_2259'
+# model_path = 'random_Particles2D-v1_12_06_17h25_1_4533'
 
 checkpoint = None  # or choose a number
 path = base + model_path
@@ -29,11 +30,7 @@ path = base + model_path
 workers = 2
 render = False  # Rendering doesn't work with parallel async envs, use 1 worker
 
-evaluate_model = True
-cl_exp = False
-rep_exp = False
-
-# An episode can have either a finite number of steps, e.g 100 for Particles 2D or until done
+EVALUATE = False  # Standard meta-testing
 eval_params = {
     'adapt_steps': 1,  # Number of steps to adapt to a new task
     'adapt_batch_size': 20,  # Number of shots per task
@@ -44,11 +41,12 @@ eval_params = {
     'n_tasks': 10,  # Number of different tasks to evaluate on
 }
 
+RUN_CL = False   # Continual Learning experiment
 cl_params = {
     'max_path_length': 100,
     'normalize_rewards': False,
     'adapt_steps': 1,
-    'adapt_batch_size': 20,
+    'adapt_batch_size': 50,
     'eval_batch_size': 50,
     'inner_lr': 0.1,
     'gamma': 0.99,
@@ -57,16 +55,16 @@ cl_params = {
     # PPO
     'ppo_epochs': 3,
     'ppo_clip_ratio': 0.1,
-    'extra_info': False,  # if env is metaworld, log success metric
     'seed': 42,
 }
 
+RUN_RC = True   # Representation Change experiment
 rep_params = {
-    'metrics': ['CCA', 'CKA_L'],  # CCA, CKA_L, CKA_K
+    'metrics': ['CCA'],  # CCA, CKA_L, CKA_K
     'max_path_length': 100,
     'adapt_steps': 3,
-    'adapt_batch_size': 5,
-    'inner_lr': 0.1,
+    'adapt_batch_size': 100,
+    'inner_lr': 0.9,
     'gamma': 0.99,
     'tau': 1.0,
     'n_tasks': 1,
@@ -74,7 +72,6 @@ rep_params = {
     # PPO
     'ppo_epochs': 3,
     'ppo_clip_ratio': 0.1,
-    'extra_info': False,  # if env is metaworld, log success metric
     'seed': 42,
 }
 
@@ -117,15 +114,13 @@ def run():
     cl_params['anil'] = anil
     rep_params['anil'] = anil
     if 'ML' in dataset:
-        rep_params['extra_info'] = True
-        cl_params['extra_info'] = True
-
-    device = torch.device('cpu')
-    random.seed(params['seed'])
-    np.random.seed(params['seed'])
-    torch.manual_seed(params['seed'])
-
-    env = make_env(dataset, workers, params['seed'], test=True, max_path_length=eval_params['max_path_length'])
+        state_size = 9
+        action_size = 4
+        rep_params['extra_info'], cl_params['extra_info'] = True, True
+    else:
+        state_size = 2
+        action_size = 2
+        rep_params['extra_info'], cl_params['extra_info'] = False, False
 
     eval_params.update(params)
 
@@ -136,25 +131,30 @@ def run():
         policy_path = path + f'/model_checkpoints/model_{checkpoint}.pt'
         baseline_path = path + f'/model_checkpoints/model_baseline_{checkpoint}.pt'
 
-    baseline = ch.models.robotics.LinearValue(env.state_size, env.action_size)
+    device = torch.device('cpu')
+    random.seed(params['seed'])
+    np.random.seed(params['seed'])
+    torch.manual_seed(params['seed'])
+
+    baseline = ch.models.robotics.LinearValue(state_size, action_size)
     baseline.load_state_dict(torch.load(baseline_path))
     baseline.to(device)
 
-    policy = DiagNormalPolicy(env.state_size, env.action_size)
+    policy = DiagNormalPolicy(state_size, action_size)
     policy.load_state_dict(torch.load(policy_path))
     policy = MAML(policy, lr=eval_params['inner_lr'])
     policy.to(device)
 
     print(f'Testing {ml_algo}-{rl_algo} on {dataset}')
-    if evaluate_model:
+    if EVALUATE:
         test_rewards, av_test_rew, av_test_suc = evaluate(rl_algo, dataset, policy, baseline, eval_params, anil=anil,
                                                           render=render)
         print(f'Average meta-testing reward: {av_test_rew}')
         print(f'Average meta-testing success rate: {av_test_suc * 100}%')
 
-    if cl_exp:
+    if RUN_CL:
         cl(dataset, policy, baseline)
-    if rep_exp:
+    if RUN_RC:
         rep(dataset, policy, baseline)
 
 

@@ -14,7 +14,8 @@ import torch
 from sklearn import preprocessing
 
 from utils import calc_cl_metrics, make_env
-from core_functions.rl import vpg_a2c_loss, ppo_update, trpo_update, get_ep_successes, get_success_per_ep
+from core_functions.rl import vpg_a2c_loss, ppo_update, trpo_update, get_ep_successes, get_success_per_ep, \
+    ML10_eval_task_names
 from core_functions.runner import Runner
 
 from matplotlib import pyplot as plt
@@ -48,7 +49,8 @@ def run_cl_rl_exp(path, env_name, policy, baseline, cl_params, workers, plots=Fa
     suc_adapt_progress = {}
 
     for i, train_task in enumerate(tasks):
-        print(f'Adapting on Task {i} with ID {train_task["task"]} and goal {train_task["goal"]}', end='...')
+        print(f'Adapting on Task {i}: {ML10_eval_task_names[train_task["task"]]} '
+              f'and goal {train_task["goal"]}', end='...')
         learner = deepcopy(policy)
         env.set_task(train_task)
         env.reset()
@@ -90,7 +92,8 @@ def run_cl_rl_exp(path, env_name, policy, baseline, cl_params, workers, plots=Fa
 
         # Evaluate on all tasks
         for j, valid_task in enumerate(tasks):
-            print(f'\tEvaluating on Task {j} with ID {valid_task["task"]} and goal {valid_task["goal"]}...', end='\t')
+            print(f'\tEvaluating on Task {j}: {ML10_eval_task_names[valid_task["task"]]} '
+                  f'and goal {valid_task["goal"]}...', end='\t')
             evaluator = learner.clone()
             env.set_task(valid_task)
             env.reset()

@@ -37,11 +37,13 @@ def sanity_check(env_name, model_1, model_2, rep_params):
 
     with torch.no_grad():
         env.set_task(sanity_task[0])
+        env.seed(rep_params['seed'])
         env.reset()
         env_task = Runner(env)
         init_sanity_ep = env_task.run(model_1, episodes=1)
 
         env.set_task(sanity_task[0])
+        env.seed(rep_params['seed'])
         env.reset()
         env_task = Runner(env)
         adapt_sanity_ep = env_task.run(model_2, episodes=1)
@@ -49,7 +51,7 @@ def sanity_check(env_name, model_1, model_2, rep_params):
         init_san_rew = init_sanity_ep.reward().sum().item()
         adapt_san_rew = adapt_sanity_ep.reward().sum().item()
 
-        print(f'These should be equal: {init_san_rew}={adapt_san_rew}')
+        print(f'Why are these not equal? They should be equal: {init_san_rew}={adapt_san_rew}')
         # assert (init_san_rew == adapt_san_rew), "Environment initial states are random"
         init_sanity_state = init_sanity_ep[0].state
 
@@ -63,6 +65,9 @@ def sanity_check(env_name, model_1, model_2, rep_params):
         init_rep_2_array = init_rep_sanity_2.detach().numpy()
         adapt_rep_array = adapt_rep_sanity.detach().numpy()
         adapt_rep_2_array = adapt_rep_sanity_2.detach().numpy()
+
+        print(f'Are the representations of the two models for the same state identical? '
+              f'{np.array_equal(init_rep_array, adapt_rep_array)}')
 
         assert np.array_equal(init_rep_array, adapt_rep_array), "Representations not identical"
         assert np.array_equal(init_rep_2_array, adapt_rep_2_array), "Representations not identical"
@@ -144,10 +149,11 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
             before_adapt_model = after_adapt_model.clone()
 
     for metric in metrics:
-        plot_sim(init_mean[metric], init_var[metric], metric=metric, title='RepChange between init and adapted')
+        plot_sim(init_mean[metric], init_var[metric], metric=metric, title='Similarity between init and adapted (in %)')
 
     for metric in metrics:
-        plot_sim(adapt_mean[metric], adapt_var[metric], metric=metric, title='RepChange after each step')
+        difference = [1 - x for x in adapt_mean[metric]]
+        plot_sim(difference, adapt_var[metric], metric=metric, title='Representation difference after each step (in %)')
     """
     print("We expect that column 0 has higher values than column 1")
     print(acc_results)
