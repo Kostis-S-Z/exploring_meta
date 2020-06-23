@@ -38,11 +38,28 @@ Check runs & results in [weights&biases](https://app.wandb.ai/kosz/l2l)
 4. (_Optional_) Track results with [W&B](https://www.wandb.com/): `pip install wandb`
 
 
-## Guide
+## Guide & Repo structure
 
 For a vision walk-through of the code check [here](https://github.com/Kostis-S-Z/exploring_meta/blob/master/vision/VISION_CODE_WALKTHROUGH.md)
 
 For an RL walk-through of the code check [here](https://github.com/Kostis-S-Z/exploring_meta/blob/master/rl/RL_CODE_WALKTHROUGH.md)
+
+### Modules (core dependencies)
+
+**core_functions**: _Functions necessary to train & evaluate RL and Vision_
+
+**utils**: _Functions for data processing, environment making etc (not related to algorithms)_
+ 
+### Running scripts
+
+**baselines**: Scripts to train & evaluate RL and vision 
+
+**rl**: Scripts to train & evaluate meta-RL
+
+**vision**: Scripts to train & evaluate meta-vision
+
+**misc_scripts**: Scripts to run Continual Learning & Representation Change experiments or to render trained policies in Meta-World
+
 
 ## Run
 
