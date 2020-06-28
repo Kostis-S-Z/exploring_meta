@@ -3,12 +3,14 @@ import cherry as ch
 import learn2learn as l2l
 from copy import deepcopy
 
+import numpy as np
 from torch.distributions.kl import kl_divergence
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from cherry.algorithms import a2c, trpo, ppo
 from cherry.pg import generalized_advantage
 
 from utils import make_env
+from core_functions.runner import Runner
 
 """ COMMON """
 
@@ -54,6 +56,26 @@ def get_ep_successes(episodes, path_length):
     return successes
 
 
+def get_success_per_ep(episodes, path_length):
+    # This works only if ExperienceReplay has a 'success' attribute!
+    n_episodes = episodes.success().reshape(path_length, -1).shape[1]
+    successes = {i: 0 for i in range(n_episodes)}
+    success_step = {i: None for i in range(n_episodes)}
+    try:
+        # Reshape ExperienceReplay so its easy to iterate
+        success_matrix = episodes.success().reshape(path_length, -1).T
+        for i, episode_suc in enumerate(success_matrix):  # Iterate over each episode
+            # if there was a success in that episode
+            if 1. in episode_suc:  # Same as if True in [bool(s) for s in episode_suc]
+                successes[i] = 1
+                # Get the step it succeeded
+                success_step[i] = np.argmax(episode_suc > 0.1)
+    except AttributeError:
+        print('No success metric registered!')
+        pass  # Returning 0! Implement success attribute if you want to count success of task
+    return successes, success_step
+
+
 def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states, update_vf=True):
     returns = ch.td.discount(gamma, rewards, dones)
     # if baseline.linear.weight.dim() != states.dim():  # if dimensions are not equal, try to flatten
@@ -80,14 +102,14 @@ def evaluate(algo, env_name, policy, baseline, params, anil, render=False):
     tasks_success_rate = []
 
     extra_info = True if 'ML' in env_name else False  # if env is metaworld, log success metric
-    env = make_env(env_name, 1, params['seed'], test=True)
+    env = make_env(env_name, 1, params['seed'], test=True, max_path_length=params['max_path_length'])
     eval_task_list = env.sample_tasks(params['n_tasks'])
 
     for i, task in enumerate(eval_task_list):
         learner = deepcopy(policy)
         env.set_task(task)
         env.reset()
-        env_task = ch.envs.Runner(env, extra_info=extra_info)
+        env_task = Runner(env, extra_info=extra_info)
 
         # Adapt
         if algo == 'vpg':

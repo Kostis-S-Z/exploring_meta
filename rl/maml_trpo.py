@@ -13,17 +13,18 @@ import cherry as ch
 from utils import *
 from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo, set_device
+from core_functions.runner import Runner
 
 
 params = {
     # Inner loop parameters
-    'inner_lr': 0.01,
+    'inner_lr': 0.001,
     'max_path_length': 150,  # [100, 150] or None=use the maximum length (None currently WIP)
     'adapt_steps': 1,
-    'adapt_batch_size': 10,  # 'shots' (will be *evenly* distributed across workers)
+    'adapt_batch_size': 20,  # 'shots' (will be *evenly* distributed across workers)
     # Outer loop parameters
-    'meta_batch_size': 20,  # 'ways'
-    'outer_lr': 0.1,
+    'meta_batch_size': 40,  # 'ways'
+    'outer_lr': 0.3,
     'backtrack_factor': 0.5,
     'ls_max_steps': 15,
     'max_kl': 0.01,
@@ -32,8 +33,8 @@ params = {
     'tau': 1.0,
     'gamma': 0.99,
     # Other parameters
-    'num_iterations': 1000,
-    'save_every': 25,
+    'num_iterations': 250,
+    'save_every': 250,
     'seed': 42
     # For evaluation
     }
@@ -59,7 +60,7 @@ env_name = 'ML1_push-v1'
 
 workers = 5
 
-wandb = False
+wandb = True
 
 extra_info = True if 'ML' in env_name else False
 
@@ -105,7 +106,7 @@ class MamlTRPO(Experiment):
                     learner = deepcopy(policy)
                     env.set_task(task)
                     env.reset()
-                    task = ch.envs.Runner(env, extra_info=extra_info)
+                    task = Runner(env, extra_info=extra_info)
 
                     # Adapt
                     learner, eval_loss, task_replay, task_rew, task_suc = fast_adapt_trpo(task, learner, baseline,

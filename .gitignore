@@ -1,0 +1,9 @@
+# Ignore PyCharm / IDE files
+.idea
+*__pycache__
+# Ignore models and logs
+final_models*
+*results
+*wandb
+# Ignore project's virtual env
+venv

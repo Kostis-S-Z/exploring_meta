@@ -3,3 +3,4 @@
 from .vision import fast_adapt, accuracy, prepare_batch
 from .policies import DiagNormalPolicy, DiagNormalPolicyANIL, DiagNormalPolicyCNN, BaselineCNN
 from .rl import fast_adapt_trpo, meta_optimize_trpo, evaluate_trpo, fast_adapt_ppo, set_device
+from .runner import Runner
