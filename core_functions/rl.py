@@ -255,6 +255,26 @@ def fast_adapt_ppo(task, learner, baseline, params, anil=False, render=False):
     return valid_loss, query_rew, query_success_rate
 
 
+def single_ppo_update(episodes, learner, baseline, params, anil=False):
+    # Get values to device
+    states, actions, rewards, dones, next_states = get_episode_values(episodes)
+
+    # Update value function & Compute advantages
+    advantages = compute_advantages(baseline, params['tau'], params['gamma'], rewards, dones, states, next_states)
+    advantages = ch.normalize(advantages, epsilon=1e-8).detach()
+    # Calculate loss between states and action in the network
+    with torch.no_grad():
+        old_log_probs = learner.log_prob(states, actions)
+
+    # Initialize inner loop PPO optimizer
+    new_log_probs = learner.log_prob(states, actions)
+    # Compute the policy loss
+    loss = ppo.policy_loss(new_log_probs, old_log_probs, advantages, clip=params['ppo_clip_ratio'])
+    # Adapt model based on the loss
+    learner.adapt(loss, allow_unused=anil)
+    return loss
+
+
 def evaluate_ppo(env, policy, baseline, eval_params, anil=False, render=False):
     return evaluate('ppo', env, policy, baseline, eval_params, anil, render=render)
 

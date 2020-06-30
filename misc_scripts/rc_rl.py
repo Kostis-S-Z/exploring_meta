@@ -18,7 +18,7 @@ from collections import defaultdict
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
-from core_functions.rl import ppo_update, vpg_a2c_loss, trpo_update
+from core_functions.rl import vpg_a2c_loss, trpo_update, single_ppo_update
 from core_functions.runner import Runner
 from utils import plot_dict
 from utils import get_cca_similarity, get_linear_CKA, get_kernel_CKA
@@ -47,11 +47,14 @@ def sanity_check(env_name, model_1, model_2, rep_params):
         env.reset()
         env_task = Runner(env)
         adapt_sanity_ep = env_task.run(model_2, episodes=1)
+        env_task.reset()
+        adapt_2_sanity_ep = env_task.run(model_2, episodes=1)
 
         init_san_rew = init_sanity_ep.reward().sum().item()
         adapt_san_rew = adapt_sanity_ep.reward().sum().item()
+        adapt_2_san_rew = adapt_2_sanity_ep.reward().sum().item()
 
-        print(f'Why are these not equal? They should be equal: {init_san_rew}={adapt_san_rew}')
+        print(f'Why are these not equal? They should be equal: {init_san_rew}={adapt_san_rew}={adapt_2_san_rew}')
         # assert (init_san_rew == adapt_san_rew), "Environment initial states are random"
         init_sanity_state = init_sanity_ep[0].state
 
@@ -125,7 +128,7 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
                 after_adapt_model.adapt(inner_loss, allow_unused=rep_params['anil'])
             elif rep_params['algo'] == 'ppo':
                 # Calculate loss & fit the value function & update the policy
-                ppo_update(adapt_ep, after_adapt_model, baseline, rep_params, anil=rep_params['anil'])
+                single_ppo_update(adapt_ep, after_adapt_model, baseline, rep_params, anil=rep_params['anil'])
             else:
                 after_adapt_model = trpo_update(adapt_ep, after_adapt_model, baseline,
                                                 rep_params['inner_lr'], rep_params['gamma'], rep_params['tau'],
@@ -234,6 +237,38 @@ def get_state_representation(model, state, layer=3):
     representation = representation.detach().numpy().reshape(-1, 1)
 
     return representation
+
+
+from core_functions.policies import DiagNormalPolicy
+from learn2learn.algorithms import MAML
+
+
+def measure_change_through_time(path, env_name, policy, rep_params):
+    env = make_env(env_name, 1, rep_params['seed'], max_path_length=rep_params['max_path_length'])
+
+    sanity_task = env.sample_tasks(1)
+
+    with torch.no_grad():
+        env.set_task(sanity_task[0])
+        env.seed(rep_params['seed'])
+        env.reset()
+        env_task = Runner(env)
+        sanity_ep = env_task.run(policy, episodes=1)
+
+    change_m = []
+    change_v = []
+    checkpoints = path + f'/model_checkpoints/'
+    for model_chckpnt in os.listdir(checkpoints):
+        chckpnt_policy = DiagNormalPolicy(9, 4)
+        chckpnt_policy.load_state_dict(torch.load(os.path.join(checkpoints, model_chckpnt)))
+        chckpnt_policy = MAML(chckpnt_policy, lr=rep_params['inner_lr'])
+
+        mean, variance = episode_mean_var(sanity_ep, policy, chckpnt_policy)
+        change_m.append(mean)
+        change_v.append(variance)
+
+    for metric in metrics:
+        plot_sim(change_m[metric], change_v[metric], metric=metric, title='Similarity between init and adapted (in %)')
 
 
 def plot_sim(r_mean, r_var, metric='CCA', title=''):
