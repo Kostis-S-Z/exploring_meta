@@ -2,7 +2,7 @@
 .idea
 *__pycache__
 # Ignore models and logs
-final_models*
+models/*
 *results
 *wandb
 # Ignore project's virtual env
