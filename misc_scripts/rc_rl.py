@@ -18,6 +18,9 @@ from collections import defaultdict
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
+from core_functions.policies import DiagNormalPolicy
+from learn2learn.algorithms import MAML
+
 from core_functions.rl import vpg_a2c_loss, trpo_update, single_ppo_update
 from core_functions.runner import Runner
 from utils import plot_dict
@@ -193,15 +196,15 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
     return 0
 
 
-def episode_mean_var(episode, model_1, model_2):
+def episode_mean_var(episode, model_1, model_2, layer=3):
     """
     Find the mean & variance of the representation difference
     between two models in a series of states of an episode.
     """
     results = defaultdict(list)
     for state in episode.state():
-        rep_1 = get_state_representation(model_1, state)
-        rep_2 = get_state_representation(model_2, state)
+        rep_1 = get_state_representation(model_1, state, layer)
+        rep_2 = get_state_representation(model_2, state, layer)
 
         result = calculate_rep_change(rep_1, rep_2)
 
@@ -239,12 +242,10 @@ def get_state_representation(model, state, layer=3):
     return representation
 
 
-from core_functions.policies import DiagNormalPolicy
-from learn2learn.algorithms import MAML
-
-
 def measure_change_through_time(path, env_name, policy, rep_params):
     env = make_env(env_name, 1, rep_params['seed'], max_path_length=rep_params['max_path_length'])
+    global metrics
+    metrics = ['CCA']
 
     sanity_task = env.sample_tasks(1)
 
@@ -255,20 +256,51 @@ def measure_change_through_time(path, env_name, policy, rep_params):
         env_task = Runner(env)
         sanity_ep = env_task.run(policy, episodes=1)
 
-    change_m = []
-    change_v = []
+    init_change_m = defaultdict(list)
+    init_change_v = defaultdict(list)
+    adapt_change_m = defaultdict(list)
+    adapt_change_v = defaultdict(list)
     checkpoints = path + f'/model_checkpoints/'
-    for model_chckpnt in os.listdir(checkpoints):
+    i = 0
+
+    file_list = os.listdir(checkpoints)
+    file_list = [file for file in file_list if 'baseline' not in file]
+    models_list = {}
+    for file in file_list:
+        n_file = file.split('_')[-1]
+        n_file = n_file.split('.')[0]
+        n_file = int(n_file)
+        models_list[n_file] = f'model_{n_file}.pt'
+
+    prev_policy = policy
+    for key in sorted(models_list.keys()):
+        model_chckpnt = models_list[key]
+        if i > 40:
+            break
+        i += 1
+
+        print(f'Loading {model_chckpnt} ...')
         chckpnt_policy = DiagNormalPolicy(9, 4)
         chckpnt_policy.load_state_dict(torch.load(os.path.join(checkpoints, model_chckpnt)))
         chckpnt_policy = MAML(chckpnt_policy, lr=rep_params['inner_lr'])
 
-        mean, variance = episode_mean_var(sanity_ep, policy, chckpnt_policy)
-        change_m.append(mean)
-        change_v.append(variance)
+        mean, variance = episode_mean_var(sanity_ep, policy, chckpnt_policy, layer=6)
+        a_mean, a_variance = episode_mean_var(sanity_ep, prev_policy, chckpnt_policy, layer=6)
+        init_change_m['CCA'] += [mean['CCA']]
+        init_change_v['CCA'] += [variance['CCA']]
+        adapt_change_m['CCA'] += [a_mean['CCA']]
+        adapt_change_v['CCA'] += [a_variance['CCA']]
+
+        prev_policy = chckpnt_policy
 
     for metric in metrics:
-        plot_sim(change_m[metric], change_v[metric], metric=metric, title='Similarity between init and adapted (in %)')
+        plot_sim(init_change_m[metric], init_change_v[metric], metric=metric,
+                 title='Similarity between init and adapted (in %)')
+
+    for metric in metrics:
+        difference = [1 - x for x in adapt_change_m[metric]]
+        plot_sim(difference, adapt_change_v[metric], metric=metric,
+                 title='Representation difference after each step (in %)')
 
 
 def plot_sim(r_mean, r_var, metric='CCA', title=''):

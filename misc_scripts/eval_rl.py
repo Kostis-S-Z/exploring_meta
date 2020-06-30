@@ -14,14 +14,15 @@ from core_functions.rl import evaluate
 from core_functions.policies import DiagNormalPolicy
 
 # BASE PATH
-# base = '../test_models/rl/ML1_Push/'
-base = '../test_models/rl/ML10/'
-# base = '../test_models/rl/Particles2D/'
+base = '../models/test_models/rl/ML1_Push/'
+# base = '../models/test_models/rl/ML10/'
+# base = '../models/test_models/rl/Particles2D/'
 
 # MODEL PATH
 # model_path = 'random_ML1_push-v1_12_06_17h24_1_9000'
 # model_path = 'ppo_ML1_push-v1_16_06_13h08_1_686'
-model_path = 'maml_trpo_ML10_25_05_09h38_1_2259'
+# model_path = 'maml_trpo_ML10_25_05_09h38_1_2259'
+model_path = 'maml_trpo_ML1_push-v1_21_05_13h34_42_9086'
 # model_path = 'random_Particles2D-v1_12_06_17h25_1_4533'
 
 checkpoint = None  # or choose a number
@@ -58,7 +59,7 @@ cl_params = {
     'seed': 42,
 }
 
-RUN_RC = False   # Representation Change experiment
+RUN_RC = True   # Representation Change experiment
 rep_params = {
     'metrics': ['CCA'],  # CCA, CKA_L, CKA_K
     'max_path_length': 100,
