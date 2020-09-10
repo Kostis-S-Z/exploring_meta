@@ -20,19 +20,23 @@ Check runs & results in [weights&biases](https://app.wandb.ai/kosz/l2l)
 
 ## Installing
 
+0. _Optional, but highly recommend to make a virtual environment for this project_
+
+```python3 -m venv meta_env``` or ``` virtualenv meta_env```
+
 1. Install Cython:
 
-```pip install cython```
+```pip3 install cython```
 
 2. Install my fork of [learn2learn](https://github.com/learnables/learn2learn) specifically modified for experiments for this repo:
 
 
-```pip install git+https://github.com/Kostis-S-Z/learn2learn.git@exploring_meta#egg=learn2learn```
+```pip3 install git+https://github.com/Kostis-S-Z/learn2learn.git@exploring_meta#egg=learn2learn```
 
 
 3. Install core dependencies
 
-```pip install -r requirements.txt```
+```pip3 install -r requirements.txt```
 
 
 4. (_Optional_) Track results with [W&B](https://www.wandb.com/): `pip install wandb`
