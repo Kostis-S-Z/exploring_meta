@@ -12,21 +12,21 @@ from misc_scripts import run_cl_exp, run_rep_exp
 
 cuda = True
 
-base_path = "../results/seed_check/anil_min_25_03_09h56_1_3936"
+base_path = "/home/kosz/Projects/KTH/Thesis/exploring_meta/vision/results/anil_20w1s_omni_06_09_11h17_3_4772"
 
 eval_iters = True
-cl_exp = False
+cl_exp = True
 rep_exp = False
 
 cl_params = {
     "adapt_steps": 1,
-    "inner_lr": 0.1,
+    "inner_lr": 0.5,
     "n_tasks": 10
 }
 
 rep_params = {
     "adapt_steps": 1,
-    "inner_lr": 0.1,
+    "inner_lr": 0.5,
     "n_tasks": 2,
     "layers": [3, 4]
 }
@@ -52,22 +52,22 @@ def run(path):
         torch.cuda.manual_seed(params['seed'])
         device = torch.device('cuda')
 
-    if "maml" in path:
-        if "min" in path:
-            _, _, test_tasks = get_mini_imagenet(params['ways'], params['shots'])
-            model = l2l.vision.models.MiniImagenetCNN(params['ways'])
-        else:
-            _, _, test_tasks = get_omniglot(params['ways'], params['shots'])
-            if params['model_type'] == 'omni_CNN':
-                model = l2l.vision.models.OmniglotCNN(params['ways'])
-            else:
-                model = l2l.vision.models.OmniglotFC(28 ** 2, params['ways'])
+    if "min" in path:
+        _, _, test_tasks = get_mini_imagenet(params['ways'], params['shots'])
     else:
-        features = l2l.vision.models.ConvBase(output_size=64, channels=3, max_pool=True)
-        features = torch.nn.Sequential(features, Lambda(lambda x: x.view(-1, params['fc_neurons'])))
-        features.to(device)
-        head = torch.nn.Linear(params['fc_neurons'], params['ways'])
-        head = l2l.algorithms.MAML(head, lr=params['inner_lr'])
+        _, _, test_tasks = get_omniglot(params['ways'], params['shots'])
+
+    if "maml" in path:
+        run_maml(path, params, test_tasks, device)
+    else:
+        anil(path, params, test_tasks, device)
+
+
+def run_maml(path, params, test_tasks, device):
+    if "min" in path:
+        model = l2l.vision.models.MiniImagenetCNN(params['ways'])
+    else:
+        model = l2l.vision.models.OmniglotCNN(params['ways'])
 
     # Evaluate the model at every checkpoint
     if eval_iters:
@@ -76,7 +76,7 @@ def run(path):
         for model_ckpnt in os.scandir(ckpnt):
             if model_ckpnt.path.endswith(".pt"):
                 print(f'Testing {model_ckpnt.path}')
-                res = evaluate_model(params, model, test_tasks, device, model_ckpnt.path)
+                res = evaluate_maml(params, model, test_tasks, device, model_ckpnt.path)
                 model_ckpnt_results[model_ckpnt.path] = res
 
         with open(base_path + '/ckpnt_results.json', 'w') as fp:
@@ -106,13 +106,90 @@ def run(path):
                     params['ways'], params['shots'], rep_params=rep_params)
 
 
-def evaluate_model(params, model, test_tasks, device, path):
+def anil(path, params, test_tasks, device):
+    # ANIL
+    if "omni" in path:
+        fc_neurons = 128
+        features = l2l.vision.models.ConvBase(output_size=64, hidden=32, channels=1, max_pool=False)
+    else:
+        fc_neurons = 1600
+        features = l2l.vision.models.ConvBase(output_size=64, channels=3, max_pool=True)
+    features = torch.nn.Sequential(features, Lambda(lambda x: x.view(-1, fc_neurons)))
+    features.to(device)
+
+    head = torch.nn.Linear(fc_neurons, params['ways'])
+    head = l2l.algorithms.MAML(head, lr=params['inner_lr'])
+    head.to(device)
+
+    # Evaluate the model at every checkpoint
+    if eval_iters:
+        ckpnt = base_path + "/model_checkpoints/"
+        model_ckpnt_results = {}
+        for model_ckpnt in os.scandir(ckpnt):
+            if model_ckpnt.path.endswith(".pt"):
+
+                if "features" in model_ckpnt.path:
+                    features_path = model_ckpnt.path
+                    head_path = str.replace(features_path, "features", "head")
+
+                    print(f'Testing {model_ckpnt.path}')
+                    res = evaluate_anil(params, features, head, test_tasks, device, features_path, head_path)
+                    model_ckpnt_results[model_ckpnt.path] = res
+
+        with open(base_path + '/ckpnt_results.json', 'w') as fp:
+            json.dump(model_ckpnt_results, fp, sort_keys=True, indent=4)
+
+    final_features = base_path + '/features.pt'
+    final_head = base_path + '/head.pt'
+
+    if cl_exp:
+        print("Running Continual Learning experiment...")
+        features.load_state_dict(torch.load(final_features))
+        features.to(device)
+
+        head.load_state_dict(torch.load(final_head))
+        head.to(device)
+
+        loss = torch.nn.CrossEntropyLoss(reduction='mean')
+
+        run_cl_exp(base_path, head, loss, test_tasks, device,
+                   params['ways'], params['shots'], cl_params=cl_params, features=features)
+
+    if rep_exp:
+        features.load_state_dict(torch.load(final_features))
+        features.to(device)
+
+        head.load_state_dict(torch.load(final_head))
+        head.to(device)
+
+        loss = torch.nn.CrossEntropyLoss(reduction='mean')
+
+        print("Running Representation experiment...")
+        run_rep_exp(base_path, head, loss, test_tasks, device,
+                    params['ways'], params['shots'], rep_params=rep_params)
+
+
+def evaluate_maml(params, model, test_tasks, device, path):
     model.load_state_dict(torch.load(path))
     model.to(device)
+
     maml = l2l.algorithms.MAML(model, lr=params['inner_lr'], first_order=False)
+
     loss = torch.nn.CrossEntropyLoss(reduction='mean')
 
     return evaluate(params, test_tasks, maml, loss, device)
+
+
+def evaluate_anil(params, features, head, test_tasks, device, features_path, head_path):
+    features.load_state_dict(torch.load(features_path))
+    features.to(device)
+
+    head.load_state_dict(torch.load(head_path))
+    head.to(device)
+
+    loss = torch.nn.CrossEntropyLoss(reduction='mean')
+
+    return evaluate(params, test_tasks, head, loss, device, features=features)
 
 
 if __name__ == '__main__':
