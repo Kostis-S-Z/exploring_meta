@@ -5,5 +5,7 @@
 final_models*
 *results
 *wandb
+*models
+*trash
 # Ignore project's virtual env
 venv

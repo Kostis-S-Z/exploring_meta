@@ -13,9 +13,9 @@ from core_functions.vision import fast_adapt, evaluate
 
 params = {
     "ways": 5,
-    "shots": 1,
-    "outer_lr": 0.001,  # Outer LR should not be higher than 0.01
-    "inner_lr": 0.1,  # 0.5 for 1-shot, 0.1 for 5+-shot
+    "shots": 5,
+    "outer_lr": 0.003,  # Outer LR should not be higher than 0.01
+    "inner_lr": 0.5,
     "adapt_steps": 1,
     "meta_batch_size": 32,
     "num_iterations": 10000,  # 10k for Mini-ImageNet, 5k for Omniglot
@@ -31,8 +31,6 @@ cl_params = {
 
 dataset = "omni"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
-
-cl_test = False
 
 cuda = True
 
@@ -169,12 +167,6 @@ class AnilVision(Experiment):
         self.logger['test_acc'] = evaluate(self.params, test_tasks, head, loss, device, features=features)
         self.log_metrics({'test_acc': self.logger['test_acc']})
         self.save_logs_to_file()
-
-        if cl_test:
-            print("Running Continual Learning experiment...")
-            run_cl_exp(self.model_path, head, loss, test_tasks, device,
-                       self.params['ways'], self.params['shots'],
-                       cl_params=cl_params, features=features)
 
 
 if __name__ == '__main__':

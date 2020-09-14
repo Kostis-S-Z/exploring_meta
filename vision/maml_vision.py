@@ -39,12 +39,9 @@ rep_params = {
 dataset = "min"  # omni or min (omniglot / Mini ImageNet)
 omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
-cl_test = False
-rep_test = False
-
 cuda = True
 
-wandb = False
+wandb = True
 
 
 class MamlVision(Experiment):
@@ -162,16 +159,6 @@ class MamlVision(Experiment):
         self.logger['test_acc'] = evaluate(self.params, test_tasks, maml, loss, device)
         self.log_metrics({'test_acc': self.logger['test_acc']})
         self.save_logs_to_file()
-
-        if cl_test:
-            print("Running Continual Learning experiment...")
-            run_cl_exp(self.model_path, maml, loss, test_tasks, device,
-                       self.params['ways'], self.params['shots'], cl_params=cl_params)
-
-        if rep_test:
-            print("Running Representation experiment...")
-            run_rep_exp(self.model_path, maml, loss, test_tasks, device,
-                        self.params['ways'], self.params['shots'], rep_params=rep_params)
 
 
 if __name__ == '__main__':
