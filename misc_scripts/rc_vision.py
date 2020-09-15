@@ -30,9 +30,14 @@ default_params = {
 }
 
 
-def run_rep_exp(path, model, loss, tasks, device, ways, shots, rep_params=default_params):
+def run_rep_exp(path, model, loss, tasks, device, ways, shots, rep_params=default_params, features=None):
     rep_path = path + '/rep_exp'
-    os.mkdir(rep_path)
+    if os.path.exists(path):
+        ans = input('Overriding previous results! Are you sure? (y/n) ')
+        if ans == 'n':
+            exit(0)
+    else:
+        os.mkdir(rep_path)
 
     # Ignore labels
     sanity_batch, _ = tasks.sample()
