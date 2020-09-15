@@ -68,9 +68,9 @@ def get_omniglot(ways, shots):
 
 def get_mini_imagenet(ways, shots):
     # Create Datasets
-    train_dataset = l2l.vision.datasets.MiniImagenet(root='~/data', mode='train')
-    valid_dataset = l2l.vision.datasets.MiniImagenet(root='~/data', mode='validation')
-    test_dataset = l2l.vision.datasets.MiniImagenet(root='~/data', mode='test')
+    train_dataset = l2l.vision.datasets.MiniImagenet(root='~/data', mode='train', download=True)
+    valid_dataset = l2l.vision.datasets.MiniImagenet(root='~/data', mode='validation', download=True)
+    test_dataset = l2l.vision.datasets.MiniImagenet(root='~/data', mode='test', download=True)
     train_dataset = l2l.data.MetaDataset(train_dataset)
     valid_dataset = l2l.data.MetaDataset(valid_dataset)
     test_dataset = l2l.data.MetaDataset(test_dataset)
