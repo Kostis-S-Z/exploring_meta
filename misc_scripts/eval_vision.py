@@ -115,11 +115,8 @@ def anil(path, params, test_tasks, device):
         fc_neurons = 1600
         features = l2l.vision.models.ConvBase(output_size=64, channels=3, max_pool=True)
     features = torch.nn.Sequential(features, Lambda(lambda x: x.view(-1, fc_neurons)))
-    features.to(device)
-
     head = torch.nn.Linear(fc_neurons, params['ways'])
     head = l2l.algorithms.MAML(head, lr=params['inner_lr'])
-    head.to(device)
 
     # Evaluate the model at every checkpoint
     if eval_iters:
@@ -164,9 +161,12 @@ def anil(path, params, test_tasks, device):
 
         loss = torch.nn.CrossEntropyLoss(reduction='mean')
 
+        # Only check head change
+        rep_params['layers'] = [-1]
+
         print("Running Representation experiment...")
         run_rep_exp(base_path, head, loss, test_tasks, device,
-                    params['ways'], params['shots'], rep_params=rep_params)
+                    params['ways'], params['shots'], rep_params=rep_params, features=features)
 
 
 def evaluate_maml(params, model, test_tasks, device, path):
@@ -185,6 +185,7 @@ def evaluate_anil(params, features, head, test_tasks, device, features_path, hea
     features.to(device)
 
     head.load_state_dict(torch.load(head_path))
+    head = l2l.algorithms.MAML(head, lr=params['inner_lr'])
     head.to(device)
 
     loss = torch.nn.CrossEntropyLoss(reduction='mean')
