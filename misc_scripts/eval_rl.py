@@ -9,19 +9,20 @@ import cherry as ch
 from learn2learn.algorithms import MAML
 
 from utils import make_env
-from misc_scripts import run_cl_rl_exp, run_rep_rl_exp
+from misc_scripts import run_cl_rl_exp, run_rep_rl_exp, measure_change_through_time
 from core_functions.rl import evaluate
 from core_functions.policies import DiagNormalPolicy
 
 # BASE PATH
-# base = '../final_models/rl/ML1_Push/'
-base = '../final_models/rl/ML10/'
-# base = '../final_models/rl/Particles2D/'
+base = '../models/test_models/rl/ML1_Push/'
+# base = '../models/test_models/rl/ML10/'
+# base = '../models/test_models/rl/Particles2D/'
 
 # MODEL PATH
 # model_path = 'random_ML1_push-v1_12_06_17h24_1_9000'
 # model_path = 'ppo_ML1_push-v1_16_06_13h08_1_686'
-model_path = 'maml_trpo_ML10_25_05_09h38_1_2259'
+# model_path = 'maml_trpo_ML10_25_05_09h38_1_2259'
+model_path = 'maml_trpo_ML1_push-v1_21_05_13h34_42_9086'
 # model_path = 'random_Particles2D-v1_12_06_17h25_1_4533'
 
 checkpoint = None  # or choose a number
@@ -95,7 +96,7 @@ def run():
         params['seed'] = 42
 
     algo = params['algo']
-    dataset = params['dataset']
+    env_name = params['dataset']
 
     anil = True if 'anil' in algo else False
 
@@ -113,7 +114,7 @@ def run():
     rep_params['algo'] = rl_algo
     cl_params['anil'] = anil
     rep_params['anil'] = anil
-    if 'ML' in dataset:
+    if 'ML' in env_name:
         state_size = 9
         action_size = 4
         rep_params['extra_info'], cl_params['extra_info'] = True, True
@@ -145,23 +146,23 @@ def run():
     policy = MAML(policy, lr=eval_params['inner_lr'])
     policy.to(device)
 
-    print(f'Testing {ml_algo}-{rl_algo} on {dataset}')
+    print(f'Testing {ml_algo}-{rl_algo} on {env_name}')
     if EVALUATE:
-        test_rewards, av_test_rew, av_test_suc = evaluate(rl_algo, dataset, policy, baseline, eval_params, anil=anil,
+        test_rewards, av_test_rew, av_test_suc = evaluate(rl_algo, env_name, policy, baseline, eval_params, anil=anil,
                                                           render=render)
         print(f'Average meta-testing reward: {av_test_rew}')
         print(f'Average meta-testing success rate: {av_test_suc * 100}%')
 
     if RUN_CL:
-        cl(dataset, policy, baseline)
+        cl(env_name, policy, baseline)
     if RUN_RC:
-        rep(dataset, policy, baseline)
+        rep(env_name, policy, baseline)
 
 
-def cl(dataset, policy, baseline):
+def cl(env_name, policy, baseline):
     # Continual Learning experiment
     print('Running Continual Learning experiment...')
-    run_cl_rl_exp(path, dataset, policy, baseline, cl_params, workers)
+    run_cl_rl_exp(path, env_name, policy, baseline, cl_params, workers)
 
     adapt_bsz_list = [10, 25, 50, 100]
     adapt_steps = [1, 3, 5, 10]
@@ -172,10 +173,12 @@ def cl(dataset, policy, baseline):
     #     run_cl_rl_exp(path, env, policy, baseline, cl_params)
 
 
-def rep(dataset, policy, baseline):
+def rep(env_name, policy, baseline):
     # Run a Representation change experiment
     print('Running Rep Change experiment...')
-    run_rep_rl_exp(path, dataset, policy, baseline, rep_params)
+    # run_rep_rl_exp(path, env_name, policy, baseline, rep_params)
+
+    measure_change_through_time(path, env_name, policy, rep_params)
 
 
 if __name__ == '__main__':

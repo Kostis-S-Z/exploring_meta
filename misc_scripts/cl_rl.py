@@ -14,7 +14,7 @@ import torch
 from sklearn import preprocessing
 
 from utils import calc_cl_metrics, make_env
-from core_functions.rl import vpg_a2c_loss, ppo_update, trpo_update, get_ep_successes, get_success_per_ep, \
+from core_functions.rl import vpg_a2c_loss, trpo_update, single_ppo_update, get_ep_successes, get_success_per_ep, \
     ML10_eval_task_names
 from core_functions.runner import Runner
 
@@ -74,7 +74,7 @@ def run_cl_rl_exp(path, env_name, policy, baseline, cl_params, workers, plots=Fa
 
             elif cl_params['algo'] == 'ppo':
                 # Calculate loss & fit the value function & update the policy
-                ppo_update(adapt_ep, learner, baseline, cl_params, anil=cl_params['anil'])
+                single_ppo_update(adapt_ep, learner, baseline, cl_params, anil=cl_params['anil'])
             else:
 
                 learner = trpo_update(adapt_ep, learner, baseline,
