@@ -14,6 +14,7 @@ cuda = True
 
 base_path = "/home/kosz/Projects/KTH/Thesis/exploring_meta/vision/results/anil_20w1s_omni_06_09_11h17_3_4772"
 
+meta_test = True
 eval_iters = True
 cl_exp = True
 rep_exp = False
@@ -83,6 +84,9 @@ def run_maml(path, params, test_tasks, device):
             json.dump(model_ckpnt_results, fp, sort_keys=True, indent=4)
 
     final_model = base_path + '/model.pt'
+    if meta_test:
+        evaluate_maml(params, model, test_tasks, device, final_model)
+
     # Run a Continual Learning experiment
     if cl_exp:
         print("Running Continual Learning experiment...")
@@ -138,6 +142,9 @@ def anil(path, params, test_tasks, device):
 
     final_features = base_path + '/features.pt'
     final_head = base_path + '/head.pt'
+
+    if meta_test:
+        evaluate_anil(params, features, head, test_tasks, device, final_features, final_head)
 
     if cl_exp:
         print("Running Continual Learning experiment...")
@@ -195,3 +202,45 @@ def evaluate_anil(params, features, head, test_tasks, device, features_path, hea
 
 if __name__ == '__main__':
     run(base_path)
+
+    # MIN
+
+    # ANIL 5w1s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w1s/anil_5w1s_min_10_09_10h08_3_8815"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w1s/anil_5w1s_min_10_09_11h06_2_2906"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w1s/anil_5w1s_min_10_09_11h59_1_1374"
+
+    # MAML 5w1s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w1s/maml_5w1s_min_10_09_12h58_3_2722"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w1s/maml_5w1s_min_10_09_15h12_1_9323"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w1s/maml_5w1s_min_10_09_17h09_2_6302"
+
+    # ANIL 5w5s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/anil_5w5s_min_11_09_00h36_1_6461"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/anil_5w5s_min_11_09_03h38_2_8655"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/anil_5w5s_min_11_09_05h56_3_6285"
+
+    # MAML 5w5s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/maml_5w5s_min_31_03_12h53_1_1434"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/maml_5w5s_min_31_03_12h54_2_1671"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/maml_5w5s_min_31_03_12h54_3_2104"
+
+    # Omni
+
+    # ANIL 20w1s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w1s/anil_20w1s_omni_06_09_11h17_1_4305"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w1s/anil_20w1s_omni_06_09_11h17_2_8126"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w1s/anil_20w1s_omni_06_09_11h17_3_4772"
+    # MAML 20w1s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w1s/maml_20w1s_omni_31_03_10h18_1_9247"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w1s/maml_20w1s_omni_31_03_10h21_2_302"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w1s/maml_20w1s_omni_31_03_10h22_3_7628"
+
+    # ANIL 20w5s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w5s/anil/anil_20w5s_omni_09_09_13h23_2_4977"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w5s/anil/anil_20w5s_omni_09_09_13h24_1_775"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w5s/anil/anil_20w5s_omni_09_09_14h31_3_5663"
+    # MAML 20w5s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w5s/maml/maml_20w5s_omni_31_03_10h23_1_6864"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w5s/maml/maml_20w5s_omni_31_03_10h24_2_1576"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w5s/maml/maml_20w5s_omni_31_03_10h24_3_8259"

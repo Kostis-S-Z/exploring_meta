@@ -8,38 +8,34 @@ import torch
 import cherry as ch
 from learn2learn.algorithms import MAML
 
-from utils import make_env
 from misc_scripts import run_cl_rl_exp, run_rep_rl_exp, measure_change_through_time
 from core_functions.rl import evaluate
 from core_functions.policies import DiagNormalPolicy
 
 # BASE PATH
-base = '../models/test_models/rl/ML1_Push/'
-# base = '../models/test_models/rl/ML10/'
-# base = '../models/test_models/rl/Particles2D/'
+# base = '/home/kosz/Projects/KTH/Thesis/models/rl/Particles2D/'
+# base = '/home/kosz/Projects/KTH/Thesis/models/rl/ML1_Push/'
+base = '/home/kosz/Projects/KTH/Thesis/models/rl/ML10/final/'
 
 # MODEL PATH
-# model_path = 'random_ML1_push-v1_12_06_17h24_1_9000'
-# model_path = 'ppo_ML1_push-v1_16_06_13h08_1_686'
-# model_path = 'maml_trpo_ML10_25_05_09h38_1_2259'
-model_path = 'maml_trpo_ML1_push-v1_21_05_13h34_42_9086'
-# model_path = 'random_Particles2D-v1_12_06_17h25_1_4533'
+# model_path = 'anil_trpo_ML10_30_06_16h37_42_363'
+model_path = 'maml_trpo_ML10_30_06_16h36_42_2714'
 
 checkpoint = None  # or choose a number
 path = base + model_path
 
-workers = 2
+workers = 1
 render = False  # Rendering doesn't work with parallel async envs, use 1 worker
 
-EVALUATE = False  # Standard meta-testing
+EVALUATE = True  # Standard meta-testing
 eval_params = {
     'adapt_steps': 1,  # Number of steps to adapt to a new task
-    'adapt_batch_size': 20,  # Number of shots per task
-    'inner_lr': 0.1,
+    'adapt_batch_size': 10,  # Number of shots per task
+    'inner_lr': 0.001,
     'gamma': 0.99,
     'tau': 1.0,
-    'max_path_length': 100,
-    'n_tasks': 10,  # Number of different tasks to evaluate on
+    'max_path_length': 150,
+    'n_tasks': 20,  # Number of different tasks to evaluate on
 }
 
 RUN_CL = False   # Continual Learning experiment
@@ -59,7 +55,7 @@ cl_params = {
     'seed': 42,
 }
 
-RUN_RC = True   # Representation Change experiment
+RUN_RC = False   # Representation Change experiment
 rep_params = {
     'metrics': ['CCA'],  # CCA, CKA_L, CKA_K
     'max_path_length': 100,
