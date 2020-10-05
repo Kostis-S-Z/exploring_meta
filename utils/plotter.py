@@ -25,6 +25,25 @@ def plot_dict(a_dict, save=False):
     plt.show()
 
 
+def plot_dict_explicit(a_dict, save=False):
+    title = a_dict['title']
+    x_legend = a_dict['x_legend']
+    y_legend = a_dict['y_legend']
+    y_axis = a_dict['y_axis']
+    x_axis = a_dict['x_axis']
+
+    plt.title(title)
+    plt.xlabel(x_legend)
+    plt.ylabel(y_legend)
+
+    plt.plot(x_axis, y_axis, linestyle='-', marker='o', alpha=0.7)
+
+    if save:
+        path = a_dict['path']
+        plt.savefig(path)
+    plt.show()
+
+
 def plot_list(a_list, path="plot.png", save=False):
     plt.plot(a_list)
     if save:

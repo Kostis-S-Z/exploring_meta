@@ -6,5 +6,5 @@ from .cka import get_linear_CKA, get_kernel_CKA
 from .cl_metrics import calc_cl_metrics
 from .env_maker import make_env, calculate_samples_seen
 from .experiment import Experiment
-from .plotter import plot_list, plot_dict
+from .plotter import plot_list, plot_dict, plot_dict_explicit
 from .metaworld_wrapper import MetaWorldML1, MetaWorldML10, MetaWorldML45
