@@ -2,6 +2,7 @@ import torch
 import cherry as ch
 import learn2learn as l2l
 from copy import deepcopy
+from collections import defaultdict
 
 import numpy as np
 from torch.distributions.kl import kl_divergence
@@ -109,6 +110,7 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
 
 
 def evaluate(algo, env_name, policy, baseline, params, anil, render=False):
+    rewards_per_task = defaultdict(list)
     tasks_rewards = []
     tasks_success_rate = []
 
@@ -142,10 +144,13 @@ def evaluate(algo, env_name, policy, baseline, params, anil, render=False):
         if extra_info:
             print(f'Task {i + 1} / {len(eval_task_list)}: {ML10_eval_task_names[task["task"]]} task'
                   f'\t {query_rew:.1f} rew | {query_success_rate * 100}% success rate')
+            rewards_per_task[ML10_eval_task_names[task["task"]]].append([query_rew, query_success_rate])
 
     final_eval_reward = sum(tasks_rewards) / params['n_tasks']
     final_eval_suc = sum(tasks_success_rate) / params['n_tasks']
 
+    if 'ML' in env_name:
+        return tasks_rewards, final_eval_reward, final_eval_suc, rewards_per_task
     return tasks_rewards, final_eval_reward, final_eval_suc
 
 
