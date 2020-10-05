@@ -16,6 +16,20 @@ from core_functions.runner import Runner
 
 device = torch.device('cpu')
 
+
+ML10_train_task_names = {
+    0: 'reach-v1',
+    1: 'push-v1',
+    2: 'pick-place-v1',
+    3: 'door-open-v1',
+    4: 'drawer-close-v1',
+    5: 'button-press-v1',
+    6: 'peg-insert-side-v1',
+    7: 'window-open-v1',
+    8: 'sweep-v1',
+    9: 'basketball-v1',
+}
+
 ML10_eval_task_names = {
     0: 'drawer-open-v1',
     1: 'door-close-v1',
