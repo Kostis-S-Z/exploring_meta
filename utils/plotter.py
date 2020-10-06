@@ -2,6 +2,7 @@
 
 import matplotlib.pyplot as plt
 import json
+import numpy as np
 
 filename = "results/maml_min_05_03_17h13_42_2368/metrics.json"
 
@@ -41,6 +42,78 @@ def plot_dict_explicit(a_dict, save=False):
     if save:
         path = a_dict['path']
         plt.savefig(path)
+    plt.show()
+
+
+def bar_plot_ml10(results):
+    x_axis = []
+    trial1 = []
+    trial1_suc = []
+    trial2 = []
+    trial2_suc = []
+    trial3 = []
+    trial3_suc = []
+
+    # results['lever-pull'] = [x * -1 for x in results['lever-pull']]
+
+    for key, val in results.items():
+        x_axis.append(key)
+        trial1.append(val[0])
+        trial1_suc.append('green' if val[1] > 0.9 else 'red')
+
+        trial2.append(val[2])
+        trial2_suc.append('green' if val[3] > 0.9 else 'red')
+
+        trial3.append(val[4])
+        trial3_suc.append('green' if val[5] > 0.9 else 'red')
+
+    x = np.arange(len(x_axis))
+    width = 0.2
+
+    r1 = np.arange(len(trial1))
+    r2 = [x + width for x in r1]
+    r3 = [x + width for x in r2]
+
+    fig, ax = plt.subplots()
+    bar1 = ax.barh(r1, trial1, width, color=trial1_suc, edgecolor='white', label='Trial 1')
+    bar2 = ax.barh(r2, trial2, width, color=trial2_suc, edgecolor='white', label='Trial 2')
+    bar3 = ax.barh(r3, trial3, width, color=trial3_suc, edgecolor='white', label='Trial 3')
+
+    ax.set_xlabel('Rewards')
+    ax.set_title('Meta-Testing Performance on ML10')
+    ax.set_yticks(x)
+    ax.set_yticklabels(x_axis)
+    ax.set_xlim([-10, 70000])
+    # ax.legend()
+    plt.xscale('symlog')
+    fig.tight_layout()
+    plt.show()
+
+
+def bar_plot_ml10_one_task(results):
+    trials = []
+    trials_suc = []
+    fig, ax = plt.subplots()
+
+    for key, val in results.items():
+        trials.append(val[0])
+        trials.append(val[2])
+        trials.append(val[4])
+
+        trials_suc.append('green' if val[1] > 0.9 else 'red')
+        trials_suc.append('green' if val[3] > 0.9 else 'red')
+        trials_suc.append('green' if val[5] > 0.9 else 'red')
+
+    y_labels = ['Trial 1', 'Trial 2', 'Trial 3']
+    y_pos = np.arange(len(y_labels))
+
+    ax.barh(y_pos, trials, color=trials_suc, align='center')
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(y_labels)
+    ax.invert_yaxis()  # labels read top-to-bottom
+    ax.set_xlabel('Performance')
+    ax.set_title('How fast do you want to go today?')
+
     plt.show()
 
 
