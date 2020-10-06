@@ -19,24 +19,24 @@ device = torch.device('cpu')
 
 
 ML10_train_task_names = {
-    0: 'reach-v1',
-    1: 'push-v1',
-    2: 'pick-place-v1',
-    3: 'door-open-v1',
-    4: 'drawer-close-v1',
-    5: 'button-press-v1',
-    6: 'peg-insert-side-v1',
-    7: 'window-open-v1',
-    8: 'sweep-v1',
-    9: 'basketball-v1',
+    0: 'reach',
+    1: 'push',
+    2: 'pick-place',
+    3: 'door-open',
+    4: 'drawer-close',
+    5: 'button-press',
+    6: 'peg-insert-side',
+    7: 'window-open',
+    8: 'sweep',
+    9: 'basketball',
 }
 
 ML10_eval_task_names = {
-    0: 'drawer-open-v1',
-    1: 'door-close-v1',
-    2: 'shelf-place-v1',
-    3: 'sweep-into-v1',
-    4: 'lever-pull-v1',
+    0: 'drawer-open',
+    1: 'door-close',
+    2: 'shelf-place',
+    3: 'sweep-into',
+    4: 'lever-pull',
 }
 
 
@@ -144,7 +144,7 @@ def evaluate(algo, env_name, policy, baseline, params, anil, render=False):
         if extra_info:
             print(f'Task {i + 1} / {len(eval_task_list)}: {ML10_eval_task_names[task["task"]]} task'
                   f'\t {query_rew:.1f} rew | {query_success_rate * 100}% success rate')
-            rewards_per_task[ML10_eval_task_names[task["task"]]].append([query_rew, query_success_rate])
+            rewards_per_task[ML10_eval_task_names[task["task"]]] += [query_rew, query_success_rate]
 
     final_eval_reward = sum(tasks_rewards) / params['n_tasks']
     final_eval_suc = sum(tasks_success_rate) / params['n_tasks']
