@@ -109,14 +109,38 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
                                  next_value=next_value)
 
 
-def evaluate(algo, env_name, policy, baseline, params, anil, render=False):
+def sample_3_from_each_task(env):
+    task_list = env.sample_tasks(100)
+    check = defaultdict(list)
+    for i, k in enumerate(task_list):
+        check[k['task']] += [i]
+
+    final_task_list = []
+    for key, val in check.items():
+        for sample in val[:3]:
+            final_task_list.append(task_list[sample])
+
+    return final_task_list
+
+
+def evaluate(algo, env_name, policy, baseline, params, anil, render=False, test_mode=True, each3=False):
     rewards_per_task = defaultdict(list)
     tasks_rewards = []
     tasks_success_rate = []
 
+    if test_mode:
+        ml_task_names = ML10_eval_task_names  # Meta-testing tasks
+    else:
+        ml_task_names = ML10_train_task_names  # Meta-train tasks
+
     extra_info = True if 'ML' in env_name else False  # if env is metaworld, log success metric
-    env = make_env(env_name, 1, params['seed'], test=True, max_path_length=params['max_path_length'])
-    eval_task_list = env.sample_tasks(params['n_tasks'])
+    env = make_env(env_name, 1, params['seed'], test=test_mode, max_path_length=params['max_path_length'])
+
+    if each3:
+        # Overwrite number of tasks and just sample 3 trials from each task
+        eval_task_list = sample_3_from_each_task(env)
+    else:
+        eval_task_list = env.sample_tasks(params['n_tasks'])
 
     for i, task in enumerate(eval_task_list):
         learner = deepcopy(policy)
@@ -142,9 +166,9 @@ def evaluate(algo, env_name, policy, baseline, params, anil, render=False):
         tasks_rewards.append(query_rew)
         tasks_success_rate.append(query_success_rate)
         if extra_info:
-            print(f'Task {i + 1} / {len(eval_task_list)}: {ML10_eval_task_names[task["task"]]} task'
+            print(f'Task {i + 1} / {len(eval_task_list)}: {ml_task_names[task["task"]]} task'
                   f'\t {query_rew:.1f} rew | {query_success_rate * 100}% success rate')
-            rewards_per_task[ML10_eval_task_names[task["task"]]] += [query_rew, query_success_rate]
+            rewards_per_task[ml_task_names[task["task"]]] += [query_rew, query_success_rate]
 
     final_eval_reward = sum(tasks_rewards) / params['n_tasks']
     final_eval_suc = sum(tasks_success_rate) / params['n_tasks']
