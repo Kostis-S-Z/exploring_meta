@@ -10,16 +10,20 @@ from learn2learn.algorithms import MAML
 
 from misc_scripts import run_cl_rl_exp, run_rep_rl_exp, measure_change_through_time
 from core_functions.rl import evaluate
-from core_functions.policies import DiagNormalPolicy
+from core_functions.policies import DiagNormalPolicy, DiagNormalPolicyANIL
+
+from utils.plotter import bar_plot_ml10, bar_plot_ml10_one_task
 
 # BASE PATH
 # base = '/home/kosz/Projects/KTH/Thesis/models/rl/Particles2D/'
 # base = '/home/kosz/Projects/KTH/Thesis/models/rl/ML1_Push/'
 base = '/home/kosz/Projects/KTH/Thesis/models/rl/ML10/final/'
+# base = '/home/kosz/Projects/KTH/Thesis/models/rl/ML10/'
 
 # MODEL PATH
 # model_path = 'anil_trpo_ML10_30_06_16h37_42_363'
 model_path = 'maml_trpo_ML10_30_06_16h36_42_2714'
+meta_test_on_train = False
 
 checkpoint = None  # or choose a number
 path = base + model_path
@@ -36,9 +40,10 @@ eval_params = {
     'tau': 1.0,
     'max_path_length': 150,
     'n_tasks': 20,  # Number of different tasks to evaluate on
+    'seed': 1
 }
 
-RUN_CL = False   # Continual Learning experiment
+RUN_CL = False  # Continual Learning experiment
 cl_params = {
     'max_path_length': 100,
     'normalize_rewards': False,
@@ -55,13 +60,13 @@ cl_params = {
     'seed': 42,
 }
 
-RUN_RC = False   # Representation Change experiment
+RUN_RC = False  # Representation Change experiment
 rep_params = {
     'metrics': ['CCA'],  # CCA, CKA_L, CKA_K
-    'max_path_length': 100,
-    'adapt_steps': 3,
-    'adapt_batch_size': 100,
-    'inner_lr': 0.9,
+    'max_path_length': 150,
+    'adapt_steps': 5,
+    'adapt_batch_size': 10,
+    'inner_lr': 0.001,
     'gamma': 0.99,
     'tau': 1.0,
     'n_tasks': 1,
@@ -119,13 +124,9 @@ def run():
         action_size = 2
         rep_params['extra_info'], cl_params['extra_info'] = False, False
 
-    eval_params.update(params)
-
     if checkpoint is None:
-        policy_path = path + '/model.pt'
         baseline_path = path + '/baseline.pt'
     else:
-        policy_path = path + f'/model_checkpoints/model_{checkpoint}.pt'
         baseline_path = path + f'/model_checkpoints/model_baseline_{checkpoint}.pt'
 
     device = torch.device('cpu')
@@ -172,9 +173,9 @@ def cl(env_name, policy, baseline):
 def rep(env_name, policy, baseline):
     # Run a Representation change experiment
     print('Running Rep Change experiment...')
-    # run_rep_rl_exp(path, env_name, policy, baseline, rep_params)
+    run_rep_rl_exp(path, env_name, policy, baseline, rep_params)
 
-    measure_change_through_time(path, env_name, policy, rep_params)
+    # measure_change_through_time(path, env_name, policy, rep_params)
 
 
 if __name__ == '__main__':
