@@ -161,10 +161,24 @@ def run():
 
     print(f'Testing {ml_algo}-{rl_algo} on {env_name}')
     if EVALUATE:
-        test_rewards, av_test_rew, av_test_suc = evaluate(rl_algo, env_name, policy, baseline, eval_params, anil=anil,
-                                                          render=render)
+        t_test = 'train' if meta_test_on_train else 'est'
+        test_rewards, av_test_rew, av_test_suc, res_per_task = evaluate(rl_algo, env_name, policy, baseline,
+                                                                        eval_params, anil=anil, render=render,
+                                                                        test_mode=meta_test_on_train)
         print(f'Average meta-testing reward: {av_test_rew}')
         print(f'Average meta-testing success rate: {av_test_suc * 100}%')
+
+        with open(f"{params['algo']}_{t_test}_{params['seed']}.json", 'w') as f:
+            f.write(json.dumps(res_per_task))
+
+        # for i in range(1, 2):
+        #     with open(f"maml_trpo_test_{i}.json") as f:
+        #         res_per_task = json.loads(f.read())
+
+        for key, val in res_per_task.items():
+            print(f'{key}: \n\tRewards: {val[::2]}\n\tSuccess: {val[1::2]}\n')
+
+        bar_plot_ml10(res_per_task, f"{params['algo']}_{t_test}_{params['seed']}.png")
 
     if RUN_CL:
         cl(env_name, policy, baseline)
