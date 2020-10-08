@@ -126,8 +126,18 @@ def run():
 
     if checkpoint is None:
         baseline_path = path + '/baseline.pt'
+        if ml_algo == 'maml':
+            policy_path = path + '/model.pt'
+        else:
+            head_path = path + '/head.pt'
+            body_path = path + '/body.pt'
     else:
         baseline_path = path + f'/model_checkpoints/model_baseline_{checkpoint}.pt'
+        if ml_algo == 'maml':
+            policy_path = path + f'/model_checkpoints/model_{checkpoint}.pt'
+        else:
+            head_path = path + f'/model_checkpoints/model_head_{checkpoint}.pt'
+            body_path = path + f'/model_checkpoints/model_body_{checkpoint}.pt'
 
     device = torch.device('cpu')
     random.seed(params['seed'])
@@ -138,8 +148,14 @@ def run():
     baseline.load_state_dict(torch.load(baseline_path))
     baseline.to(device)
 
-    policy = DiagNormalPolicy(state_size, action_size)
-    policy.load_state_dict(torch.load(policy_path))
+    if ml_algo == 'maml':
+        policy = DiagNormalPolicy(state_size, action_size)
+        policy.load_state_dict(torch.load(policy_path))
+    else:
+        policy = DiagNormalPolicyANIL(state_size, action_size, params['fc_neurons'])
+        policy.head.load_state_dict(torch.load(head_path))
+        policy.body.load_state_dict(torch.load(body_path))
+
     policy = MAML(policy, lr=eval_params['inner_lr'])
     policy.to(device)
 
