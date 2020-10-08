@@ -57,7 +57,7 @@ def sanity_check(env_name, model_1, model_2, rep_params):
         adapt_san_rew = adapt_sanity_ep.reward().sum().item()
         adapt_2_san_rew = adapt_2_sanity_ep.reward().sum().item()
 
-        print(f'Why are these not equal? They should be equal: {init_san_rew}={adapt_san_rew}={adapt_2_san_rew}')
+        # print(f'Why are these not equal? They should be equal: {init_san_rew}={adapt_san_rew}={adapt_2_san_rew}')
         # assert (init_san_rew == adapt_san_rew), "Environment initial states are random"
         init_sanity_state = init_sanity_ep[0].state
 
