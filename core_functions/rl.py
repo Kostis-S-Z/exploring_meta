@@ -110,7 +110,8 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
 
 
 def sample_3_from_each_task(env):
-    task_list = env.sample_tasks(100)
+    # Get a sufficient large enough pool of tasks (this is computationally negligible)
+    task_list = env.sample_tasks(200)
     check = defaultdict(list)
     for i, k in enumerate(task_list):
         check[k['task']] += [i]
@@ -123,18 +124,18 @@ def sample_3_from_each_task(env):
     return final_task_list
 
 
-def evaluate(algo, env_name, policy, baseline, params, anil, render=False, test_mode=True, each3=False):
+def evaluate(algo, env_name, policy, baseline, params, anil, render=False, test_on_train=False, each3=False):
     rewards_per_task = defaultdict(list)
     tasks_rewards = []
     tasks_success_rate = []
 
-    if test_mode:
-        ml_task_names = ML10_eval_task_names  # Meta-testing tasks
-    else:
+    if test_on_train:
         ml_task_names = ML10_train_task_names  # Meta-train tasks
+    else:
+        ml_task_names = ML10_eval_task_names  # Meta-testing tasks
 
     extra_info = True if 'ML' in env_name else False  # if env is metaworld, log success metric
-    env = make_env(env_name, 1, params['seed'], test=test_mode, max_path_length=params['max_path_length'])
+    env = make_env(env_name, 1, params['seed'], test=(not test_on_train), max_path_length=params['max_path_length'])
 
     if each3:
         # Overwrite number of tasks and just sample 3 trials from each task
