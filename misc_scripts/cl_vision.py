@@ -23,7 +23,7 @@ default_params = {
 
 def run_cl_exp(path, maml, loss, tasks, device, ways, shots, cl_params=default_params, features=None):
     cl_path = path + '/cl_exp'
-    if os.path.exists(path):
+    if os.path.exists(cl_path):
         ans = input('Overriding previous results! Are you sure? (y/n)')
         if ans == 'n':
             exit(0)
