@@ -32,7 +32,7 @@ default_params = {
 
 def run_rep_exp(path, model, loss, tasks, device, ways, shots, rep_params=default_params, features=None):
     rep_path = path + '/rep_exp'
-    if os.path.exists(path):
+    if os.path.exists(rep_path):
         ans = input('Overriding previous results! Are you sure? (y/n) ')
         if ans == 'n':
             exit(0)
@@ -75,9 +75,6 @@ def run_rep_exp(path, model, loss, tasks, device, ways, shots, rep_params=defaul
             # Evaluate the init model
             i_predictions = init_model(eval_d)
             i_valid_acc = accuracy(i_predictions, eval_l)
-
-            # TODO: We want to compare representations / weights
-            # what is the difference with the activations? -> weights vs activations?
 
             # Get their representations for every layer
             for i, layer in enumerate(cca_results.keys()):
