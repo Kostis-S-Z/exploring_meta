@@ -13,11 +13,14 @@ from misc_scripts import run_cl_exp, run_rep_exp
 cuda = True
 
 base_path = "/home/kosz/Projects/KTH/Thesis/exploring_meta/vision/results/anil_20w1s_omni_06_09_11h17_3_4772"
+# base_path = "/home/kosz/Projects/KTH/Thesis/exploring_meta/vision/test/maml_5w1s_min_09_10_17h15_42_7327"
+# base_path = "/home/kosz/Projects/KTH/Thesis/exploring_meta/vision/test/maml_5w1s_min_09_10_17h00_42_1871"
+base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/anil_5w5s_min_11_09_00h36_1_6461"
 
 meta_test = True
-eval_iters = True
-cl_exp = True
-rep_exp = False
+eval_iters = False
+cl_exp = False
+rep_exp = True
 
 cl_params = {
     "adapt_steps": 1,
@@ -28,8 +31,9 @@ cl_params = {
 rep_params = {
     "adapt_steps": 1,
     "inner_lr": 0.5,
-    "n_tasks": 2,
-    "layers": [3, 4]
+    "n_tasks": 1,
+    "layers": [1, 6, 11, -1],
+    # "layers": [2, 4]
 }
 
 
@@ -59,15 +63,17 @@ def run(path):
         _, _, test_tasks = get_omniglot(params['ways'], params['shots'])
 
     if "maml" in path:
-        run_maml(path, params, test_tasks, device)
+        run_maml(params, test_tasks, device)
     else:
-        anil(path, params, test_tasks, device)
+        run_anil(params, test_tasks, device)
 
 
-def run_maml(path, params, test_tasks, device):
-    if "min" in path:
+def run_maml(params, test_tasks, device):
+    if 'min' == params['dataset']:
+        print('Loading Mini-ImageNet model')
         model = l2l.vision.models.MiniImagenetCNN(params['ways'])
     else:
+        print('Loading Omniglot model')
         model = l2l.vision.models.OmniglotCNN(params['ways'])
 
     # Evaluate the model at every checkpoint
@@ -110,9 +116,9 @@ def run_maml(path, params, test_tasks, device):
                     params['ways'], params['shots'], rep_params=rep_params)
 
 
-def anil(path, params, test_tasks, device):
+def run_anil(params, test_tasks, device):
     # ANIL
-    if "omni" in path:
+    if 'omni' == params['dataset']:
         fc_neurons = 128
         features = l2l.vision.models.ConvBase(output_size=64, hidden=32, channels=1, max_pool=False)
     else:
@@ -202,7 +208,7 @@ def evaluate_anil(params, features, head, test_tasks, device, features_path, hea
 
 if __name__ == '__main__':
     run(base_path)
-
+    exit()
     # MIN
 
     # ANIL 5w1s

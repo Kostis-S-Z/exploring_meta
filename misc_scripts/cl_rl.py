@@ -15,41 +15,43 @@ from sklearn import preprocessing
 
 from utils import calc_cl_metrics, make_env
 from core_functions.rl import vpg_a2c_loss, trpo_update, single_ppo_update, get_ep_successes, get_success_per_ep, \
-    ML10_eval_task_names
+    ML10_eval_task_names, ML10_train_task_names
 from core_functions.runner import Runner
 
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
+from collections import defaultdict
 
 
-def run_cl_rl_exp(path, env_name, policy, baseline, cl_params, workers, plots=False):
+def run_cl_rl_exp(path, env_name, policy, baseline, cl_params, workers, plots=False, test_on_train=False):
     cl_path = path + '/cl_exp'
     if not os.path.isdir(cl_path):
         os.mkdir(cl_path)
 
-    env = make_env(env_name, workers, cl_params['seed'], test=True, max_path_length=cl_params['max_path_length'])
+    if test_on_train:
+        ML10_task_names = ML10_train_task_names
+        test = False
+    else:
+        ML10_task_names = ML10_eval_task_names
+        test = True
+
+    n_tasks = len(ML10_task_names)
+
+    env = make_env(env_name, workers, cl_params['seed'], test=test, max_path_length=cl_params['max_path_length'])
 
     # Matrix R NxN of rewards / success rates in tasks j after trained on a tasks i
     # (x_axis = test tasks, y_axis = train tasks)
-    rew_matrix = np.zeros((cl_params['n_tasks'], cl_params['n_tasks']))
-    suc_matrix = np.zeros((cl_params['n_tasks'], cl_params['n_tasks']))
+    rew_matrix = np.zeros((n_tasks, n_tasks))
+    suc_matrix = np.zeros((n_tasks, n_tasks))
 
-    # Sample tasks
-    # Randomly
-    tasks = env.sample_tasks(cl_params['n_tasks'])
-    # Manually set goals in case of a single task e.g ML1_Push
-    if 'ML1_' in env_name:
-        tasks[0]['goal'] = 0
-        tasks[1]['goal'] = 1
-        tasks[2]['goal'] = 2
-        tasks[3]['goal'] = 3
-        tasks[4]['goal'] = 4
+    # Sample tasks randomly
+    tasks = sample_from_each_task(env)
 
     rew_adapt_progress = {}
     suc_adapt_progress = {}
 
     for i, train_task in enumerate(tasks):
-        print(f'Adapting on Task {i}: {ML10_eval_task_names[train_task["task"]]} '
+        print(f'Adapting on Task {i}: {ML10_task_names[train_task["task"]]} '
               f'and goal {train_task["goal"]}', end='...')
         learner = deepcopy(policy)
         env.set_task(train_task)
@@ -92,7 +94,7 @@ def run_cl_rl_exp(path, env_name, policy, baseline, cl_params, workers, plots=Fa
 
         # Evaluate on all tasks
         for j, valid_task in enumerate(tasks):
-            print(f'\tEvaluating on Task {j}: {ML10_eval_task_names[valid_task["task"]]} '
+            print(f'\tEvaluating on Task {j}: {ML10_task_names[valid_task["task"]]} '
                   f'and goal {valid_task["goal"]}...', end='\t')
             evaluator = learner.clone()
             env.set_task(valid_task)
@@ -180,3 +182,17 @@ def plot_task_res(matrix, y_title='Reward'):
         plt.plot(x_axis, y_title, label=f'Tr_task_{i + 1}', marker='o', alpha=0.5)
     plt.legend()
     plt.show()
+
+
+def sample_from_each_task(env):
+    task_list = env.sample_tasks(50)
+    check = defaultdict(list)
+    for i, k in enumerate(task_list):
+        check[k['task']] += [i]
+
+    final_task_list = []
+    for key, val in check.items():
+        for sample in val[:1]:
+            final_task_list.append(task_list[sample])
+
+    return final_task_list
