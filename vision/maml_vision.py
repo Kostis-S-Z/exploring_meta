@@ -9,7 +9,7 @@ from tqdm import trange
 import learn2learn as l2l
 
 from utils import *
-from core_functions.vision import fast_adapt, evaluate
+from core_functions.vision import fast_adapt, evaluate, OmniglotCNN, MiniImagenetCNN
 
 params = {
     "ways": 5,
@@ -64,15 +64,12 @@ class MamlVision(Experiment):
         if dataset == "omni":
             train_tasks, valid_tasks, test_tasks = get_omniglot(self.params['ways'], self.params['shots'])
             if omni_cnn:
-                model = l2l.vision.models.OmniglotCNN(self.params['ways'])
+                model = OmniglotCNN(self.params['ways'])
                 self.params['model_type'] = 'omni_CNN'
-            else:
-                model = l2l.vision.models.OmniglotFC(28 ** 2, self.params['ways'])
-                self.params['model_type'] = 'omni_FC'
             input_shape = (1, 28, 28)
         elif dataset == "min":
             train_tasks, valid_tasks, test_tasks = get_mini_imagenet(self.params['ways'], self.params['shots'])
-            model = l2l.vision.models.MiniImagenetCNN(self.params['ways'])
+            model = MiniImagenetCNN(self.params['ways'])
             input_shape = (3, 84, 84)
         else:
             print("Dataset not supported")

@@ -7,7 +7,7 @@ import torch
 import learn2learn as l2l
 
 from utils import get_mini_imagenet, get_omniglot
-from core_functions.vision import evaluate
+from core_functions.vision import evaluate, OmniglotCNN, MiniImagenetCNN, ConvBase
 from misc_scripts import run_cl_exp, run_rep_exp
 
 cuda = True
@@ -71,10 +71,10 @@ def run(path):
 def run_maml(params, test_tasks, device):
     if 'min' == params['dataset']:
         print('Loading Mini-ImageNet model')
-        model = l2l.vision.models.MiniImagenetCNN(params['ways'])
+        model = MiniImagenetCNN(params['ways'])
     else:
         print('Loading Omniglot model')
-        model = l2l.vision.models.OmniglotCNN(params['ways'])
+        model = OmniglotCNN(params['ways'])
 
     # Evaluate the model at every checkpoint
     if eval_iters:
@@ -120,10 +120,10 @@ def run_anil(params, test_tasks, device):
     # ANIL
     if 'omni' == params['dataset']:
         fc_neurons = 128
-        features = l2l.vision.models.ConvBase(output_size=64, hidden=32, channels=1, max_pool=False)
+        features = ConvBase(output_size=64, hidden=32, channels=1, max_pool=False)
     else:
         fc_neurons = 1600
-        features = l2l.vision.models.ConvBase(output_size=64, channels=3, max_pool=True)
+        features = ConvBase(output_size=64, channels=3, max_pool=True)
     features = torch.nn.Sequential(features, Lambda(lambda x: x.view(-1, fc_neurons)))
     head = torch.nn.Linear(fc_neurons, params['ways'])
     head = l2l.algorithms.MAML(head, lr=params['inner_lr'])

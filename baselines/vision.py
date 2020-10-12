@@ -6,10 +6,8 @@ import torch
 import numpy as np
 from tqdm import trange
 
-import learn2learn as l2l
-
 from utils import Experiment, get_omniglot, get_mini_imagenet
-from core_functions.vision import accuracy, evaluate
+from core_functions.vision import accuracy, evaluate, OmniglotCNN, MiniImagenetCNN
 
 params = {
     "ways": 5,
@@ -23,7 +21,6 @@ params = {
 
 
 dataset = "min"  # omni or min (omniglot / Mini ImageNet)
-omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choose from
 
 log_validation = False
 cl_test = False
@@ -53,16 +50,12 @@ class VisionBaseline(Experiment):
         # Fetch data as tasks
         if dataset == "omni":
             train_tasks, valid_tasks, test_tasks = get_omniglot(self.params['ways'], self.params['shots'])
-            if omni_cnn:
-                model = l2l.vision.models.OmniglotCNN(self.params['ways'])
-                self.params['model_type'] = 'omni_CNN'
-            else:
-                model = l2l.vision.models.OmniglotFC(28 ** 2, self.params['ways'])
-                self.params['model_type'] = 'omni_FC'
+            model = OmniglotCNN(self.params['ways'])
+            self.params['model_type'] = 'omni_CNN'
             input_shape = (1, 28, 28)
         elif dataset == "min":
             train_tasks, valid_tasks, test_tasks = get_mini_imagenet(self.params['ways'], self.params['shots'])
-            model = l2l.vision.models.MiniImagenetCNN(self.params['ways'])
+            model = MiniImagenetCNN(self.params['ways'])
             input_shape = (3, 84, 84)
         else:
             print("Dataset not supported")
