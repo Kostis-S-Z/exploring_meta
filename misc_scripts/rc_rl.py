@@ -97,16 +97,17 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
     # column 0: adaptation results, column 1: init results
     # acc_results = np.zeros((rep_params['n_tasks'], 2))
     # Create a dictionary of layer : results for each metric (e.g cca_results["0"] = [0.3, 0.2, 0.1])
-    # cca_results = {str(layer): [] for layer in rep_params['layers']}
+    cca_results = {str(layer): [] for layer in rep_params['layers']}
     # cka_l_results = {str(layer): [] for layer in rep_params['layers']}
     # cka_k_results = {str(layer): [] for layer in rep_params['layers']}
 
     env = make_env(env_name, 1, rep_params['seed'], max_path_length=rep_params['max_path_length'])
-
     tasks = env.sample_tasks(rep_params['n_tasks'])
 
+    # Measure changes (mean and variance) of a specific layer across steps from the initial model and ith model
     init_mean = defaultdict(list)
     init_var = defaultdict(list)
+    # Measure changes (mean and variance) of a specific layer across steps from the (i-1)th model and ith model
     adapt_mean = defaultdict(list)
     adapt_var = defaultdict(list)
 
@@ -117,7 +118,7 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
         env.reset()
         task_i = Runner(env)
 
-        before_adapt_model = deepcopy(policy)
+        before_adapt_model = deepcopy(policy)  # for step 0: before adapt == init model
         after_adapt_model = deepcopy(policy)
 
         for step in range(rep_params['adapt_steps']):
@@ -137,29 +138,34 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
                                                 rep_params['inner_lr'], rep_params['gamma'], rep_params['tau'],
                                                 anil=rep_params['anil'])
 
-            # Compare representations with initial model
-            init_mean_change, init_var_change = episode_mean_var(adapt_ep, init_model, after_adapt_model)
-            # Compare representations before & after adaptation
-            adapt_mean_change, adapt_var_change = episode_mean_var(adapt_ep, before_adapt_model, after_adapt_model)
+            """ ACROSS LAYERS """
+            layer_changes = change_across_layers(rep_params['layers'], adapt_ep, before_adapt_model, after_adapt_model)
 
-            print(f'\nSimilarity between initial and adapted model after {step + 1} steps:'
-                  f'\n\t mean: {init_mean_change} | var: {init_var_change}'
-                  f'\nSimilarity between before & after 1 adaptation step model:'
-                  f'\n\t mean: {adapt_mean_change} | var: {adapt_var_change}')
+            """ ACROSS STEPS """
+            i_m_change, i_v_change, a_m_change, a_v_change = change_across_steps(adapt_ep, init_model,
+                                                                                 before_adapt_model, after_adapt_model,
+                                                                                 step)
             for metric in metrics:
-                init_mean[metric] += [init_mean_change[metric]]
-                init_var[metric] += [init_var_change[metric]]
-                adapt_mean[metric] += [adapt_mean_change[metric]]
-                adapt_var[metric] += [adapt_var_change[metric]]
+                init_mean[metric] += [i_m_change[metric]]
+                init_var[metric] += [i_v_change[metric]]
+                adapt_mean[metric] += [a_m_change[metric]]
+                adapt_var[metric] += [a_v_change[metric]]
 
             before_adapt_model = after_adapt_model.clone()
 
+    """ ACROSS LAYERS """
     for metric in metrics:
-        plot_sim(init_mean[metric], init_var[metric], metric=metric, title='Similarity between init and adapted (in %)')
+        plot_sim_across_layers(layer_changes, metric)
+    exit()
 
-    for metric in metrics:
-        difference = [1 - x for x in adapt_mean[metric]]
-        plot_sim(difference, adapt_var[metric], metric=metric, title='Representation difference after each step (in %)')
+    """ ACROSS STEPS """
+    # for metric in metrics:
+    #     plot_sim_across_steps(init_mean[metric], init_var[metric], metric=metric,
+    #                           title='Similarity between init and adapted (in %)')
+    #     difference = [1 - x for x in adapt_mean[metric]]
+    #     plot_sim_across_steps(difference, adapt_var[metric], metric=metric,
+    #                           title='Representation difference after each step (in %)')
+
     """
     print("We expect that column 0 has higher values than column 1")
     print(acc_results)
@@ -194,6 +200,28 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
         json.dump(rep_params, fp, sort_keys=True, indent=4)
 
     return 0
+
+
+def change_across_layers(layers, adapt_ep, before_adapt_model, after_adapt_model):
+    layer_changes = {}
+    for layer in layers:
+        # Compare representations with initial model
+        m, v = episode_mean_var(adapt_ep, before_adapt_model, after_adapt_model, layer)
+        layer_changes[layer] = [m, v]
+
+    return layer_changes
+
+
+def change_across_steps(adapt_ep, init_model, before_adapt_model, after_adapt_model, step):
+    # Compare representations with initial model
+    init_mean_change, init_var_change = episode_mean_var(adapt_ep, init_model, after_adapt_model)
+    # Compare representations before & after adaptation
+    adapt_mean_change, adapt_var_change = episode_mean_var(adapt_ep, before_adapt_model, after_adapt_model)
+    print(f'\nSimilarity between initial and adapted model after {step + 1} steps:'
+          f'\n\t mean: {init_mean_change} | var: {init_var_change}'
+          f'\nSimilarity between before & after 1 adaptation step model:'
+          f'\n\t mean: {adapt_mean_change} | var: {adapt_var_change}')
+    return init_mean_change, init_var_change, adapt_mean_change, adapt_var_change
 
 
 def episode_mean_var(episode, model_1, model_2, layer=3):
@@ -294,16 +322,34 @@ def measure_change_through_time(path, env_name, policy, rep_params):
         prev_policy = chckpnt_policy
 
     for metric in metrics:
-        plot_sim(init_change_m[metric], init_change_v[metric], metric=metric,
-                 title='Similarity between init and adapted (in %)')
+        plot_sim_across_steps(init_change_m[metric], init_change_v[metric], metric=metric,
+                              title='Similarity between init and adapted (in %)')
 
     for metric in metrics:
         difference = [1 - x for x in adapt_change_m[metric]]
-        plot_sim(difference, adapt_change_v[metric], metric=metric,
-                 title='Representation difference after each step (in %)')
+        plot_sim_across_steps(difference, adapt_change_v[metric], metric=metric,
+                              title='Representation difference after each step (in %)')
 
 
-def plot_sim(r_mean, r_var, metric='CCA', title=''):
+def plot_sim_across_layers(layer_changes, metric='CCA', title=''):
+    plt.figure().gca().xaxis.set_major_locator(MaxNLocator(integer=True))  # Set integers only in x ticks
+
+    plt.title(title)
+    plt.xlabel('Layers')
+    plt.ylabel(f'{metric} Similarity')
+
+    from collections import OrderedDict
+    layer_changes = OrderedDict(sorted(layer_changes.items(), reverse=True))
+    x_axis = range(len(layer_changes.keys()))
+    plt.xticks(x_axis, ('L1', 'L2', 'Head'))
+    y_axis_mean = [e[0][metric] for e in layer_changes.values()]
+    y_err_var = [e[1][metric] for e in layer_changes.values()]
+    plt.errorbar(x_axis, y_axis_mean, yerr=y_err_var, marker='o')
+    # plt.legend()
+    plt.show()
+
+
+def plot_sim_across_steps(r_mean, r_var, metric='CCA', title=''):
     plt.figure().gca().xaxis.set_major_locator(MaxNLocator(integer=True))  # Set integers only in x ticks
 
     plt.title(title)
