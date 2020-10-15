@@ -23,6 +23,7 @@ base = '/home/kosz/Projects/KTH/Thesis/models/rl/ML10/final/'
 # MODEL PATH
 # model_path = 'anil_trpo_ML10_30_06_16h37_42_363'
 model_path = 'maml_trpo_ML10_30_06_16h36_42_2714'
+# model_path = 'ppo_ML10_04_06_18h37_42_6537'
 
 path = base + model_path
 checkpoint = None  # or choose a number
@@ -34,7 +35,7 @@ each3 = True  # Sample 3 of each task
 workers = 1
 render = False  # Rendering doesn't work with parallel async envs, use 1 worker
 
-EVALUATE = True  # Standard meta-testing
+EVALUATE = False  # Standard meta-testing
 eval_params = {
     'adapt_steps': 1,  # Number of steps to adapt to a new task
     'adapt_batch_size': 10,  # Number of shots per task
@@ -43,25 +44,25 @@ eval_params = {
     'tau': 1.0,
     'max_path_length': 150,
     'n_tasks': 20,  # Number of different tasks to evaluate on
-    'seed': 1
+    'ppo_epochs': 3,
+    'ppo_clip_ratio': 0.1
 }
 
 RUN_CL = False  # Continual Learning experiment
 cl_params = {
     'max_path_length': 150,
     'normalize_rewards': False,
-    'adapt_steps': 5,
-    'adapt_batch_size': 20,
-    'eval_batch_size': 10,
-    'inner_lr': 0.01,
+    'adapt_steps': 3,
+    'adapt_batch_size': 10,
+    'eval_batch_size': 20,
+    'inner_lr': 0.001,
     'gamma': 0.99,
     'tau': 1.0,
-    'seed': 42,
 }
 
 RUN_RC = False  # Representation Change experiment
 rep_params = {
-    'metrics': ['CCA', 'CKA_L', 'CKA_K'],  # CCA, CKA_L, CKA_K
+    'metrics': ['CCA'],  # CCA, CKA_L, CKA_K
     'max_path_length': 150,
     'adapt_steps': 1,
     'adapt_batch_size': 10,
@@ -69,8 +70,8 @@ rep_params = {
     'gamma': 0.99,
     'tau': 1.0,
     'n_tasks': 1,
+    'eval_each_task': True,  # If true ignore, n_tasks
     'layers': [2, 4, -1],  # 1/3: Linear output, 2/4: ReLU output
-    'seed': 42,
 }
 
 
@@ -88,6 +89,9 @@ def run():
         params['gamma'] = 0.99
         params['seed'] = 42
 
+    eval_params['seed'] = params['seed']
+    cl_params['seed'] = params['seed']
+    rep_params['seed'] = params['seed']
     algo = params['algo']
     env_name = params['dataset']
 
@@ -96,7 +100,7 @@ def run():
     if 'maml' in algo or 'anil' in algo:
         ml_algo = params['algo'].split('_')[0]
         rl_algo = params['algo'].split('_')[1]
-    elif 'random' == algo:
+    elif 'ppo' == algo or 'random' == algo:
         ml_algo = ''
         rl_algo = 'ppo'
     else:
@@ -118,11 +122,11 @@ def run():
 
     if checkpoint is None:
         baseline_path = path + '/baseline.pt'
-        if ml_algo == 'maml':
-            policy_path = path + '/model.pt'
-        else:
+        if ml_algo == 'anil':
             head_path = path + '/head.pt'
             body_path = path + '/body.pt'
+        else:
+            policy_path = path + '/model.pt'
     else:
         baseline_path = path + f'/model_checkpoints/model_baseline_{checkpoint}.pt'
         if ml_algo == 'maml':
@@ -140,20 +144,20 @@ def run():
     baseline.load_state_dict(torch.load(baseline_path))
     baseline.to(device)
 
-    if ml_algo == 'maml':
-        policy = DiagNormalPolicy(state_size, action_size)
-        policy.load_state_dict(torch.load(policy_path))
-    else:
+    if ml_algo == 'anil':
         policy = DiagNormalPolicyANIL(state_size, action_size, params['fc_neurons'])
         policy.head.load_state_dict(torch.load(head_path))
         policy.body.load_state_dict(torch.load(body_path))
+    else:
+        policy = DiagNormalPolicy(state_size, action_size)
+        policy.load_state_dict(torch.load(policy_path))
 
     policy = MAML(policy, lr=eval_params['inner_lr'])
     policy.to(device)
 
     print(f'Testing {ml_algo}-{rl_algo} on {env_name}')
     if EVALUATE:
-        t_test = 'train' if test_on_train else 'est'
+        t_test = 'train' if test_on_train else 'test'
         test_rewards, av_test_rew, av_test_suc, res_per_task = evaluate(rl_algo, env_name, policy, baseline,
                                                                         eval_params, anil=anil, render=render,
                                                                         test_on_train=test_on_train, each3=each3)
