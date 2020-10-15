@@ -21,7 +21,7 @@ from matplotlib.ticker import MaxNLocator
 from core_functions.policies import DiagNormalPolicy
 from learn2learn.algorithms import MAML
 
-from core_functions.rl import vpg_a2c_loss, trpo_update, single_ppo_update
+from core_functions.rl import vpg_a2c_loss, trpo_update, single_ppo_update, get_ep_successes, ML10_eval_task_names
 from core_functions.runner import Runner
 from utils import plot_dict
 from utils import get_cca_similarity, get_linear_CKA, get_kernel_CKA
@@ -112,7 +112,7 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
     adapt_var = defaultdict(list)
 
     for task in tasks:
-
+        print(f'Adapting on Task: {ML10_eval_task_names[task["task"]]}')
         # Sample task
         env.set_task(task)
         env.reset()
@@ -124,6 +124,10 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
         for step in range(rep_params['adapt_steps']):
             # Adapt the model to support episodes
             adapt_ep = task_i.run(before_adapt_model, episodes=rep_params['adapt_batch_size'])
+
+            if step == 0:
+                performance_before = get_ep_successes(adapt_ep, rep_params['max_path_length']) / rep_params[
+                    'adapt_batch_size']
 
             if rep_params['algo'] == 'vpg':
                 # Calculate loss & fit the value function
@@ -137,6 +141,9 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
                 after_adapt_model = trpo_update(adapt_ep, after_adapt_model, baseline,
                                                 rep_params['inner_lr'], rep_params['gamma'], rep_params['tau'],
                                                 anil=rep_params['anil'])
+
+            performance_after = get_ep_successes(adapt_ep, rep_params['max_path_length']) / rep_params[
+                'adapt_batch_size']
 
             """ ACROSS LAYERS """
             layer_changes = change_across_layers(rep_params['layers'], adapt_ep, before_adapt_model, after_adapt_model)
@@ -153,10 +160,11 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
 
             before_adapt_model = after_adapt_model.clone()
 
-    """ ACROSS LAYERS """
-    for metric in metrics:
-        plot_sim_across_layers(layer_changes, metric)
-    exit()
+        print(f'Performance before: {performance_before}\nPerformance after: {performance_after}')
+
+        """ ACROSS LAYERS """
+        for metric in metrics:
+            plot_sim_across_layers(layer_changes, metric)
 
     """ ACROSS STEPS """
     # for metric in metrics:
