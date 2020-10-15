@@ -12,12 +12,12 @@ from misc_scripts import run_cl_exp, run_rep_exp
 
 cuda = True
 
-base_path = "/home/kosz/Projects/KTH/Thesis/exploring_meta/vision/results/anil_20w1s_omni_06_09_11h17_3_4772"
-# base_path = "/home/kosz/Projects/KTH/Thesis/exploring_meta/vision/test/maml_5w1s_min_09_10_17h15_42_7327"
-# base_path = "/home/kosz/Projects/KTH/Thesis/exploring_meta/vision/test/maml_5w1s_min_09_10_17h00_42_1871"
-base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/anil_5w5s_min_11_09_00h36_1_6461"
+base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w5s/anil/anil_20w5s_omni_01_04_10h39_1_9166"
+# base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w1s/anil_5w1s_min_10_09_11h06_2_2906"
+# base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/anil_5w5s_min_11_09_00h36_1_6461"
+base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/maml_5w5s_min_31_03_12h54_3_2104"
 
-meta_test = True
+meta_test = False
 eval_iters = False
 cl_exp = False
 rep_exp = True
@@ -25,15 +25,15 @@ rep_exp = True
 cl_params = {
     "adapt_steps": 1,
     "inner_lr": 0.5,
-    "n_tasks": 10
+    "n_tasks": 5
 }
 
 rep_params = {
     "adapt_steps": 1,
     "inner_lr": 0.5,
     "n_tasks": 1,
-    "layers": [1, 6, 11, -1],
-    # "layers": [2, 4]
+    "layers": [1, 2, 3, 4, -1],  # MIN
+    # "layers": [2, 4]  # Omni
 }
 
 
