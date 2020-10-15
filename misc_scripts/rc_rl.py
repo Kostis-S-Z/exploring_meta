@@ -272,7 +272,10 @@ def calculate_rep_change(rep_1, rep_2):
 
 
 def get_state_representation(model, state, layer=3):
-    representation = model.get_representation(state, layer)
+    if layer == -1:
+        representation = model(state)
+    else:
+        representation = model.get_representation(state, layer)
     representation = representation.detach().numpy().reshape(-1, 1)
 
     return representation
