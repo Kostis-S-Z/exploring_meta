@@ -101,8 +101,11 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
     # cka_l_results = {str(layer): [] for layer in rep_params['layers']}
     # cka_k_results = {str(layer): [] for layer in rep_params['layers']}
 
-    env = make_env(env_name, 1, rep_params['seed'], max_path_length=rep_params['max_path_length'])
-    tasks = env.sample_tasks(rep_params['n_tasks'])
+    env = make_env(env_name, 1, rep_params['seed'], test=True, max_path_length=rep_params['max_path_length'])
+    if rep_params['eval_each_task']:
+        tasks = sample_from_each_task(env)
+    else:
+        tasks = env.sample_tasks(rep_params['n_tasks'])
 
     # Measure changes (mean and variance) of a specific layer across steps from the initial model and ith model
     init_mean = defaultdict(list)
@@ -373,3 +376,17 @@ def plot_sim_across_steps(r_mean, r_var, metric='CCA', title=''):
     plt.errorbar(x_axis, y_axis, yerr=y_err, marker='o')
     # plt.legend()
     plt.show()
+
+
+def sample_from_each_task(env):
+    task_list = env.sample_tasks(50)
+    check = defaultdict(list)
+    for i, k in enumerate(task_list):
+        check[k['task']] += [i]
+
+    final_task_list = []
+    for key, val in check.items():
+        for sample in val[:1]:
+            final_task_list.append(task_list[sample])
+
+    return final_task_list
