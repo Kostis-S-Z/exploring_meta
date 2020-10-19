@@ -17,6 +17,7 @@ Setting:
 import os
 import json
 import numpy as np
+import statistics
 from core_functions.vision import accuracy
 from utils import prepare_batch, plot_dict, plot_dict_explicit
 from utils import get_cca_similarity, get_linear_CKA, get_kernel_CKA
@@ -89,14 +90,14 @@ def run_rep_exp(path, model, loss, tasks, device, ways, shots, rep_params=defaul
             # cka_l_results[layer].append(get_linear_CKA(adapted_rep_i, init_rep_i))
             # cka_k_results[layer].append(get_kernel_CKA(adapted_rep_i, init_rep_i))
 
-    # print("We expect that column 0 has higher values than column 1")
-    # print(acc_results)
-    # print("We expect that the values decrease over time?")
-    # print("CCA:", cca_results)
-    # print("We expect that the values decrease over time?")
-    # print("linear CKA:", cka1_results)
-    # print("We expect that the values decrease over time?")
-    # print("Kernerl CKA:", cka2_results)
+    # Average and calculate standard deviation
+    cca_mean = []
+    cca_std = []
+    for layer, values in cca_results.items():
+        mean = statistics.mean(values)
+        std = statistics.stdev(values)
+        cca_mean.append(mean)
+        cca_std.append(std)
 
     cca_plot = dict(title="CCA Evolution",
                     x_legend="Inner loop steps",
@@ -133,7 +134,8 @@ def run_rep_exp(path, model, loss, tasks, device, ways, shots, rep_params=defaul
                       x_legend="Layer",
                       y_legend="CCA similarity",
                       x_axis=x_axis,
-                      y_axis=list(cca_results.values()))
+                      y_axis=cca_mean,
+                      std=cca_std)
 
     cka_plot_2 = dict(title="CKA Evolution layer-wise",
                       x_legend="Layer",
@@ -148,7 +150,6 @@ def run_rep_exp(path, model, loss, tasks, device, ways, shots, rep_params=defaul
 def get_rep_from_batch(model, batch, layer=4):
     if layer == -1:
         representation = model(batch).cpu().detach().numpy()
-        print("hga")
     else:
         representation = model.get_rep_i(batch, layer)
         representation = representation.cpu().detach().numpy()
