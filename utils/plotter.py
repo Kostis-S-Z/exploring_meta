@@ -23,6 +23,7 @@ def plot_dict(a_dict, save=False):
     if save:
         path = a_dict['path']
         plt.savefig(path)
+    plt.legend()
     plt.show()
 
 
@@ -38,6 +39,8 @@ def plot_dict_explicit(a_dict, save=False):
     plt.ylabel(y_legend)
 
     plt.plot(x_axis, y_axis, linestyle='-', marker='o', alpha=0.7)
+    if 'std' in a_dict:
+        plt.errorbar(x_axis, y_axis, yerr=a_dict['std'], fmt='o')
 
     if save:
         path = a_dict['path']
@@ -102,6 +105,8 @@ def bar_plot_ml10(results, path):
 
     plt.xscale('symlog')
     plt.tight_layout()
+    # you can also log the plots into wandb!
+    # wandb.log({'chart':plt})
     plt.savefig(path)
     plt.show()
 
@@ -127,8 +132,7 @@ def bar_plot_ml10_one_task(results):
     ax.set_yticks(y_pos)
     ax.set_yticklabels(y_labels)
     ax.invert_yaxis()  # labels read top-to-bottom
-    ax.set_xlabel('Performance')
-    ax.set_title('How fast do you want to go today?')
+    # ax.set_xlabel('Performance')
 
     plt.show()
 
@@ -139,9 +143,3 @@ def plot_list(a_list, path="plot.png", save=False):
         plt.savefig(path)
     plt.show()
 
-
-def plot_from_json():
-    with open(filename) as f:
-        metrics = json.load(f)
-
-    y_axis = metrics['0']
