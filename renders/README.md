@@ -6,4 +6,6 @@ Performance of MAML-TRPO, ANIL-TRPO and PPO on the Meta-World ML10 tasks. Each a
 | ![alt text][basketball_anil] | ![alt text][basketball_anil] | ![alt text][basketball_anil] |
 |:--:|:--:|:--:| 
 | MAML | ANIL | PPO |
+
+
 [basketball_anil]: https://github.com/Kostis-S-Z/drone-rl/blob/master/drone_agent.gif
