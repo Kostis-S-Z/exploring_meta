@@ -17,12 +17,12 @@ from utils.plotter import bar_plot_ml10, bar_plot_ml10_one_task
 # BASE PATH
 # base = '/home/kosz/Projects/KTH/Thesis/models/rl/Particles2D/'
 # base = '/home/kosz/Projects/KTH/Thesis/models/rl/ML1_Push/'
-base = '/home/kosz/Projects/KTH/Thesis/models/rl/ML10/final/'
-# base = '/home/kosz/Projects/KTH/Thesis/models/rl/ML10/'
 
 # MODEL PATH
+base = '/home/kosz/Projects/KTH/Thesis/models/rl/ML10/final/'
 # model_path = 'anil_trpo_ML10_30_06_16h37_42_363'
 model_path = 'maml_trpo_ML10_30_06_16h36_42_2714'
+# base = '/home/kosz/Projects/KTH/Thesis/models/rl/ML10/'
 # model_path = 'ppo_ML10_04_06_18h37_42_6537'
 
 path = base + model_path
@@ -37,13 +37,16 @@ render = False  # Rendering doesn't work with parallel async envs, use 1 worker
 
 EVALUATE = False  # Standard meta-testing
 eval_params = {
-    'adapt_steps': 1,  # Number of steps to adapt to a new task
-    'adapt_batch_size': 10,  # Number of shots per task
-    'inner_lr': 0.001,
-    'gamma': 0.99,
+    'adapt_steps': 1,  # 1, 5
+    'adapt_batch_size': 10,  # 10, 300
+    'inner_lr': 0.001,  # 0.001 or 0.05
+    'gamma': 0.99,  # 0.99, 0.95
     'tau': 1.0,
     'max_path_length': 150,
-    'n_tasks': 20,  # Number of different tasks to evaluate on
+    # n_tasks: 20 or 'reach' Number of different tasks to evaluate on or explicit state which tasks
+    # When you explicitly state a task to evaluate on, make sure that each3 = False and that the task belongs to the
+    # correct set. e.g 'door-close' is on test set, so you should have test_on_train=False
+    'n_tasks': 20,
     'ppo_epochs': 3,
     'ppo_clip_ratio': 0.1
 }
@@ -52,15 +55,15 @@ RUN_CL = False  # Continual Learning experiment
 cl_params = {
     'max_path_length': 150,
     'normalize_rewards': False,
-    'adapt_steps': 3,
-    'adapt_batch_size': 10,
-    'eval_batch_size': 20,
-    'inner_lr': 0.001,
-    'gamma': 0.99,
+    'adapt_steps': 1,  # 1, 5
+    'adapt_batch_size': 10,  # 10, 300
+    'eval_batch_size': 10,  # 10, 300
+    'inner_lr': 0.001,  # 0.001 or 0.05
+    'gamma': 0.99,   # 0.99, 0.95
     'tau': 1.0,
 }
 
-RUN_RC = False  # Representation Change experiment
+RUN_RC = True  # Representation Change experiment
 rep_params = {
     'metrics': ['CCA'],  # CCA, CKA_L, CKA_K
     'max_path_length': 150,
