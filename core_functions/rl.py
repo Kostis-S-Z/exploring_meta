@@ -124,6 +124,20 @@ def sample_3_from_each_task(env):
     return final_task_list
 
 
+def sample_explicit_task(env, task):
+    # one liner to fetch the key from the dictionary based on the value
+    if task in ML10_eval_task_names.values():
+        task_index = list(ML10_eval_task_names.keys())[list(ML10_eval_task_names.values()).index(task)]
+    else:
+        task_index = list(ML10_train_task_names.keys())[list(ML10_train_task_names.values()).index(task)]
+    # Get a sufficient large enough pool of tasks (this is computationally negligible)
+    task_list = env.sample_tasks(100)
+    for t in task_list:
+        if t['task'] == task_index:
+            return t
+    return None
+
+
 def evaluate(algo, env_name, policy, baseline, params, anil, render=False, test_on_train=False, each3=False):
     rewards_per_task = defaultdict(list)
     tasks_rewards = []
@@ -140,6 +154,8 @@ def evaluate(algo, env_name, policy, baseline, params, anil, render=False, test_
     if each3:
         # Overwrite number of tasks and just sample 3 trials from each task
         eval_task_list = sample_3_from_each_task(env)
+    elif isinstance(params['n_tasks'], str):
+        eval_task_list = [sample_explicit_task(env, params['n_tasks'])]
     else:
         eval_task_list = env.sample_tasks(params['n_tasks'])
 
