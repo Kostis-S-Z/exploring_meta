@@ -179,12 +179,13 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
     """ ACROSS LAYERS AVERAGE """
     for layer, changes in av_layer_changes_mean.items():
         av_layer_changes_mean[layer] = statistics.mean(changes)
-        av_layer_changes_std[layer] = statistics.mean(av_layer_changes_std[layer])
+        av_layer_changes_std[layer] = statistics.stdev(changes)
 
     print(av_layer_changes_mean)
     print(av_layer_changes_std)
 
-    plot_sim_across_layers_average(av_layer_changes_mean, av_layer_changes_std)
+    plot_sim_across_layers_average(av_layer_changes_mean, av_layer_changes_std,
+                                   title='Before / After adaptation on the ML10 test tasks')
     """ ACROSS STEPS """
     # for metric in metrics:
     #     plot_sim_across_steps(init_mean[metric], init_var[metric], metric=metric,
@@ -371,22 +372,20 @@ def plot_sim_across_layers(changes_per_layer, metric='CCA', title=''):
 
 
 def plot_sim_across_layers_average(changes_per_layer_mean, changes_per_layer_std, title=''):
-    _, ax = plt.subplot()
+    # Order layers for clear visibility
+    changes_per_layer_m = OrderedDict(sorted(changes_per_layer_mean.items(), reverse=True))
+    changes_per_layer_s = OrderedDict(sorted(changes_per_layer_std.items(), reverse=True))
+    x_axis = range(len(changes_per_layer_m.keys()))
+    y_axis_mean = list(changes_per_layer_m.values())
+    y_err_var = list(changes_per_layer_s.values())
+
     plt.figure().gca().xaxis.set_major_locator(MaxNLocator(integer=True))  # Set integers only in x ticks
 
     plt.title(title)
     plt.xlabel('Layers')
     plt.ylabel(f'CCA Similarity')
-
-    # Order layers for clear visibility
-    changes_per_layer_m = OrderedDict(sorted(changes_per_layer_mean.items(), reverse=True))
-    changes_per_layer_s = OrderedDict(sorted(changes_per_layer_std.items(), reverse=True))
-    x_axis = range(len(changes_per_layer_m.keys()))
-    # plt.xticks(x_axis, ('L1', 'L2', 'Head'))
-    y_axis_mean = list(changes_per_layer_m.values())
-    y_err_var = list(changes_per_layer_s.values())
+    plt.xticks(x_axis, ('L1', 'L2', 'Head'))
     plt.errorbar(x_axis, y_axis_mean, yerr=y_err_var, marker='o')
-    ax.set_ylim([0, 1.0])
     # plt.legend()
     plt.show()
 
