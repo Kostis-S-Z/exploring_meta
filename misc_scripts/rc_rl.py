@@ -11,9 +11,10 @@ Setting:
 import os
 import json
 import numpy as np
+import statistics
 import torch
 from copy import deepcopy
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
@@ -98,8 +99,8 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
     # acc_results = np.zeros((rep_params['n_tasks'], 2))
     # Create a dictionary of layer : results for each metric (e.g cca_results["0"] = [0.3, 0.2, 0.1])
     cca_results = {str(layer): [] for layer in rep_params['layers']}
-    # cka_l_results = {str(layer): [] for layer in rep_params['layers']}
-    # cka_k_results = {str(layer): [] for layer in rep_params['layers']}
+    cka_l_results = {str(layer): [] for layer in rep_params['layers']}
+    cka_k_results = {str(layer): [] for layer in rep_params['layers']}
 
     env = make_env(env_name, 1, rep_params['seed'], test=True, max_path_length=rep_params['max_path_length'])
     if rep_params['eval_each_task']:
@@ -113,6 +114,10 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
     # Measure changes (mean and variance) of a specific layer across steps from the (i-1)th model and ith model
     adapt_mean = defaultdict(list)
     adapt_var = defaultdict(list)
+
+    # Average layer changes across all tasks
+    av_layer_changes_mean = defaultdict(list)
+    av_layer_changes_std = defaultdict(list)
 
     for task in tasks:
         print(f'Adapting on Task: {ML10_eval_task_names[task["task"]]}')
@@ -148,9 +153,6 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
             performance_after = get_ep_successes(adapt_ep, rep_params['max_path_length']) / rep_params[
                 'adapt_batch_size']
 
-            """ ACROSS LAYERS """
-            layer_changes = change_across_layers(rep_params['layers'], adapt_ep, before_adapt_model, after_adapt_model)
-
             """ ACROSS STEPS """
             i_m_change, i_v_change, a_m_change, a_v_change = change_across_steps(adapt_ep, init_model,
                                                                                  before_adapt_model, after_adapt_model,
@@ -163,12 +165,26 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
 
             before_adapt_model = after_adapt_model.clone()
 
+        """ ACROSS LAYERS """
+        layer_changes = change_across_layers(rep_params['layers'], adapt_ep, before_adapt_model, after_adapt_model)
+        for layer, changes in layer_changes.items():
+            av_layer_changes_mean[layer] += [changes[0]['CCA']]
+            av_layer_changes_std[layer] += [changes[1]['CCA']]
         print(f'Performance before: {performance_before}\nPerformance after: {performance_after}')
 
-        """ ACROSS LAYERS """
-        for metric in metrics:
-            plot_sim_across_layers(layer_changes, metric)
+        """ ACROSS LAYERS PER TASK """
+        # for metric in metrics:
+        #     plot_sim_across_layers(layer_changes, metric)
 
+    """ ACROSS LAYERS AVERAGE """
+    for layer, changes in av_layer_changes_mean.items():
+        av_layer_changes_mean[layer] = statistics.mean(changes)
+        av_layer_changes_std[layer] = statistics.mean(av_layer_changes_std[layer])
+
+    print(av_layer_changes_mean)
+    print(av_layer_changes_std)
+
+    plot_sim_across_layers_average(av_layer_changes_mean, av_layer_changes_std)
     """ ACROSS STEPS """
     # for metric in metrics:
     #     plot_sim_across_steps(init_mean[metric], init_var[metric], metric=metric,
@@ -178,15 +194,6 @@ def run_rep_rl_exp(path, env_name, policy, baseline, rep_params):
     #                           title='Representation difference after each step (in %)')
 
     """
-    print("We expect that column 0 has higher values than column 1")
-    print(acc_results)
-    print("We expect that the values decrease over time?")
-    print("CCA:", cca_results)
-    print("We expect that the values decrease over time?")
-    print("linear CKA:", cka1_results)
-    print("We expect that the values decrease over time?")
-    print("Kernerl CKA:", cka2_results)
-
     cca_plot = dict(title="CCA Evolution",
                     x_legend="Inner loop steps",
                     y_legend="CCA similarity",
@@ -240,7 +247,7 @@ def episode_mean_var(episode, model_1, model_2, layer=3):
     Find the mean & variance of the representation difference
     between two models in a series of states of an episode.
     """
-    results = defaultdict(list)
+    episode_results = defaultdict(list)
     for state in episode.state():
         rep_1 = get_state_representation(model_1, state, layer)
         rep_2 = get_state_representation(model_2, state, layer)
@@ -249,13 +256,13 @@ def episode_mean_var(episode, model_1, model_2, layer=3):
 
         # Append results to dictionary with list for each metric
         for metric, value in result.items():
-            results[metric] += [value]
+            episode_results[metric] += [value]
 
     mean = {}
     var = {}
-    for metric, values in results.items():
-        mean[metric] = np.mean(values)
-        var[metric] = np.var(values)
+    for metric, values in episode_results.items():
+        mean[metric] = statistics.mean(values)
+        var[metric] = statistics.stdev(values)
         # print(f'{metric} mean: {mean[metric]}')
         # print(f'{metric} var: {var[metric]}')
 
@@ -263,22 +270,22 @@ def episode_mean_var(episode, model_1, model_2, layer=3):
 
 
 def calculate_rep_change(rep_1, rep_2):
-    results = {}
+    change_results = {}
     if 'CCA' in metrics:
-        results['CCA'] = get_cca_similarity(rep_1.T, rep_2.T, epsilon=1e-10)[1]
+        change_results['CCA'] = get_cca_similarity(rep_1.T, rep_2.T, epsilon=1e-10)[1]
     if 'CKA_L' in metrics:
-        results['CKA_L'] = get_linear_CKA(rep_1, rep_2)
+        change_results['CKA_L'] = get_linear_CKA(rep_1, rep_2)
     if 'CKA_K' in metrics:
-        results['CKA_K'] = get_kernel_CKA(rep_1, rep_2)
+        change_results['CKA_K'] = get_kernel_CKA(rep_1, rep_2)
 
-    return results
+    return change_results
 
 
-def get_state_representation(model, state, layer=3):
-    if layer == -1:
+def get_state_representation(model, state, layer_i=3):
+    if layer_i == -1:
         representation = model(state)
     else:
-        representation = model.get_representation(state, layer)
+        representation = model.get_representation(state, layer_i)
     representation = representation.detach().numpy().reshape(-1, 1)
 
     return representation
@@ -345,20 +352,41 @@ def measure_change_through_time(path, env_name, policy, rep_params):
                               title='Representation difference after each step (in %)')
 
 
-def plot_sim_across_layers(layer_changes, metric='CCA', title=''):
+def plot_sim_across_layers(changes_per_layer, metric='CCA', title=''):
     plt.figure().gca().xaxis.set_major_locator(MaxNLocator(integer=True))  # Set integers only in x ticks
 
     plt.title(title)
     plt.xlabel('Layers')
     plt.ylabel(f'{metric} Similarity')
 
-    from collections import OrderedDict
-    layer_changes = OrderedDict(sorted(layer_changes.items(), reverse=True))
-    x_axis = range(len(layer_changes.keys()))
+    # Order layers for clear visibility
+    changes_per_layer = OrderedDict(sorted(changes_per_layer.items(), reverse=True))
+    x_axis = range(len(changes_per_layer.keys()))
     plt.xticks(x_axis, ('L1', 'L2', 'Head'))
-    y_axis_mean = [e[0][metric] for e in layer_changes.values()]
-    y_err_var = [e[1][metric] for e in layer_changes.values()]
+    y_axis_mean = [e[0][metric] for e in changes_per_layer.values()]
+    y_err_var = [e[1][metric] for e in changes_per_layer.values()]
     plt.errorbar(x_axis, y_axis_mean, yerr=y_err_var, marker='o')
+    # plt.legend()
+    plt.show()
+
+
+def plot_sim_across_layers_average(changes_per_layer_mean, changes_per_layer_std, title=''):
+    _, ax = plt.subplot()
+    plt.figure().gca().xaxis.set_major_locator(MaxNLocator(integer=True))  # Set integers only in x ticks
+
+    plt.title(title)
+    plt.xlabel('Layers')
+    plt.ylabel(f'CCA Similarity')
+
+    # Order layers for clear visibility
+    changes_per_layer_m = OrderedDict(sorted(changes_per_layer_mean.items(), reverse=True))
+    changes_per_layer_s = OrderedDict(sorted(changes_per_layer_std.items(), reverse=True))
+    x_axis = range(len(changes_per_layer_m.keys()))
+    # plt.xticks(x_axis, ('L1', 'L2', 'Head'))
+    y_axis_mean = list(changes_per_layer_m.values())
+    y_err_var = list(changes_per_layer_s.values())
+    plt.errorbar(x_axis, y_axis_mean, yerr=y_err_var, marker='o')
+    ax.set_ylim([0, 1.0])
     # plt.legend()
     plt.show()
 
