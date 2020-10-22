@@ -61,36 +61,36 @@ Performance of MAML-TRPO, ANIL-TRPO and PPO on the Meta-World ML10 tasks. Each a
 | MAML-TRPO | ANIL-TRPO | PPO |
 
 
-[basketball_maml]: https://github.com/Kostis-S-Z/exploring_meta/renders/basketball_maml_1step.gif
-[basketball_anil]: https://github.com/Kostis-S-Z/exploring_meta/renders/basketball_anil_1step.gif
-[basketball_ppo]: https://github.com/Kostis-S-Z/exploring_meta/renders/basketball_ppo_1step.gif
+[basketball_maml]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/basketball_maml_1step.gif
+[basketball_anil]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/basketball_anil_1step.gif
+[basketball_ppo]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/basketball_ppo_1step.gif
 
 
-[basketball_maml]: https://github.com/Kostis-S-Z/exploring_meta/renders/door_open_maml_1step.gif
-[basketball_anil]: https://github.com/Kostis-S-Z/exploring_meta/renders/door_open_anil_1step.gif
-[basketball_ppo]: https://github.com/Kostis-S-Z/exploring_meta/renders/door_open_ppo_1step.gif
+[basketball_maml]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/door_open_maml_1step.gif
+[basketball_anil]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/door_open_anil_1step.gif
+[basketball_ppo]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/door_open_ppo_1step.gif
 
 
-[basketball_maml]: https://github.com/Kostis-S-Z/exploring_meta/renders/door_close_maml_1step.gif
-[basketball_anil]: https://github.com/Kostis-S-Z/exploring_meta/renders/door_close_anil_1step.gif
-[basketball_ppo]: https://github.com/Kostis-S-Z/exploring_meta/renders/door_close_ppo_1step.gif
+[basketball_maml]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/door_close_maml_1step.gif
+[basketball_anil]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/door_close_anil_1step.gif
+[basketball_ppo]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/door_close_ppo_1step.gif
 
 
-[basketball_maml]: https://github.com/Kostis-S-Z/exploring_meta/renders/peg_insert_side_maml_1step.gif
-[basketball_anil]: https://github.com/Kostis-S-Z/exploring_meta/renders/peg_insert_side_anil_1step.gif
-[basketball_ppo]: https://github.com/Kostis-S-Z/exploring_meta/renders/peg_insert_side_ppo_1step.gif
+[basketball_maml]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/peg_insert_side_maml_1step.gif
+[basketball_anil]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/peg_insert_side_anil_1step.gif
+[basketball_ppo]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/peg_insert_side_ppo_1step.gif
 
 
-[basketball_maml]: https://github.com/Kostis-S-Z/exploring_meta/renders/window_open_maml_1step.gif
-[basketball_anil]: https://github.com/Kostis-S-Z/exploring_meta/renders/window_open_anil_1step.gif
-[basketball_ppo]: https://github.com/Kostis-S-Z/exploring_meta/renders/window_open_ppo_1step.gif
+[basketball_maml]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/window_open_maml_1step.gif
+[basketball_anil]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/window_open_anil_1step.gif
+[basketball_ppo]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/window_open_ppo_1step.gif
 
 
-[basketball_maml]: https://github.com/Kostis-S-Z/exploring_meta/renders/lever_pull_maml_1step.gif
-[basketball_anil]: https://github.com/Kostis-S-Z/exploring_meta/renders/lever_pull_anil_1step.gif
-[basketball_ppo]: https://github.com/Kostis-S-Z/exploring_meta/renders/lever_pull_ppo_1step.gif
+[basketball_maml]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/lever_pull_maml_1step.gif
+[basketball_anil]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/lever_pull_anil_1step.gif
+[basketball_ppo]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/lever_pull_ppo_1step.gif
 
 
-[basketball_maml]: https://github.com/Kostis-S-Z/exploring_meta/renders/sweep_maml_1step.gif
-[basketball_anil]: https://github.com/Kostis-S-Z/exploring_meta/renders/sweep_anil_1step.gif
-[basketball_ppo]: https://github.com/Kostis-S-Z/exploring_meta/renders/sweep_ppo_1step.gif
+[basketball_maml]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/sweep_maml_1step.gif
+[basketball_anil]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/sweep_anil_1step.gif
+[basketball_ppo]: https://github.com/Kostis-S-Z/exploring_meta/blob/metaworld/renders/sweep_ppo_1step.gif
