@@ -385,7 +385,8 @@ def plot_sim_across_layers_average(changes_per_layer_mean, changes_per_layer_std
     plt.xlabel('Layers')
     plt.ylabel(f'CCA Similarity')
     plt.xticks(x_axis, ('L1', 'L2', 'Head'))
-    plt.errorbar(x_axis, y_axis_mean, yerr=y_err_var, marker='o')
+    plt.plot(x_axis, y_axis_mean, linestyle='-', marker='o', alpha=0.7)
+    plt.errorbar(x_axis, y_axis_mean, yerr=y_err_var, fmt='o')
     # plt.legend()
     plt.show()
 
