@@ -1,5 +1,5 @@
 import cherry as ch
-import learn2learn as l2l
+from learn2learn.gym import AsyncVectorEnv
 
 import gym
 import utils
@@ -18,7 +18,7 @@ def _make_mujoco(env_name, n_workers):
     if n_workers == 1:
         return init_env()
     else:
-        return l2l.gym.AsyncVectorEnv([init_env for _ in range(n_workers)])
+        return AsyncVectorEnv([init_env for _ in range(n_workers)])
 
 
 def _make_metaworld(env_name, n_workers, test, max_path_length):
@@ -42,7 +42,7 @@ def _make_metaworld(env_name, n_workers, test, max_path_length):
     if n_workers == 1:
         return init_env()
     else:
-        return l2l.gym.AsyncVectorEnv([init_env for _ in range(n_workers)])
+        return AsyncVectorEnv([init_env for _ in range(n_workers)])
 
 
 def make_env(env_name, n_workers, seed, test=False, max_path_length=None):

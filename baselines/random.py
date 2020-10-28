@@ -8,12 +8,12 @@ import numpy as np
 from tqdm import trange
 
 import cherry as ch
-from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.policies import DiagNormalPolicy
 from core_functions.rl import evaluate_ppo
 from core_functions.runner import Runner
+from core_functions.maml import MAML
 
 params = {
     # Common parameters

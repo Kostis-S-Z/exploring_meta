@@ -9,7 +9,8 @@ import torch
 from torchvision import transforms
 
 import learn2learn as l2l
-from learn2learn.data.transforms import NWays, KShots, LoadData, RemapLabels, ConsecutiveLabels
+from learn2learn.data.transforms import NWays, KShots, LoadData, RemapLabels, ConsecutiveLabels, FilterLabels
+from learn2learn.vision.transforms import RandomClassRotation
 
 
 def get_omniglot(ways, shots):
@@ -25,39 +26,39 @@ def get_omniglot(ways, shots):
     random.shuffle(classes)
 
     train_transforms = [
-        l2l.data.transforms.FilterLabels(dataset, classes[:1100]),
-        l2l.data.transforms.NWays(dataset, ways),
-        l2l.data.transforms.KShots(dataset, 2*shots),
-        l2l.data.transforms.LoadData(dataset),
-        l2l.data.transforms.RemapLabels(dataset),
-        l2l.data.transforms.ConsecutiveLabels(dataset),
-        l2l.vision.transforms.RandomClassRotation(dataset, [0.0, 90.0, 180.0, 270.0])
+        FilterLabels(dataset, classes[:1100]),
+        NWays(dataset, ways),
+        KShots(dataset, 2*shots),
+        LoadData(dataset),
+        RemapLabels(dataset),
+        ConsecutiveLabels(dataset),
+        RandomClassRotation(dataset, [0.0, 90.0, 180.0, 270.0])
     ]
     train_tasks = l2l.data.TaskDataset(dataset,
                                        task_transforms=train_transforms,
                                        num_tasks=20000)
 
     valid_transforms = [
-        l2l.data.transforms.FilterLabels(dataset, classes[1100:1200]),
-        l2l.data.transforms.NWays(dataset, ways),
-        l2l.data.transforms.KShots(dataset, 2*shots),
-        l2l.data.transforms.LoadData(dataset),
-        l2l.data.transforms.RemapLabels(dataset),
-        l2l.data.transforms.ConsecutiveLabels(dataset),
-        l2l.vision.transforms.RandomClassRotation(dataset, [0.0, 90.0, 180.0, 270.0])
+        FilterLabels(dataset, classes[1100:1200]),
+        NWays(dataset, ways),
+        KShots(dataset, 2*shots),
+        LoadData(dataset),
+        RemapLabels(dataset),
+        ConsecutiveLabels(dataset),
+        RandomClassRotation(dataset, [0.0, 90.0, 180.0, 270.0])
     ]
     valid_tasks = l2l.data.TaskDataset(dataset,
                                        task_transforms=valid_transforms,
                                        num_tasks=1024)
 
     test_transforms = [
-        l2l.data.transforms.FilterLabels(dataset, classes[1200:]),
-        l2l.data.transforms.NWays(dataset, ways),
-        l2l.data.transforms.KShots(dataset, 2*shots),
-        l2l.data.transforms.LoadData(dataset),
-        l2l.data.transforms.RemapLabels(dataset),
-        l2l.data.transforms.ConsecutiveLabels(dataset),
-        l2l.vision.transforms.RandomClassRotation(dataset, [0.0, 90.0, 180.0, 270.0])
+        FilterLabels(dataset, classes[1200:]),
+        NWays(dataset, ways),
+        KShots(dataset, 2*shots),
+        LoadData(dataset),
+        RemapLabels(dataset),
+        ConsecutiveLabels(dataset),
+        RandomClassRotation(dataset, [0.0, 90.0, 180.0, 270.0])
     ]
     test_tasks = l2l.data.TaskDataset(dataset,
                                       task_transforms=test_transforms,

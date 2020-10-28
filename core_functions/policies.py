@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Taken directly from https://github.com/learnables/learn2learn/tree/master/examples/rl
+Code adapted from from https://github.com/learnables/learn2learn/tree/master/examples/rl
 """
 
 import math
