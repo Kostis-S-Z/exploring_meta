@@ -20,7 +20,9 @@ Check runs & results in [weights&biases](https://app.wandb.ai/kosz/l2l)
 
 ## Installing
 
-0. _Optional, but highly recommend to make a virtual environment for this project_
+*_NOTE_*: Unfortunately this repo was build with Meta-World experiments in mind and thus depends on the proprietary environment [MuJoCo](http://mujoco.org/). So you would need to first get a license for that and install it before you can run the experiments of this repo (Yes, even for the vision or RL-but-not-Meta-World experiments it's required, I am [working on](https://github.com/Kostis-S-Z/exploring_meta/issues/45) separating this dependency)
+
+0. _Optional, but highly recommended to make a virtual environment for this project_
 
 ```python3 -m venv meta_env``` or ``` virtualenv meta_env```
 
