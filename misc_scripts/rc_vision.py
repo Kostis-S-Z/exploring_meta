@@ -17,8 +17,9 @@ Setting:
 import os
 import json
 import numpy as np
+import statistics
 from core_functions.vision import accuracy
-from utils import prepare_batch, plot_dict
+from utils import prepare_batch, plot_dict, plot_dict_explicit
 from utils import get_cca_similarity, get_linear_CKA, get_kernel_CKA
 from tqdm import tqdm
 
@@ -30,9 +31,14 @@ default_params = {
 }
 
 
-def run_rep_exp(path, model, loss, tasks, device, ways, shots, rep_params=default_params):
+def run_rep_exp(path, model, loss, tasks, device, ways, shots, rep_params=default_params, features=None):
     rep_path = path + '/rep_exp'
-    os.mkdir(rep_path)
+    if os.path.exists(rep_path):
+        ans = input('Overriding previous results! Are you sure? (y/n) ')
+        if ans == 'n':
+            exit(0)
+    else:
+        os.mkdir(rep_path)
 
     # Ignore labels
     sanity_batch, _ = tasks.sample()
@@ -71,30 +77,27 @@ def run_rep_exp(path, model, loss, tasks, device, ways, shots, rep_params=defaul
             i_predictions = init_model(eval_d)
             i_valid_acc = accuracy(i_predictions, eval_l)
 
-            # TODO: We want to compare representations / weights
-            # what is the difference with the activations? -> weights vs activations?
-
-            # Get their representations for every layer
-            for i, layer in enumerate(cca_results.keys()):
-                adapted_rep_i = get_rep_from_batch(adapt_model, adapt_d, i + 2)
-                init_rep_i = get_rep_from_batch(init_model, adapt_d, i + 2)
-
-                cca_results[layer].append(get_cca_similarity(adapted_rep_i.T, init_rep_i.T, epsilon=1e-10)[1])
-                # NOTE: Currently CKA takes too long to compute so leave it out
-                # cka_l_results[layer].append(get_linear_CKA(adapted_rep_i, init_rep_i))
-                # cka_k_results[layer].append(get_kernel_CKA(adapted_rep_i, init_rep_i))
-
             acc_results[task, 0] = a_valid_acc
             acc_results[task, 1] = i_valid_acc
 
-    # print("We expect that column 0 has higher values than column 1")
-    # print(acc_results)
-    # print("We expect that the values decrease over time?")
-    # print("CCA:", cca_results)
-    # print("We expect that the values decrease over time?")
-    # print("linear CKA:", cka1_results)
-    # print("We expect that the values decrease over time?")
-    # print("Kernerl CKA:", cka2_results)
+        # Get their representations for every layer
+        for layer in cca_results.keys():
+            adapted_rep_i = get_rep_from_batch(adapt_model, adapt_d, int(layer))
+            init_rep_i = get_rep_from_batch(init_model, adapt_d, int(layer))
+
+            cca_results[layer].append(get_cca_similarity(adapted_rep_i.T, init_rep_i.T, epsilon=1e-10)[1])
+            # NOTE: Currently CKA takes too long to compute so leave it out
+            # cka_l_results[layer].append(get_linear_CKA(adapted_rep_i, init_rep_i))
+            # cka_k_results[layer].append(get_kernel_CKA(adapted_rep_i, init_rep_i))
+
+    # Average and calculate standard deviation
+    cca_mean = []
+    cca_std = []
+    for layer, values in cca_results.items():
+        mean = statistics.mean(values)
+        std = statistics.stdev(values)
+        cca_mean.append(mean)
+        cca_std.append(std)
 
     cca_plot = dict(title="CCA Evolution",
                     x_legend="Inner loop steps",
@@ -111,7 +114,7 @@ def run_rep_exp(path, model, loss, tasks, device, ways, shots, rep_params=defaul
                       y_legend="CKA similarity",
                       y_axis=cka_k_results,
                       path=path + "/inner_Kernel_CKA_evolution.png")
-    plot_dict(cca_plot, save=True)
+    # plot_dict(cca_plot, save=True)
     # plot_dict(cka_l_plot, save=True)
     # plot_dict(cka_k_plot, save=True)
 
@@ -121,17 +124,40 @@ def run_rep_exp(path, model, loss, tasks, device, ways, shots, rep_params=defaul
     with open(rep_path + '/cca_results.json', 'w') as fp:
         json.dump(cca_results, fp, sort_keys=True, indent=4)
 
+    x_axis = []
+    for i in cca_results.keys():
+        if int(i) > 0:
+            x_axis.append(f'Conv{i}')
+        else:
+            x_axis.append('Head')
+    cca_plot_2 = dict(title="Layer-wise changes before / after adaptation",
+                      x_legend="Layer",
+                      y_legend="CCA similarity",
+                      x_axis=x_axis,
+                      y_axis=cca_mean,
+                      std=cca_std)
+
+    cka_plot_2 = dict(title="CKA Evolution layer-wise",
+                      x_legend="Layer",
+                      y_legend="CKA similarity",
+                      x_axis=list(cka_l_results.keys()),
+                      y_axis=list(cka_l_results.values()))
+
+    plot_dict_explicit(cca_plot_2)
     return cca_results
 
 
 def get_rep_from_batch(model, batch, layer=4):
-    representation = model.get_rep_i(batch, layer)
-    representation = representation.cpu().detach().numpy()
+    if layer == -1:
+        representation = model(batch).cpu().detach().numpy()
+    else:
+        representation = model.get_rep_i(batch, layer)
+        representation = representation.cpu().detach().numpy()
 
-    batch_size = representation.shape[0]
-    conv_neurons = representation.shape[1]
-    conv_filters_1 = representation.shape[2]
-    conv_filters_2 = representation.shape[3]
+        batch_size = representation.shape[0]
+        conv_neurons = representation.shape[1]
+        conv_filters_1 = representation.shape[2]
+        conv_filters_2 = representation.shape[3]
 
-    representation = representation.reshape((conv_neurons * conv_filters_1 * conv_filters_2, batch_size))
+        representation = representation.reshape((conv_neurons * conv_filters_1 * conv_filters_2, batch_size))
     return representation

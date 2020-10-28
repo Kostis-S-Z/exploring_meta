@@ -4,31 +4,33 @@ import os
 import json
 import torch
 
-import learn2learn as l2l
-
+from misc_scripts import run_cl_exp, run_rep_exp
 from utils import get_mini_imagenet, get_omniglot
 from core_functions.vision import evaluate
-from misc_scripts import run_cl_exp, run_rep_exp
+from core_functions.vision_models import OmniglotCNN, MiniImagenetCNN, ConvBase
+from core_functions.maml import MAML
 
 cuda = True
 
-base_path = "/home/kosz/Projects/KTH/Thesis/exploring_meta/vision/results/anil_20w1s_omni_06_09_11h17_3_4772"
+base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/maml_5w5s_min_31_03_12h53_1_1434"
 
-eval_iters = True
-cl_exp = True
-rep_exp = False
+meta_test = False
+eval_iters = False
+cl_exp = False
+rep_exp = True
 
 cl_params = {
     "adapt_steps": 1,
     "inner_lr": 0.5,
-    "n_tasks": 10
+    "n_tasks": 5
 }
 
 rep_params = {
     "adapt_steps": 1,
     "inner_lr": 0.5,
-    "n_tasks": 2,
-    "layers": [3, 4]
+    "n_tasks": 5,
+    "layers": [1, 2, 3, 4, -1],  # MIN
+    # "layers": [2, 4]  # Omni
 }
 
 
@@ -48,6 +50,7 @@ def run(path):
         params = json.load(f)['config']
 
     device = torch.device('cpu')
+    torch.manual_seed(params['seed'])
     if cuda and torch.cuda.device_count():
         torch.cuda.manual_seed(params['seed'])
         device = torch.device('cuda')
@@ -58,16 +61,18 @@ def run(path):
         _, _, test_tasks = get_omniglot(params['ways'], params['shots'])
 
     if "maml" in path:
-        run_maml(path, params, test_tasks, device)
+        run_maml(params, test_tasks, device)
     else:
-        anil(path, params, test_tasks, device)
+        run_anil(params, test_tasks, device)
 
 
-def run_maml(path, params, test_tasks, device):
-    if "min" in path:
-        model = l2l.vision.models.MiniImagenetCNN(params['ways'])
+def run_maml(params, test_tasks, device):
+    if 'min' == params['dataset']:
+        print('Loading Mini-ImageNet model')
+        model = MiniImagenetCNN(params['ways'])
     else:
-        model = l2l.vision.models.OmniglotCNN(params['ways'])
+        print('Loading Omniglot model')
+        model = OmniglotCNN(params['ways'])
 
     # Evaluate the model at every checkpoint
     if eval_iters:
@@ -83,12 +88,15 @@ def run_maml(path, params, test_tasks, device):
             json.dump(model_ckpnt_results, fp, sort_keys=True, indent=4)
 
     final_model = base_path + '/model.pt'
+    if meta_test:
+        evaluate_maml(params, model, test_tasks, device, final_model)
+
     # Run a Continual Learning experiment
     if cl_exp:
         print("Running Continual Learning experiment...")
         model.load_state_dict(torch.load(final_model))
         model.to(device)
-        maml = l2l.algorithms.MAML(model, lr=cl_params['inner_lr'], first_order=False)
+        maml = MAML(model, lr=cl_params['inner_lr'], first_order=False)
         loss = torch.nn.CrossEntropyLoss(reduction='mean')
 
         run_cl_exp(base_path, maml, loss, test_tasks, device,
@@ -98,7 +106,7 @@ def run_maml(path, params, test_tasks, device):
     if rep_exp:
         model.load_state_dict(torch.load(final_model))
         model.to(device)
-        maml = l2l.algorithms.MAML(model, lr=rep_params['inner_lr'], first_order=False)
+        maml = MAML(model, lr=rep_params['inner_lr'], first_order=False)
         loss = torch.nn.CrossEntropyLoss(reduction='mean')
 
         print("Running Representation experiment...")
@@ -106,20 +114,19 @@ def run_maml(path, params, test_tasks, device):
                     params['ways'], params['shots'], rep_params=rep_params)
 
 
-def anil(path, params, test_tasks, device):
+def run_anil(params, test_tasks, device):
     # ANIL
-    if "omni" in path:
+    if 'omni' == params['dataset']:
+        print('Loading Omniglot model')
         fc_neurons = 128
-        features = l2l.vision.models.ConvBase(output_size=64, hidden=32, channels=1, max_pool=False)
+        features = ConvBase(output_size=64, hidden=32, channels=1, max_pool=False)
     else:
+        print('Loading Mini-ImageNet model')
         fc_neurons = 1600
-        features = l2l.vision.models.ConvBase(output_size=64, channels=3, max_pool=True)
+        features = ConvBase(output_size=64, channels=3, max_pool=True)
     features = torch.nn.Sequential(features, Lambda(lambda x: x.view(-1, fc_neurons)))
-    features.to(device)
-
     head = torch.nn.Linear(fc_neurons, params['ways'])
-    head = l2l.algorithms.MAML(head, lr=params['inner_lr'])
-    head.to(device)
+    head = MAML(head, lr=params['inner_lr'])
 
     # Evaluate the model at every checkpoint
     if eval_iters:
@@ -141,6 +148,9 @@ def anil(path, params, test_tasks, device):
 
     final_features = base_path + '/features.pt'
     final_head = base_path + '/head.pt'
+
+    if meta_test:
+        evaluate_anil(params, features, head, test_tasks, device, final_features, final_head)
 
     if cl_exp:
         print("Running Continual Learning experiment...")
@@ -164,16 +174,19 @@ def anil(path, params, test_tasks, device):
 
         loss = torch.nn.CrossEntropyLoss(reduction='mean')
 
+        # Only check head change
+        rep_params['layers'] = [-1]
+
         print("Running Representation experiment...")
         run_rep_exp(base_path, head, loss, test_tasks, device,
-                    params['ways'], params['shots'], rep_params=rep_params)
+                    params['ways'], params['shots'], rep_params=rep_params, features=features)
 
 
 def evaluate_maml(params, model, test_tasks, device, path):
     model.load_state_dict(torch.load(path))
     model.to(device)
 
-    maml = l2l.algorithms.MAML(model, lr=params['inner_lr'], first_order=False)
+    maml = MAML(model, lr=params['inner_lr'], first_order=False)
 
     loss = torch.nn.CrossEntropyLoss(reduction='mean')
 
@@ -185,6 +198,7 @@ def evaluate_anil(params, features, head, test_tasks, device, features_path, hea
     features.to(device)
 
     head.load_state_dict(torch.load(head_path))
+    head = MAML(head, lr=params['inner_lr'])
     head.to(device)
 
     loss = torch.nn.CrossEntropyLoss(reduction='mean')
@@ -194,3 +208,45 @@ def evaluate_anil(params, features, head, test_tasks, device, features_path, hea
 
 if __name__ == '__main__':
     run(base_path)
+    exit()
+    # MIN
+
+    # ANIL 5w1s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w1s/anil_5w1s_min_10_09_10h08_3_8815"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w1s/anil_5w1s_min_10_09_11h06_2_2906"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w1s/anil_5w1s_min_10_09_11h59_1_1374"
+
+    # MAML 5w1s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w1s/maml_5w1s_min_10_09_12h58_3_2722"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w1s/maml_5w1s_min_10_09_15h12_1_9323"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w1s/maml_5w1s_min_10_09_17h09_2_6302"
+
+    # ANIL 5w5s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/anil_5w5s_min_11_09_00h36_1_6461"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/anil_5w5s_min_11_09_03h38_2_8655"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/anil_5w5s_min_11_09_05h56_3_6285"
+
+    # MAML 5w5s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/maml_5w5s_min_31_03_12h53_1_1434"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/maml_5w5s_min_31_03_12h54_2_1671"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/maml_5w5s_min_31_03_12h54_3_2104"
+
+    # Omni
+
+    # ANIL 20w1s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w1s/anil_20w1s_omni_06_09_11h17_1_4305"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w1s/anil_20w1s_omni_06_09_11h17_2_8126"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w1s/anil_20w1s_omni_06_09_11h17_3_4772"
+    # MAML 20w1s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w1s/maml_20w1s_omni_31_03_10h18_1_9247"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w1s/maml_20w1s_omni_31_03_10h21_2_302"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w1s/maml_20w1s_omni_31_03_10h22_3_7628"
+
+    # ANIL 20w5s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w5s/anil/anil_20w5s_omni_09_09_13h23_2_4977"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w5s/anil/anil_20w5s_omni_09_09_13h24_1_775"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w5s/anil/anil_20w5s_omni_09_09_14h31_3_5663"
+    # MAML 20w5s
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w5s/maml/maml_20w5s_omni_31_03_10h23_1_6864"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w5s/maml/maml_20w5s_omni_31_03_10h24_2_1576"
+    base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/omniglot/20w5s/maml/maml_20w5s_omni_31_03_10h24_3_8259"

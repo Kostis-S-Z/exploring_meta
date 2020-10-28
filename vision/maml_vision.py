@@ -6,10 +6,11 @@ import torch
 import numpy as np
 from tqdm import trange
 
-import learn2learn as l2l
+from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.vision import fast_adapt, evaluate
+from core_functions.vision_models import OmniglotCNN, MiniImagenetCNN
 
 params = {
     "ways": 5,
@@ -41,7 +42,7 @@ omni_cnn = True  # For omniglot, there is a FC and a CNN model available to choo
 
 cuda = True
 
-wandb = True
+wandb = False
 
 
 class MamlVision(Experiment):
@@ -64,15 +65,12 @@ class MamlVision(Experiment):
         if dataset == "omni":
             train_tasks, valid_tasks, test_tasks = get_omniglot(self.params['ways'], self.params['shots'])
             if omni_cnn:
-                model = l2l.vision.models.OmniglotCNN(self.params['ways'])
+                model = OmniglotCNN(self.params['ways'])
                 self.params['model_type'] = 'omni_CNN'
-            else:
-                model = l2l.vision.models.OmniglotFC(28 ** 2, self.params['ways'])
-                self.params['model_type'] = 'omni_FC'
             input_shape = (1, 28, 28)
         elif dataset == "min":
             train_tasks, valid_tasks, test_tasks = get_mini_imagenet(self.params['ways'], self.params['shots'])
-            model = l2l.vision.models.MiniImagenetCNN(self.params['ways'])
+            model = MiniImagenetCNN(self.params['ways'])
             input_shape = (3, 84, 84)
         else:
             print("Dataset not supported")
@@ -83,7 +81,7 @@ class MamlVision(Experiment):
     def run(self, train_tasks, valid_tasks, test_tasks, model, input_shape, device):
 
         model.to(device)
-        maml = l2l.algorithms.MAML(model, lr=self.params['inner_lr'], first_order=False)
+        maml = MAML(model, lr=self.params['inner_lr'], first_order=False)
         opt = torch.optim.Adam(maml.parameters(), self.params['outer_lr'])
         loss = torch.nn.CrossEntropyLoss(reduction='mean')
 
@@ -138,7 +136,6 @@ class MamlVision(Experiment):
                 self.log_metrics(metrics)
 
                 # Average the accumulated gradients and optimize
-                # TODO: is it the evaluation gradients or training + evaluation gradients?
                 for p in maml.parameters():
                     p.grad.data.mul_(1.0 / self.params['meta_batch_size'])
                 opt.step()

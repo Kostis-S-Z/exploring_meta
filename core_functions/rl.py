@@ -1,27 +1,43 @@
-import torch
 import cherry as ch
-import learn2learn as l2l
-from copy import deepcopy
-
-import numpy as np
-from torch.distributions.kl import kl_divergence
-from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from cherry.algorithms import a2c, trpo, ppo
 from cherry.pg import generalized_advantage
+
+from learn2learn import clone_module, magic_box
+from learn2learn.algorithms.maml import maml_update
+
+import torch
+from torch.distributions.kl import kl_divergence
+from torch.nn.utils import parameters_to_vector, vector_to_parameters
+
+import numpy as np
+from copy import deepcopy
+from collections import defaultdict
 
 from utils import make_env
 from core_functions.runner import Runner
 
-""" COMMON """
-
 device = torch.device('cpu')
 
+
+ML10_train_task_names = {
+    0: 'reach',
+    1: 'push',
+    2: 'pick-place',
+    3: 'door-open',
+    4: 'drawer-close',
+    5: 'button-press',
+    6: 'peg-insert-side',
+    7: 'window-open',
+    8: 'sweep',
+    9: 'basketball',
+}
+
 ML10_eval_task_names = {
-    0: 'drawer-open-v1',
-    1: 'door-close-v1',
-    2: 'shelf-place-v1',
-    3: 'sweep-into-v1',
-    4: 'lever-pull-v1',
+    0: 'drawer-open',
+    1: 'door-close',
+    2: 'shelf-place',
+    3: 'sweep-into',
+    4: 'lever-pull',
 }
 
 
@@ -78,13 +94,10 @@ def get_success_per_ep(episodes, path_length):
 
 def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states, update_vf=True):
     returns = ch.td.discount(gamma, rewards, dones)
-    # if baseline.linear.weight.dim() != states.dim():  # if dimensions are not equal, try to flatten
-    #     states = states.flatten(1, -1)
-    #     next_states = next_states.flatten(1, -1)
-    #     dones = dones.reshape(-1, 1)
 
     if update_vf:
         baseline.fit(states, returns)
+
     values = baseline(states)
     next_values = baseline(next_states)
     bootstraps = values * (1.0 - dones) + next_values * dones
@@ -97,13 +110,55 @@ def compute_advantages(baseline, tau, gamma, rewards, dones, states, next_states
                                  next_value=next_value)
 
 
-def evaluate(algo, env_name, policy, baseline, params, anil, render=False):
+def sample_3_from_each_task(env):
+    # Get a sufficient large enough pool of tasks (this is computationally negligible)
+    task_list = env.sample_tasks(200)
+    check = defaultdict(list)
+    for i, k in enumerate(task_list):
+        check[k['task']] += [i]
+
+    final_task_list = []
+    for key, val in check.items():
+        for sample in val[:3]:
+            final_task_list.append(task_list[sample])
+
+    return final_task_list
+
+
+def sample_explicit_task(env, task):
+    # one liner to fetch the key from the dictionary based on the value
+    if task in ML10_eval_task_names.values():
+        task_index = list(ML10_eval_task_names.keys())[list(ML10_eval_task_names.values()).index(task)]
+    else:
+        task_index = list(ML10_train_task_names.keys())[list(ML10_train_task_names.values()).index(task)]
+    # Get a sufficient large enough pool of tasks (this is computationally negligible)
+    task_list = env.sample_tasks(100)
+    for t in task_list:
+        if t['task'] == task_index:
+            return t
+    return None
+
+
+def evaluate(algo, env_name, policy, baseline, params, anil, render=False, test_on_train=False, each3=False):
+    rewards_per_task = defaultdict(list)
     tasks_rewards = []
     tasks_success_rate = []
 
+    if test_on_train:
+        ml_task_names = ML10_train_task_names  # Meta-train tasks
+    else:
+        ml_task_names = ML10_eval_task_names  # Meta-testing tasks
+
     extra_info = True if 'ML' in env_name else False  # if env is metaworld, log success metric
-    env = make_env(env_name, 1, params['seed'], test=True, max_path_length=params['max_path_length'])
-    eval_task_list = env.sample_tasks(params['n_tasks'])
+    env = make_env(env_name, 1, params['seed'], test=(not test_on_train), max_path_length=params['max_path_length'])
+
+    if each3:
+        # Overwrite number of tasks and just sample 3 trials from each task
+        eval_task_list = sample_3_from_each_task(env)
+    elif isinstance(params['n_tasks'], str):
+        eval_task_list = [sample_explicit_task(env, params['n_tasks'])]
+    else:
+        eval_task_list = env.sample_tasks(params['n_tasks'])
 
     for i, task in enumerate(eval_task_list):
         learner = deepcopy(policy)
@@ -129,12 +184,15 @@ def evaluate(algo, env_name, policy, baseline, params, anil, render=False):
         tasks_rewards.append(query_rew)
         tasks_success_rate.append(query_success_rate)
         if extra_info:
-            print(f'Task {i + 1} / {len(eval_task_list)}: {ML10_eval_task_names[task["task"]]} task'
+            print(f'Task {i + 1} / {len(eval_task_list)}: {ml_task_names[task["task"]]} task'
                   f'\t {query_rew:.1f} rew | {query_success_rate * 100}% success rate')
+            rewards_per_task[ml_task_names[task["task"]]] += [query_rew, query_success_rate]
 
     final_eval_reward = sum(tasks_rewards) / params['n_tasks']
     final_eval_suc = sum(tasks_success_rate) / params['n_tasks']
 
+    if 'ML' in env_name:
+        return tasks_rewards, final_eval_reward, final_eval_suc, rewards_per_task
     return tasks_rewards, final_eval_reward, final_eval_suc
 
 
@@ -163,7 +221,7 @@ def vpg_a2c_loss(episodes, learner, baseline, gamma, tau, dice=False):
         weights[1:].add_(dones[:-1], alpha=-1.0)
         weights /= dones.sum()
         cum_log_probs = weighted_cumsum(log_probs, weights)
-        log_probs = l2l.magic_box(cum_log_probs)
+        log_probs = magic_box(cum_log_probs)
 
     return a2c.policy_loss(log_probs, advantages)
 
@@ -177,9 +235,9 @@ def fast_adapt_vpg(task, learner, baseline, params, anil=False, first_order=Fals
         # Collect adaptation / support episodes
         support_episodes = task.run(learner, episodes=params['adapt_batch_size'], render=render)
         # Calculate loss & fit the value function
-        inner_loss = vpg_a2c_loss(support_episodes, learner, baseline, params['gamma'], params['tau'])
+        adapt_loss = vpg_a2c_loss(support_episodes, learner, baseline, params['gamma'], params['tau'])
         # Adapt model based on the loss
-        learner.adapt(inner_loss, first_order=first_order, allow_unused=anil)  # In ANIL, not all parameters have grads
+        learner.adapt(adapt_loss, first_order=first_order, allow_unused=anil)  # In ANIL, not all parameters have grads
 
     # We need to include the body network parameters for the query set
     if anil:
@@ -188,12 +246,12 @@ def fast_adapt_vpg(task, learner, baseline, params, anil=False, first_order=Fals
     # Collect evaluation / query episodes
     query_episodes = task.run(learner, episodes=params['adapt_batch_size'])
     # Calculate loss for the outer loop optimization
-    outer_loss = vpg_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'])
+    valid_loss = vpg_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'])
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
     query_success_rate = get_ep_successes(query_episodes, params['max_path_length']) / params['adapt_batch_size']
 
-    return outer_loss, query_rew, query_success_rate
+    return valid_loss, query_rew, query_success_rate
 
 
 def evaluate_vpg(env, policy, baseline, eval_params, anil=False, render=False):
@@ -201,41 +259,6 @@ def evaluate_vpg(env, policy, baseline, eval_params, anil=False, render=False):
 
 
 """ PPO RELATED """
-
-
-def ppo_update(episodes, learner, baseline, params, anil=False):
-    """
-    Inspired by cherry-rl/examples/spinning-up/cherry_ppo.py
-    """
-
-    # Get values to device
-    states, actions, rewards, dones, next_states = get_episode_values(episodes)
-
-    # Update value function & Compute advantages
-    returns = ch.td.discount(params['gamma'], rewards, dones)
-    advantages = compute_advantages(baseline, params['tau'], params['gamma'], rewards, dones, states, next_states)
-    advantages = ch.normalize(advantages, epsilon=1e-8).detach()
-    # Calculate loss between states and action in the network
-    with torch.no_grad():
-        old_log_probs = learner.log_prob(states, actions)
-
-    # Initialize inner loop PPO optimizer
-    av_loss = 0.0
-
-    for ppo_epoch in range(params['ppo_epochs']):
-        new_log_probs = learner.log_prob(states, actions)
-
-        # Compute the policy loss
-        loss = ppo.policy_loss(new_log_probs, old_log_probs, advantages, clip=params['ppo_clip_ratio'])
-
-        # Adapt model based on the loss
-        learner.adapt(loss, allow_unused=anil)
-
-        # Do we need to update the value function in every epoch? only once outside?
-        baseline.fit(states, returns)
-        av_loss += loss
-
-    return av_loss / params['ppo_epochs']
 
 
 def fast_adapt_ppo(task, learner, baseline, params, anil=False, render=False):
@@ -247,9 +270,25 @@ def fast_adapt_ppo(task, learner, baseline, params, anil=False, render=False):
         # Collect adaptation / support episodes
         support_episodes = task.run(learner, episodes=params['adapt_batch_size'], render=render)
 
-        # Calculate loss & fit the value function & update the policy
-        inner_loss = ppo_update(support_episodes, learner, baseline, params, anil=anil)
-        # print(f'Inner loss {step}: {round(inner_loss.item(), 3)}')
+        # Get values to device
+        states, actions, rewards, dones, next_states = get_episode_values(support_episodes)
+
+        # Update value function & Compute advantages
+        advantages = compute_advantages(baseline, params['tau'], params['gamma'], rewards, dones, states, next_states)
+        advantages = ch.normalize(advantages, epsilon=1e-8).detach()
+        # Calculate loss between states and action in the network
+        with torch.no_grad():
+            old_log_probs = learner.log_prob(states, actions)
+
+        # Initialize inner loop PPO optimizer
+        av_loss = 0.0
+        for ppo_epoch in range(params['ppo_epochs']):
+            new_log_probs = learner.log_prob(states, actions)
+            # Compute the policy loss
+            loss = ppo.policy_loss(new_log_probs, old_log_probs, advantages, clip=params['ppo_clip_ratio'])
+            # Adapt model based on the loss
+            learner.adapt(loss, allow_unused=anil)
+            av_loss += loss
 
     # We need to include the body network parameters for the query set
     if anil:
@@ -257,15 +296,44 @@ def fast_adapt_ppo(task, learner, baseline, params, anil=False, render=False):
 
     # Collect evaluation / query episodes
     query_episodes = task.run(learner, episodes=params['adapt_batch_size'])
-    # Calculate loss for the outer loop optimization WITHOUT adapting (works, tested!)
-    eval_learner = learner.clone()
-    eval_baseline = deepcopy(baseline)
-    outer_loss = ppo_update(query_episodes, eval_learner, eval_baseline, params, anil=anil)
+    # Get values to device
+    states, actions, rewards, dones, next_states = get_episode_values(query_episodes)
+    # Update value function & Compute advantages
+    advantages = compute_advantages(baseline, params['tau'], params['gamma'], rewards, dones, states, next_states)
+    advantages = ch.normalize(advantages, epsilon=1e-8).detach()
+    # Calculate loss between states and action in the network
+    with torch.no_grad():
+        old_log_probs = learner.log_prob(states, actions)
+
+    new_log_probs = learner.log_prob(states, actions)
+    # Compute the policy loss
+    valid_loss = ppo.policy_loss(new_log_probs, old_log_probs, advantages, clip=params['ppo_clip_ratio'])
+
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
     query_success_rate = get_ep_successes(query_episodes, params['max_path_length']) / params['adapt_batch_size']
 
-    return outer_loss, query_rew, query_success_rate
+    return valid_loss, query_rew, query_success_rate
+
+
+def single_ppo_update(episodes, learner, baseline, params, anil=False):
+    # Get values to device
+    states, actions, rewards, dones, next_states = get_episode_values(episodes)
+
+    # Update value function & Compute advantages
+    advantages = compute_advantages(baseline, params['tau'], params['gamma'], rewards, dones, states, next_states)
+    advantages = ch.normalize(advantages, epsilon=1e-8).detach()
+    # Calculate loss between states and action in the network
+    with torch.no_grad():
+        old_log_probs = learner.log_prob(states, actions)
+
+    # Initialize inner loop PPO optimizer
+    new_log_probs = learner.log_prob(states, actions)
+    # Compute the policy loss
+    loss = ppo.policy_loss(new_log_probs, old_log_probs, advantages, clip=params['ppo_clip_ratio'])
+    # Adapt model based on the loss
+    learner.adapt(loss, allow_unused=anil)
+    return loss
 
 
 def evaluate_ppo(env, policy, baseline, eval_params, anil=False, render=False):
@@ -303,7 +371,7 @@ def trpo_update(episodes, learner, baseline, inner_lr, gamma, tau, anil=False, f
                                     allow_unused=anil)
 
     # Perform a MAML update of all the parameters in the model variable using the gradients above
-    return l2l.algorithms.maml.maml_update(learner, inner_lr, gradients)
+    return maml_update(learner, inner_lr, gradients)
 
 
 def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=False, render=False):
@@ -330,12 +398,12 @@ def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=Fal
     query_episodes = task.run(learner, episodes=params['adapt_batch_size'])
     task_replay.append(query_episodes)
     # Calculate loss for the outer loop optimization WITHOUT adapting
-    outer_loss = trpo_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'], update_vf=False)
+    valid_loss = trpo_a2c_loss(query_episodes, learner, baseline, params['gamma'], params['tau'], update_vf=False)
     # Calculate the average reward of the evaluation episodes
     query_rew = query_episodes.reward().sum().item() / params['adapt_batch_size']
     query_success_rate = get_ep_successes(query_episodes, params['max_path_length']) / params['adapt_batch_size']
 
-    return learner, outer_loss, task_replay, query_rew, query_success_rate
+    return learner, valid_loss, task_replay, query_rew, query_success_rate
 
 
 def meta_optimize_trpo(params, policy, baseline, iter_replays, iter_policies, anil=False):
@@ -376,7 +444,7 @@ def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, params, a
     for task_replays, old_policy in zip(iter_replays, iter_policies):
         train_replays = task_replays[:-1]
         valid_episodes = task_replays[-1]
-        new_policy = l2l.clone_module(policy)
+        new_policy = clone_module(policy)
 
         # Fast Adapt to the training episodes
         for train_episodes in train_replays:
