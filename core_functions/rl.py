@@ -1,19 +1,20 @@
-import torch
 import cherry as ch
-import learn2learn as l2l
-from copy import deepcopy
-from collections import defaultdict
-
-import numpy as np
-from torch.distributions.kl import kl_divergence
-from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from cherry.algorithms import a2c, trpo, ppo
 from cherry.pg import generalized_advantage
 
+from learn2learn import clone_module, magic_box
+from learn2learn.algorithms.maml import maml_update
+
+import torch
+from torch.distributions.kl import kl_divergence
+from torch.nn.utils import parameters_to_vector, vector_to_parameters
+
+import numpy as np
+from copy import deepcopy
+from collections import defaultdict
+
 from utils import make_env
 from core_functions.runner import Runner
-
-""" COMMON """
 
 device = torch.device('cpu')
 
@@ -204,7 +205,7 @@ def vpg_a2c_loss(episodes, learner, baseline, gamma, tau, dice=False):
         weights[1:].add_(dones[:-1], alpha=-1.0)
         weights /= dones.sum()
         cum_log_probs = weighted_cumsum(log_probs, weights)
-        log_probs = l2l.magic_box(cum_log_probs)
+        log_probs = magic_box(cum_log_probs)
 
     return a2c.policy_loss(log_probs, advantages)
 
@@ -354,7 +355,7 @@ def trpo_update(episodes, learner, baseline, inner_lr, gamma, tau, anil=False, f
                                     allow_unused=anil)
 
     # Perform a MAML update of all the parameters in the model variable using the gradients above
-    return l2l.algorithms.maml.maml_update(learner, inner_lr, gradients)
+    return maml_update(learner, inner_lr, gradients)
 
 
 def fast_adapt_trpo(task, learner, baseline, params, anil=False, first_order=False, render=False):
@@ -427,7 +428,7 @@ def meta_surrogate_loss(iter_replays, iter_policies, policy, baseline, params, a
     for task_replays, old_policy in zip(iter_replays, iter_policies):
         train_replays = task_replays[:-1]
         valid_episodes = task_replays[-1]
-        new_policy = l2l.clone_module(policy)
+        new_policy = clone_module(policy)
 
         # Fast Adapt to the training episodes
         for train_episodes in train_replays:

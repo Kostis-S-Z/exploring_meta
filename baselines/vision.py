@@ -6,14 +6,17 @@ import torch
 import numpy as np
 from tqdm import trange
 
+from learn2learn.algorithms import MAML
+
 from utils import Experiment, get_omniglot, get_mini_imagenet
-from core_functions.vision import accuracy, evaluate, OmniglotCNN, MiniImagenetCNN
+from core_functions.vision import accuracy, evaluate
+from core_functions.vision_models import OmniglotCNN, MiniImagenetCNN
 
 params = {
     "ways": 5,
     "shots": 5,
     "lr": 0.001,
-    "batch_size": 256,
+    "meta_batch_size": 256,
     "num_iterations": 10000,  # 10k for Mini-ImageNet, 5k for Omniglot
     "save_every": 1000,
     "seed": 42,
@@ -74,7 +77,7 @@ class VisionBaseline(Experiment):
 
         self.log_model(model, device, input_shape=input_shape)  # Input shape is specific to dataset
 
-        n_batch_iter = int(320 / self.params['batch_size'])
+        n_batch_iter = int(320 / self.params['meta_batch_size'])
         t = trange(self.params['num_iterations'])
         try:
 
@@ -135,6 +138,8 @@ class VisionBaseline(Experiment):
 
         self.logger['elapsed_time'] = str(round(t.format_dict['elapsed'], 2)) + ' sec'
         # Testing on unseen tasks
+        model = MAML(model, lr=self.params['lr'])
+        self.params['adapt_steps'] = 1  # Placeholder value for evaluation
         self.logger['test_acc'] = evaluate(self.params, test_tasks, model, loss, device)
         self.log_metrics({'test_acc': self.logger['test_acc']})
         self.save_logs_to_file()
@@ -147,7 +152,7 @@ if __name__ == '__main__':
     parser.add_argument('--ways', type=int, default=params['ways'], help='N-ways (classes)')
     parser.add_argument('--shots', type=int, default=params['shots'], help='K-shots (samples per class)')
     parser.add_argument('--lr', type=float, default=params['lr'], help='Learning rate')
-    parser.add_argument('--batch_size', type=int, default=params['batch_size'], help='Batch size')
+    parser.add_argument('--batch_size', type=int, default=params['meta_batch_size'], help='Batch size')
     parser.add_argument('--num_iterations', type=int, default=params['num_iterations'], help='Number of epochs')
     parser.add_argument('--save_every', type=int, default=params['save_every'], help='Interval to save model')
     parser.add_argument('--seed', type=int, default=params['seed'], help='Seed')
@@ -158,7 +163,7 @@ if __name__ == '__main__':
     params['ways'] = args.ways
     params['shots'] = args.shots
     params['lr'] = args.lr
-    params['batch_size'] = args.batch_size
+    params['meta_batch_size'] = args.batch_size
     params['num_iterations'] = args.num_iterations
     params['save_every'] = args.save_every
     params['seed'] = args.seed

@@ -4,18 +4,16 @@ import os
 import json
 import torch
 
-import learn2learn as l2l
+from learn2learn.algorithms import MAML
 
-from utils import get_mini_imagenet, get_omniglot
-from core_functions.vision import evaluate, OmniglotCNN, MiniImagenetCNN, ConvBase
 from misc_scripts import run_cl_exp, run_rep_exp
+from utils import get_mini_imagenet, get_omniglot
+from core_functions.vision import evaluate
+from core_functions.vision_models import OmniglotCNN, MiniImagenetCNN, ConvBase
 
 cuda = True
 
-base_path = "/home/kosz/Projects/KTH/Thesis/exploring_meta/vision/results/anil_20w1s_omni_06_09_11h17_3_4772"
-# base_path = "/home/kosz/Projects/KTH/Thesis/exploring_meta/vision/test/maml_5w1s_min_09_10_17h15_42_7327"
-# base_path = "/home/kosz/Projects/KTH/Thesis/exploring_meta/vision/test/maml_5w1s_min_09_10_17h00_42_1871"
-base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/anil_5w5s_min_11_09_00h36_1_6461"
+base_path = "/home/kosz/Projects/KTH/Thesis/models/vision/mini_imagenet/5w5s/maml_5w5s_min_31_03_12h53_1_1434"
 
 meta_test = True
 eval_iters = False
@@ -98,7 +96,7 @@ def run_maml(params, test_tasks, device):
         print("Running Continual Learning experiment...")
         model.load_state_dict(torch.load(final_model))
         model.to(device)
-        maml = l2l.algorithms.MAML(model, lr=cl_params['inner_lr'], first_order=False)
+        maml = MAML(model, lr=cl_params['inner_lr'], first_order=False)
         loss = torch.nn.CrossEntropyLoss(reduction='mean')
 
         run_cl_exp(base_path, maml, loss, test_tasks, device,
@@ -108,7 +106,7 @@ def run_maml(params, test_tasks, device):
     if rep_exp:
         model.load_state_dict(torch.load(final_model))
         model.to(device)
-        maml = l2l.algorithms.MAML(model, lr=rep_params['inner_lr'], first_order=False)
+        maml = MAML(model, lr=rep_params['inner_lr'], first_order=False)
         loss = torch.nn.CrossEntropyLoss(reduction='mean')
 
         print("Running Representation experiment...")
@@ -119,14 +117,16 @@ def run_maml(params, test_tasks, device):
 def run_anil(params, test_tasks, device):
     # ANIL
     if 'omni' == params['dataset']:
+        print('Loading Omniglot model')
         fc_neurons = 128
         features = ConvBase(output_size=64, hidden=32, channels=1, max_pool=False)
     else:
+        print('Loading Mini-ImageNet model')
         fc_neurons = 1600
         features = ConvBase(output_size=64, channels=3, max_pool=True)
     features = torch.nn.Sequential(features, Lambda(lambda x: x.view(-1, fc_neurons)))
     head = torch.nn.Linear(fc_neurons, params['ways'])
-    head = l2l.algorithms.MAML(head, lr=params['inner_lr'])
+    head = MAML(head, lr=params['inner_lr'])
 
     # Evaluate the model at every checkpoint
     if eval_iters:
@@ -186,7 +186,7 @@ def evaluate_maml(params, model, test_tasks, device, path):
     model.load_state_dict(torch.load(path))
     model.to(device)
 
-    maml = l2l.algorithms.MAML(model, lr=params['inner_lr'], first_order=False)
+    maml = MAML(model, lr=params['inner_lr'], first_order=False)
 
     loss = torch.nn.CrossEntropyLoss(reduction='mean')
 
@@ -198,7 +198,7 @@ def evaluate_anil(params, features, head, test_tasks, device, features_path, hea
     features.to(device)
 
     head.load_state_dict(torch.load(head_path))
-    head = l2l.algorithms.MAML(head, lr=params['inner_lr'])
+    head = MAML(head, lr=params['inner_lr'])
     head.to(device)
 
     loss = torch.nn.CrossEntropyLoss(reduction='mean')

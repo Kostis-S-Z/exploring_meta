@@ -6,10 +6,11 @@ import torch
 import numpy as np
 from tqdm import trange
 
-import learn2learn as l2l
+from learn2learn.algorithms import MAML
 
 from utils import *
-from core_functions.vision import fast_adapt, evaluate, OmniglotCNN, MiniImagenetCNN
+from core_functions.vision import fast_adapt, evaluate
+from core_functions.vision_models import OmniglotCNN, MiniImagenetCNN
 
 params = {
     "ways": 5,
@@ -80,7 +81,7 @@ class MamlVision(Experiment):
     def run(self, train_tasks, valid_tasks, test_tasks, model, input_shape, device):
 
         model.to(device)
-        maml = l2l.algorithms.MAML(model, lr=self.params['inner_lr'], first_order=False)
+        maml = MAML(model, lr=self.params['inner_lr'], first_order=False)
         opt = torch.optim.Adam(maml.parameters(), self.params['outer_lr'])
         loss = torch.nn.CrossEntropyLoss(reduction='mean')
 
@@ -135,7 +136,6 @@ class MamlVision(Experiment):
                 self.log_metrics(metrics)
 
                 # Average the accumulated gradients and optimize
-                # TODO: is it the evaluation gradients or training + evaluation gradients?
                 for p in maml.parameters():
                     p.grad.data.mul_(1.0 / self.params['meta_batch_size'])
                 opt.step()

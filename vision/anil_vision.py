@@ -6,10 +6,11 @@ import torch
 import numpy as np
 from tqdm import trange
 
-import learn2learn as l2l
+from learn2learn.algorithms import MAML
 
 from utils import *
 from core_functions.vision import fast_adapt, evaluate
+from core_functions.vision_models import ConvBase
 
 params = {
     "ways": 5,
@@ -83,14 +84,14 @@ class AnilVision(Experiment):
 
         # Create model
         if dataset == "omni":
-            features = l2l.vision.models.ConvBase(output_size=64, hidden=32, channels=1, max_pool=False)
+            features = ConvBase(output_size=64, hidden=32, channels=1, max_pool=False)
         else:
-            features = l2l.vision.models.ConvBase(output_size=64, channels=3, max_pool=True)
+            features = ConvBase(output_size=64, channels=3, max_pool=True)
         features = torch.nn.Sequential(features, Lambda(lambda x: x.view(-1, fc_neurons)))
         features.to(device)
 
         head = torch.nn.Linear(fc_neurons, self.params['ways'])
-        head = l2l.algorithms.MAML(head, lr=self.params['inner_lr'])
+        head = MAML(head, lr=self.params['inner_lr'])
         head.to(device)
 
         # Setup optimization
