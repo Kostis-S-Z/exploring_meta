@@ -1,10 +1,12 @@
+
+<!-- PROJECT SHIELDS -->
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
 [![MIT License][license-shield]][license-url]
 
 
-# Experiments on Model-Agnostic Meta-Learning
+## Experiments on Model-Agnostic Meta-Learning
 
 ## Table of Contents
 
@@ -135,3 +137,17 @@ Project Link: [https://github.com/github_username/repo_name](https://github.com/
 ## Acknowledgements
 
 Many thanks to fellow researchers & colleagues at [RISE](https://www.ri.se/en), [KTH](https://www.kth.se/en) and Séb Arnold from the [learn2learn](https://learn2learn.net/) team for insightful discussions about this project.  
+
+
+<!-- MARKDOWN LINKS & IMAGES -->
+<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
+[contributors-shield]: https://img.shields.io/github/contributors/Kostis-S-Z/exploring_meta.svg?style=flat-square
+[contributors-url]: https://github.com/Kostis-S-Z/exploring_meta/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/Kostis-S-Z/exploring_meta.svg?style=flat-square
+[forks-url]: https://github.com/Kostis-S-Z/exploring_meta/network/members
+[stars-shield]: https://img.shields.io/github/stars/Kostis-S-Z/exploring_meta.svg?style=flat-square
+[stars-url]: https://github.com/Kostis-S-Z/exploring_meta/stargazers
+[issues-shield]: https://img.shields.io/github/issues/Kostis-S-Z/exploring_meta.svg?style=flat-square
+[issues-url]: https://github.com/Kostis-S-Z/exploring_meta/issues
+[license-shield]: https://img.shields.io/github/license/Kostis-S-Z/exploring_meta.svg?style=flat-square
+[license-url]: https://github.com/Kostis-S-Z/exploring_meta/blob/master/LICENSE.txt
