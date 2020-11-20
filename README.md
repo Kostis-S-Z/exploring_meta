@@ -52,11 +52,11 @@ git clone https://github.com/github_username/repo_name.git
 
 2. Install Cython:
 
-```pip3 install cython```
+```pip install cython```
 
 3. Install core dependencies
 
-```pip3 install -r requirements.txt```
+```pip install -r requirements.txt```
 
 
 4. _(Optional)_ You can easily track models with [W&B](https://www.wandb.com/)
@@ -132,7 +132,7 @@ Konstantinos Saitas - Zarkias (Kostis S-Z)
 
 _Feel free to open an issue for anything related to this repo._
 
-Project Link: [https://github.com/github_username/repo_name](https://github.com/Kostis-S-Z/exploring_meta)
+Project Link: [https://github.com/Kostis-S-Z/exploring_metarepo_name](https://github.com/Kostis-S-Z/exploring_meta)
 
 ## Acknowledgements
 
