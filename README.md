@@ -88,7 +88,7 @@ _Check branches:_
 <!-- Project Structure -->
 ## Project Structure
 
-For a walk-through of the code for vision datasets check [here](https://github.com/Kostis-S-Z/exploring_meta/blob/master/vision/VISION_CODE_WALKTHROUGH.md).
+For a walk-through of the code for vision datasets check [here](https://github.com/Kostis-S-Z/exploring_meta/blob/master/vision/README.md).
 
 #### Modules (core dependencies)
 
