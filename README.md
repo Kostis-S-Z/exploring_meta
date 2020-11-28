@@ -14,8 +14,7 @@
   * [Built With](#built-with)
   * [Roadmap Overview](#roadmap-overview)
 * [Installation](#Installation)
-* [Usage](#usage)
-  * [Project Structure](#project-structure)
+* [Project Structure](#project-structure)
   * [Training example](#training-example)
 * [License](#license)
 * [Contact](#contact)
@@ -66,7 +65,7 @@ git clone https://github.com/github_username/repo_name.git
 
 ### Roadmap Overview
 
-Currently implemented are the following:
+Currently implemented:
 
 #### Vision: Omniglot, Mini-ImageNet
 - [x] MAML with CNN
@@ -86,14 +85,10 @@ _Check branches:_
 - [ ] MAML/ANIL - VPG (very unstable)
 
 
-<!-- Usage -->
-## Usage
+<!-- Project Structure -->
+## Project Structure
 
-For a vision walk-through of the code check [here](https://github.com/Kostis-S-Z/exploring_meta/blob/master/vision/VISION_CODE_WALKTHROUGH.md)
-
-For an RL walk-through of the code check [here](https://github.com/Kostis-S-Z/exploring_meta/blob/master/rl/RL_CODE_WALKTHROUGH.md)
-
-### Project Structure
+For a walk-through of the code for vision datasets check [here](https://github.com/Kostis-S-Z/exploring_meta/blob/master/vision/VISION_CODE_WALKTHROUGH.md).
 
 #### Modules (core dependencies)
 
@@ -132,7 +127,7 @@ Konstantinos Saitas - Zarkias (Kostis S-Z)
 
 _Feel free to open an issue for anything related to this repo._
 
-Project Link: [https://github.com/Kostis-S-Z/exploring_metarepo_name](https://github.com/Kostis-S-Z/exploring_meta)
+Project Link: [https://github.com/Kostis-S-Z/exploring_meta](https://github.com/Kostis-S-Z/exploring_meta)
 
 ## Acknowledgements
 
