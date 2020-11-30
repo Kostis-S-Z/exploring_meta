@@ -8,7 +8,7 @@
 
 ## Experiments on Model-Agnostic Meta-Learning
 
-<img src="https://github.com/Kostis-S-Z/exploring_meta/blob/master/renders/door-open.gif" width="200">
+<img align="center" src="https://github.com/Kostis-S-Z/exploring_meta/blob/master/renders/door-open.gif" width="300">
 
 ## Table of Contents
 
@@ -147,5 +147,5 @@ Many thanks to fellow researchers & colleagues at [RISE](https://www.ri.se/en), 
 [issues-shield]: https://img.shields.io/github/issues/Kostis-S-Z/exploring_meta.svg?style=flat-square
 [issues-url]: https://github.com/Kostis-S-Z/exploring_meta/issues
 [license-shield]: https://img.shields.io/github/license/Kostis-S-Z/exploring_meta.svg?style=flat-square
-[license-url]: https://github.com/Kostis-S-Z/exploring_meta/blob/master/LICENSE
+[license-url]: https://github.com/Kostis-S-Z/exploring_meta/blob/master/LICENSE.txt
 
