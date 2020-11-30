@@ -145,4 +145,4 @@ Many thanks to fellow researchers & colleagues at [RISE](https://www.ri.se/en), 
 [issues-shield]: https://img.shields.io/github/issues/Kostis-S-Z/exploring_meta.svg?style=flat-square
 [issues-url]: https://github.com/Kostis-S-Z/exploring_meta/issues
 [license-shield]: https://img.shields.io/github/license/Kostis-S-Z/exploring_meta.svg?style=flat-square
-[license-url]: https://github.com/Kostis-S-Z/exploring_meta/blob/master/LICENSE.txt
+[license-url]: https://github.com/Kostis-S-Z/exploring_meta/blob/master/LICENSE
