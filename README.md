@@ -3,12 +3,14 @@
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
-[![MIT License][license-shield]][license-url]
+<!--
+[![MIT License][license-shield]][license-url] 
+-->
 
 
 ## Experiments on Model-Agnostic Meta-Learning
 
-<img src="https://github.com/Kostis-S-Z/exploring_meta/blob/master/renders/door-open.gif" width="200">
+<p align="center"><img src="https://github.com/Kostis-S-Z/exploring_meta/blob/master/renders/door-open.gif" width="300" alt="robot_arm_opening_a_door"/></p>
 
 ## Table of Contents
 
