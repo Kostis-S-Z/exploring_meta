@@ -8,7 +8,7 @@
 -->
 
 
-## Experiments on Model-Agnostic Meta-Learning
+## Experiments on Model-Agnostic Meta-Learning [PDF](https://kth.diva-portal.org/smash/record.jsf?pid=diva2%3A1531273&dswid=-2090)
 
 <p align="center"><img src="https://github.com/Kostis-S-Z/exploring_meta/blob/master/renders/door-open.gif" width="300" alt="robot_arm_opening_a_door"/></p>
 
@@ -28,7 +28,7 @@
 <!-- ABOUT THE PROJECT -->
 ## About
 
-Exploring the effects of the Model-Agnostic Meta-Learning algorithms MAML & ANIL on Vision and meta-RL tasks. Including Representation similarity experiments for further insights on the network dynamics during meta-testing (adaptation) and Continual Learning experiments to test their ability to _adapt without forgetting_.
+Exploring the effects of the Model-Agnostic Meta-Learning algorithms MAML & ANIL on Vision and meta-RL tasks. Including Representation similarity experiments for further insights on the network dynamics during meta-testing (adaptation) and Continual Learning experiments to test their ability to _adapt without forgetting_. Feel free to checkout the whole M.Sc Thesis on [here](https://kth.diva-portal.org/smash/record.jsf?pid=diva2%3A1531273&dswid=-2090)
 
 Check out some of our runs & results in our [W&B Project](https://app.wandb.ai/kosz/l2l)
 
